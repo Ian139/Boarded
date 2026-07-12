@@ -24,6 +24,61 @@ import { colors } from '../../lib/theme';
 import { useUserStore } from '../../lib/stores/user-store';
 import { useRoutesStore } from '../../lib/stores/routes-store';
 
+function formatTimeAgo(dateStr: string, now: number): string {
+  const diff = now - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d`;
+  return `${Math.floor(days / 7)}w`;
+}
+
+function RouteCommentSection({
+  title,
+  comments,
+  emptyMessage,
+  now,
+  currentUserId,
+  onDelete,
+  marginTop,
+}: {
+  title: string;
+  comments: Comment[];
+  emptyMessage: string;
+  now: number;
+  currentUserId: string;
+  onDelete: (commentId: string) => void | Promise<void>;
+  marginTop: number;
+}) {
+  return (
+    <View style={{ marginTop }}>
+      <Text style={{ fontSize: 12, fontWeight: '600', color: colors.muted, marginBottom: 8 }}>{title}</Text>
+      {comments.length === 0 ? (
+        <Text style={{ fontSize: 12, color: colors.muted }}>{emptyMessage}</Text>
+      ) : (
+        comments.map((comment) => {
+          const isOwner = comment.user_id === currentUserId;
+          return (
+            <View key={comment.id} style={{ borderRadius: 12, padding: 10, marginBottom: 8, backgroundColor: colors.card }}>
+              <Text style={{ fontSize: 13, color: colors.text }}>{comment.content}</Text>
+              <Text style={{ fontSize: 11, color: colors.muted, marginTop: 6 }}>
+                {comment.user_name || 'Anonymous'} • {formatTimeAgo(comment.created_at, now)}
+              </Text>
+              {isOwner && (
+                <Pressable onPress={() => onDelete(comment.id)} style={{ marginTop: 8 }}>
+                  <Text style={{ fontSize: 12, color: colors.primary, fontWeight: '600' }}>Delete</Text>
+                </Pressable>
+              )}
+            </View>
+          );
+        })
+      )}
+    </View>
+  );
+}
+
 export default function SharedRouteScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
   const shareToken = typeof token === 'string' ? token : '';
@@ -117,17 +172,6 @@ export default function SharedRouteScreen() {
     return calculateDisplayGrade(route.grade_v, route.ascents || []);
   }, [route]);
 
-  const formatTimeAgo = (dateStr: string) => {
-    const diff = now - new Date(dateStr).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `${mins}m`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h`;
-    const days = Math.floor(hrs / 24);
-    if (days < 7) return `${days}d`;
-    return `${Math.floor(days / 7)}w`;
-  };
-
   const handleAddComment = async () => {
     if (!route || !commentText.trim()) return;
     setIsPosting(true);
@@ -159,6 +203,10 @@ export default function SharedRouteScreen() {
     if (type === 'finish') return 'F';
     return null;
   };
+  const comments = route?.comments || [];
+  const betaComments = comments.filter((comment) => comment.is_beta);
+  const regularComments = comments.filter((comment) => !comment.is_beta);
+  const currentUserId = user?.id || 'local-user';
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
@@ -288,53 +336,25 @@ export default function SharedRouteScreen() {
               </View>
             </View>
 
-            <View style={{ marginTop: 20 }}>
-              <Text style={{ fontSize: 12, fontWeight: '600', color: colors.muted, marginBottom: 8 }}>Beta</Text>
-              {(route.comments || []).filter((c) => c.is_beta).length === 0 ? (
-                <Text style={{ fontSize: 12, color: colors.muted }}>No beta yet.</Text>
-              ) : (
-                (route.comments || []).filter((c) => c.is_beta).map((comment) => {
-                  const isOwner = comment.user_id === (user?.id || 'local-user');
-                  return (
-                    <View key={comment.id} style={{ borderRadius: 12, padding: 10, marginBottom: 8, backgroundColor: colors.card }}>
-                      <Text style={{ fontSize: 13, color: colors.text }}>{comment.content}</Text>
-                      <Text style={{ fontSize: 11, color: colors.muted, marginTop: 6 }}>
-                        {comment.user_name || 'Anonymous'} • {formatTimeAgo(comment.created_at)}
-                      </Text>
-                      {isOwner && (
-                        <Pressable onPress={() => handleDeleteComment(comment.id)} style={{ marginTop: 8 }}>
-                          <Text style={{ fontSize: 12, color: colors.primary, fontWeight: '600' }}>Delete</Text>
-                        </Pressable>
-                      )}
-                    </View>
-                  );
-                })
-              )}
-            </View>
+            <RouteCommentSection
+              title="Beta"
+              comments={betaComments}
+              emptyMessage="No beta yet."
+              now={now}
+              currentUserId={currentUserId}
+              onDelete={handleDeleteComment}
+              marginTop={20}
+            />
 
-            <View style={{ marginTop: 16 }}>
-              <Text style={{ fontSize: 12, fontWeight: '600', color: colors.muted, marginBottom: 8 }}>Comments</Text>
-              {(route.comments || []).filter((c) => !c.is_beta).length === 0 ? (
-                <Text style={{ fontSize: 12, color: colors.muted }}>No comments yet.</Text>
-              ) : (
-                (route.comments || []).filter((c) => !c.is_beta).map((comment) => {
-                  const isOwner = comment.user_id === (user?.id || 'local-user');
-                  return (
-                    <View key={comment.id} style={{ borderRadius: 12, padding: 10, marginBottom: 8, backgroundColor: colors.card }}>
-                      <Text style={{ fontSize: 13, color: colors.text }}>{comment.content}</Text>
-                      <Text style={{ fontSize: 11, color: colors.muted, marginTop: 6 }}>
-                        {comment.user_name || 'Anonymous'} • {formatTimeAgo(comment.created_at)}
-                      </Text>
-                      {isOwner && (
-                        <Pressable onPress={() => handleDeleteComment(comment.id)} style={{ marginTop: 8 }}>
-                          <Text style={{ fontSize: 12, color: colors.primary, fontWeight: '600' }}>Delete</Text>
-                        </Pressable>
-                      )}
-                    </View>
-                  );
-                })
-              )}
-            </View>
+            <RouteCommentSection
+              title="Comments"
+              comments={regularComments}
+              emptyMessage="No comments yet."
+              now={now}
+              currentUserId={currentUserId}
+              onDelete={handleDeleteComment}
+              marginTop={16}
+            />
 
             <View style={{ marginTop: 16, borderRadius: 16, padding: 12, backgroundColor: colors.card }}>
               <Text style={{ fontSize: 12, fontWeight: '600', color: colors.muted, marginBottom: 8 }}>Add a comment</Text>

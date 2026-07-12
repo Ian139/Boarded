@@ -2,6 +2,8 @@ import SwiftUI
 
 struct RoutesView: View {
     @EnvironmentObject var viewModel: RoutesViewModel
+    @EnvironmentObject var session: AppSession
+    @StateObject private var wallsViewModel = WallsViewModel()
     @State private var selectedRoute: Route?
 
     var body: some View {
@@ -18,6 +20,7 @@ struct RoutesView: View {
             if viewModel.routes.isEmpty {
                 await viewModel.load()
             }
+            await wallsViewModel.load(userId: session.userId)
         }
         .sheet(item: $selectedRoute) { route in
             RouteDetailView(route: route)
@@ -38,6 +41,8 @@ struct RoutesView: View {
 
             SearchField(text: $viewModel.searchText, placeholder: "Search routes, setters...")
 
+            wallFilter
+
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(SortOption.allCases) { option in
@@ -56,6 +61,28 @@ struct RoutesView: View {
         .padding(.bottom, 10)
         .frame(maxWidth: AppLayout.contentMaxWidth)
         .frame(maxWidth: .infinity)
+    }
+
+    private var wallFilter: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                FilterChip(title: "All Walls", isActive: viewModel.selectedWallFilterId == nil)
+                    .onTapGesture {
+                        viewModel.selectedWallFilterId = nil
+                    }
+
+                ForEach(wallsViewModel.walls) { wall in
+                    FilterChip(
+                        title: wall.name,
+                        isActive: viewModel.selectedWallFilterId == wall.id
+                    )
+                    .onTapGesture {
+                        viewModel.selectedWallFilterId = wall.id
+                    }
+                }
+            }
+            .padding(.vertical, 2)
+        }
     }
 
     private var content: some View {
@@ -102,6 +129,7 @@ struct RoutesView: View {
 struct RoutesView_Previews: PreviewProvider {
     static var previews: some View {
         RoutesView()
+            .environmentObject(AppSession())
             .environmentObject(RoutesViewModel(repository: MockRoutesRepository()))
     }
 }

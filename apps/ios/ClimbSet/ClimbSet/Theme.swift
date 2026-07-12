@@ -27,8 +27,32 @@ enum AppLayout {
     static let horizontalPadding: CGFloat = 16
     static let verticalPadding: CGFloat = 12
     static let contentMaxWidth: CGFloat = 560
-    static let editorMaxWidth: CGFloat = 620
+    static let editorMaxWidth: CGFloat = 760
     static let defaultWallAspectRatio: CGFloat = 3001.0 / 2733.0
+}
+
+enum AppAppearanceMode: String, CaseIterable, Identifiable {
+    case system
+    case light
+    case dark
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .system: return "System"
+        case .light: return "Light"
+        case .dark: return "Dark"
+        }
+    }
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
 }
 
 private func hexToRGB(_ value: String) -> (r: Double, g: Double, b: Double) {

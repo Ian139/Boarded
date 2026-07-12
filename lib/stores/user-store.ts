@@ -71,6 +71,18 @@ function buildUsername(displayName: string, email: string, userId: string) {
   return `${base}-${userId.slice(0, 4)}`;
 }
 
+let removeAuthListener: (() => void) | null = null;
+
+function authenticatedState(user: User) {
+  return {
+    user,
+    isAuthenticated: true,
+    isModerator: user.isModerator,
+    userId: user.id,
+    displayName: user.displayName,
+  };
+}
+
 export const useUserStore = create<UserState>()(
   persist(
     (set, get) => ({
@@ -90,42 +102,31 @@ export const useUserStore = create<UserState>()(
 
           if (session?.user) {
             const user = mapSupabaseUser(session.user);
-            set({
-              user,
-              isAuthenticated: true,
-              isLoading: false,
-              isModerator: user.isModerator,
-              userId: user.id,
-              displayName: user.displayName,
-            });
+            set({ ...authenticatedState(user), isLoading: false });
             await get().syncProfile();
           } else {
             set({ isLoading: false });
           }
 
-          // Listen for auth changes
-          supabase.auth.onAuthStateChange((event, session) => {
-            if (session?.user) {
-              const user = mapSupabaseUser(session.user);
-              set({
-                user,
-                isAuthenticated: true,
-                isModerator: user.isModerator,
-                userId: user.id,
-                displayName: user.displayName,
-              });
-              get().syncProfile();
-            } else {
-              set({
-                user: null,
-                profile: null,
-                isAuthenticated: false,
-                isModerator: false,
-                userId: '',
-                displayName: 'Guest',
-              });
-            }
-          });
+          if (!removeAuthListener) {
+            const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+              if (nextSession?.user) {
+                const user = mapSupabaseUser(nextSession.user);
+                set(authenticatedState(user));
+                void get().syncProfile();
+              } else {
+                set({
+                  user: null,
+                  profile: null,
+                  isAuthenticated: false,
+                  isModerator: false,
+                  userId: '',
+                  displayName: 'Guest',
+                });
+              }
+            });
+            removeAuthListener = () => subscription.unsubscribe();
+          }
         } catch (error) {
           console.error('Auth initialization error:', error);
           set({ isLoading: false });
@@ -162,13 +163,7 @@ export const useUserStore = create<UserState>()(
 
           if (data.user) {
             const user = mapSupabaseUser(data.user);
-            set({
-              user,
-              isAuthenticated: true,
-              isModerator: user.isModerator,
-              userId: user.id,
-              displayName: user.displayName,
-            });
+            set(authenticatedState(user));
             await get().syncProfile();
             return { success: true };
           }
@@ -194,13 +189,7 @@ export const useUserStore = create<UserState>()(
 
           if (data.user) {
             const user = mapSupabaseUser(data.user);
-            set({
-              user,
-              isAuthenticated: true,
-              isModerator: user.isModerator,
-              userId: user.id,
-              displayName: user.displayName,
-            });
+            set(authenticatedState(user));
             await get().syncProfile();
             return { success: true };
           }

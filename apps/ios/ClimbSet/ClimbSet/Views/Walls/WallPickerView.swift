@@ -141,10 +141,8 @@ struct WallPickerView: View {
                     RoundedRectangle(cornerRadius: 10)
                         .stroke(AppColor.border, lineWidth: 1)
                 )
-            if let urlString = urlString?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !urlString.isEmpty,
-               !urlString.hasPrefix("/"),
-               let url = URL(string: urlString) {
+            if let normalized = normalizedRemoteImageURLString(urlString),
+               let url = URL(string: normalized) {
                 AsyncImage(url: url) { phase in
                     switch phase {
                     case .empty:

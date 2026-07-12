@@ -26,8 +26,14 @@
       "package": "com.climbset.app"
     },
     "plugins": [
-      ["expo-router", { "root": "./app" }],
-      "expo-image-picker"
+      [
+        "expo-router",
+        {
+          "root": "./app"
+        }
+      ],
+      "expo-image-picker",
+      "expo-font"
     ]
   }
 }

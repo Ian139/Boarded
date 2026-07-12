@@ -138,7 +138,7 @@ struct Comment: Codable, Identifiable, Hashable {
     }
 }
 
-func normalizedHoldCoordinate(_ value: Double) -> Double {
+private func normalizedHoldCoordinate(_ value: Double) -> Double {
     value > 1 ? value / 100.0 : value
 }
 

@@ -14,6 +14,10 @@ struct EditorView: View {
     @State private var isWallPickerPresented = false
     @State private var isSaving = false
     @State private var saveErrorMessage: String? = nil
+    @State private var zoomScale: CGFloat = 1
+    @State private var lastZoomScale: CGFloat = 1
+    @State private var panOffset: CGSize = .zero
+    @State private var lastPanOffset: CGSize = .zero
 
     var body: some View {
         ZStack {
@@ -99,34 +103,17 @@ struct EditorView: View {
     }
 
     private var wallCanvas: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                .fill(AppColor.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                        .stroke(AppColor.border, lineWidth: 1)
-                )
+        GeometryReader { proxy in
+            ZStack {
+                RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
+                    .fill(AppColor.surface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
+                            .stroke(AppColor.border, lineWidth: 1)
+                    )
 
-            wallImage
-
-            if holds.isEmpty {
-                VStack(spacing: 8) {
-                    Text(selectedWall == nil ? "Select a wall" : "Tap to place holds")
-                        .font(AppTypography.headline)
-                        .foregroundColor(AppColor.text)
-                    Text(selectedWall == nil ? "Add one in Walls" : "Long press a hold to remove")
-                        .font(AppTypography.label)
-                        .foregroundColor(AppColor.muted)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(AppColor.surface.opacity(0.86))
-                .clipShape(RoundedRectangle(cornerRadius: 14))
-            }
-
-            GeometryReader { proxy in
                 ZStack {
-                    Color.clear
+                    wallImage
 
                     ForEach(holds) { hold in
                         holdView(for: hold)
@@ -139,11 +126,97 @@ struct EditorView: View {
                             }
                     }
                 }
+                .scaleEffect(zoomScale)
+                .offset(panOffset)
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .clipped()
+
+                if holds.isEmpty {
+                    VStack(spacing: 8) {
+                        Text(selectedWall == nil ? "Select a wall" : "Tap to place holds")
+                            .font(AppTypography.headline)
+                            .foregroundColor(AppColor.text)
+                        Text(selectedWall == nil ? "Add one in Walls" : "Pinch to zoom for precision")
+                            .font(AppTypography.label)
+                            .foregroundColor(AppColor.muted)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(AppColor.surface.opacity(0.86))
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+
+                if zoomScale > 1.01 {
+                    VStack {
+                        HStack {
+                            Text("\(Int(zoomScale * 100))%")
+                                .font(AppTypography.label)
+                                .foregroundColor(AppColor.text)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 5)
+                                .background(AppColor.surface.opacity(0.88))
+                                .clipShape(Capsule())
+                            Spacer()
+                            Button("Reset") {
+                                resetZoom()
+                            }
+                            .font(AppTypography.label)
+                            .foregroundColor(AppColor.primary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(AppColor.surface.opacity(0.88))
+                            .clipShape(Capsule())
+                        }
+                        Spacer()
+                    }
+                    .padding(10)
+                }
+            }
+            .contentShape(Rectangle())
+            .simultaneousGesture(
+                MagnificationGesture()
+                    .onChanged { value in
+                        let nextScale = min(4, max(1, lastZoomScale * value))
+                        zoomScale = nextScale
+                        panOffset = clampedPanOffset(panOffset, in: proxy.size, scale: nextScale)
+                    }
+                    .onEnded { _ in
+                        zoomScale = min(4, max(1, zoomScale))
+                        if zoomScale <= 1.01 {
+                            resetZoom()
+                        } else {
+                            panOffset = clampedPanOffset(panOffset, in: proxy.size, scale: zoomScale)
+                            lastZoomScale = zoomScale
+                            lastPanOffset = panOffset
+                        }
+                    }
+            )
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 2)
+                    .onChanged { value in
+                        guard zoomScale > 1.01 else { return }
+                        let proposed = CGSize(
+                            width: lastPanOffset.width + value.translation.width,
+                            height: lastPanOffset.height + value.translation.height
+                        )
+                        panOffset = clampedPanOffset(proposed, in: proxy.size, scale: zoomScale)
+                    }
+                    .onEnded { _ in
+                        lastPanOffset = panOffset
+                    }
+            )
                 .contentShape(Rectangle())
                 .onTapGesture { location in
                     guard selectedWall != nil else { return }
-                    let x = max(2, min(98, (location.x / proxy.size.width) * 100))
-                    let y = max(2, min(98, (location.y / proxy.size.height) * 100))
+                    let imagePoint = unzoomedPoint(from: location, in: proxy.size)
+                    guard imagePoint.x >= 0,
+                          imagePoint.x <= proxy.size.width,
+                          imagePoint.y >= 0,
+                          imagePoint.y <= proxy.size.height else {
+                        return
+                    }
+                    let x = max(2, min(98, (imagePoint.x / proxy.size.width) * 100))
+                    let y = max(2, min(98, (imagePoint.y / proxy.size.height) * 100))
                     let sequence = showSequence ? holds.count + 1 : nil
                     let newHold = Hold(
                         id: UUID().uuidString,
@@ -157,15 +230,17 @@ struct EditorView: View {
                     )
                     holds.append(newHold)
                 }
-            }
         }
         .aspectRatio(wallAspectRatio, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
-        .padding(.horizontal, AppLayout.horizontalPadding)
-        .padding(.top, 8)
-        .padding(.bottom, 8)
+        .padding(.horizontal, 6)
+        .padding(.top, 4)
+        .padding(.bottom, 4)
         .frame(maxWidth: AppLayout.editorMaxWidth)
         .frame(maxWidth: .infinity)
+        .onChange(of: wallsViewModel.selectedWallId) { _, _ in
+            resetZoom()
+        }
     }
 
     @ViewBuilder
@@ -250,6 +325,31 @@ struct EditorView: View {
         case .medium: return 24
         case .large: return 36
         }
+    }
+
+    private func unzoomedPoint(from location: CGPoint, in size: CGSize) -> CGPoint {
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        return CGPoint(
+            x: ((location.x - center.x - panOffset.width) / zoomScale) + center.x,
+            y: ((location.y - center.y - panOffset.height) / zoomScale) + center.y
+        )
+    }
+
+    private func clampedPanOffset(_ offset: CGSize, in size: CGSize, scale: CGFloat) -> CGSize {
+        guard scale > 1 else { return .zero }
+        let maxX = (size.width * (scale - 1)) / 2
+        let maxY = (size.height * (scale - 1)) / 2
+        return CGSize(
+            width: min(max(offset.width, -maxX), maxX),
+            height: min(max(offset.height, -maxY), maxY)
+        )
+    }
+
+    private func resetZoom() {
+        zoomScale = 1
+        lastZoomScale = 1
+        panOffset = .zero
+        lastPanOffset = .zero
     }
 
     private func typeLabel(_ type: HoldType) -> String {

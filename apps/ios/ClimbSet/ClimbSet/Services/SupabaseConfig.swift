@@ -22,7 +22,13 @@ enum SupabaseConfig {
 enum SupabaseClientProvider {
     static let client: SupabaseClient? = {
         guard let config = SupabaseConfig.current else { return nil }
-        return SupabaseClient(supabaseURL: config.url, supabaseKey: config.anonKey)
+        return SupabaseClient(
+            supabaseURL: config.url,
+            supabaseKey: config.anonKey,
+            options: SupabaseClientOptions(
+                auth: .init(emitLocalSessionAsInitialSession: true)
+            )
+        )
     }()
 }
 #endif

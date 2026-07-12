@@ -11,7 +11,6 @@
 		3CDD08892F59FBB600535751 /* RoutesRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD08762F59FBB600535751 /* RoutesRepository.swift */; };
 		3CDD08922F59FBD700535751 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD08902F59FBD700535751 /* Theme.swift */; };
 		3CDD08962F59FD5E00535751 /* ClimbSetApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD08942F59FD5E00535751 /* ClimbSetApp.swift */; };
-		3CDD08972F59FD5E00535751 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD08952F59FD5E00535751 /* ContentView.swift */; };
 		3CDD08982F59FD5E00535751 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3CDD08932F59FD5E00535751 /* Assets.xcassets */; };
 		3CDD089A2F59FD6900535751 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD08992F59FD6900535751 /* RootView.swift */; };
 		3CDD08C72F5A00C800535751 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 3CDD08C62F5A00C800535751 /* Supabase */; };
@@ -47,7 +46,6 @@
 		3CDD08902F59FBD700535751 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Theme.swift; path = ClimbSet/Theme.swift; sourceTree = "<group>"; };
 		3CDD08932F59FD5E00535751 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = ClimbSet/Assets.xcassets; sourceTree = "<group>"; };
 		3CDD08942F59FD5E00535751 /* ClimbSetApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ClimbSetApp.swift; path = ClimbSet/ClimbSetApp.swift; sourceTree = "<group>"; };
-		3CDD08952F59FD5E00535751 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ContentView.swift; path = ClimbSet/ContentView.swift; sourceTree = "<group>"; };
 		3CDD08992F59FD6900535751 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RootView.swift; path = ClimbSet/RootView.swift; sourceTree = "<group>"; };
 		3CDD08C82F5A064A00535751 /* SupabaseConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseConfig.swift; sourceTree = "<group>"; };
 		3CDD08CA2F5A067100535751 /* ProfileModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileModels.swift; sourceTree = "<group>"; };
@@ -91,7 +89,6 @@
 			children = (
 				3CDD08932F59FD5E00535751 /* Assets.xcassets */,
 				3CDD08942F59FD5E00535751 /* ClimbSetApp.swift */,
-				3CDD08952F59FD5E00535751 /* ContentView.swift */,
 				3CDD08992F59FD6900535751 /* RootView.swift */,
 				3CDD08EC2F5A072900535751 /* Views */,
 				3CDD08902F59FBD700535751 /* Theme.swift */,
@@ -313,7 +310,6 @@
 				3CDD08922F59FBD700535751 /* Theme.swift in Sources */,
 				3CDD09012F5A0E6D00535751 /* WallsViewModel.swift in Sources */,
 				3CDD08962F59FD5E00535751 /* ClimbSetApp.swift in Sources */,
-				3CDD08972F59FD5E00535751 /* ContentView.swift in Sources */,
 				3CDD08CB2F5A067100535751 /* ProfileModels.swift in Sources */,
 				3CDD09042F5A0F8E00535751 /* WallPickerView.swift in Sources */,
 				3CDD08ED2F5A072900535751 /* RouteRow.swift in Sources */,

@@ -47,67 +47,197 @@ function RouteRow({
   route,
   wallName,
   wallImage,
+  now,
   onPress,
+  onLike,
+  onLog,
+  onShare,
+  onExpand,
+  isExpanded,
 }: {
   route: Route;
   wallName?: string;
   wallImage?: string;
   now: number;
   onPress: () => void;
+  onLike?: (route: Route) => void;
+  onLog?: (route: Route) => void;
+  onShare?: (route: Route) => void;
+  onExpand?: () => void;
+  isExpanded?: boolean;
 }) {
   const displayGrade = calculateDisplayGrade(route.grade_v, route.ascents);
   const sendCount = route.ascents?.length || 0;
   const timeAgo = getTimeAgo(route.created_at, now);
   const meta = `${route.user_name || 'Setter'}${wallName ? ` • ${wallName}` : ''}`;
   const metrics = `${route.like_count || 0} likes${sendCount > 0 ? ` • ${sendCount} ${sendCount === 1 ? 'send' : 'sends'}` : ''}`;
+  const ascents = route.ascents || [];
+  const avgRating = ascents.length > 0
+    ? ascents.reduce((sum, a) => sum + (a.rating || 0), 0) / ascents.filter(a => a.rating).length || route.rating || 0
+    : route.rating || 0;
+
+  const isLiked = route.is_liked || false;
+  const hasClimbed = route.ascents?.some((a) => a.user_id === route.user_id) || false;
+  const likeCount = route.liked_by?.length || route.like_count || 0;
+  const recentClimbers = route.ascents?.slice(0, 4) || [];
 
   return (
-    <Pressable
-      style={{
-        paddingVertical: 14,
-        paddingHorizontal: 4,
-        borderRadius: 16,
-        backgroundColor: 'transparent',
-        borderBottomWidth: 1,
-        borderBottomColor: colors.border,
-      }}
-      className="active:opacity-60"
-      onPress={onPress}
-    >
-      <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-        <View style={{ width: 56, height: 56, borderRadius: 14, overflow: 'hidden', marginRight: 12, backgroundColor: colors.border }}>
-          {wallImage ? (
-            <Image source={{ uri: wallImage }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-          ) : (
-            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ color: colors.muted, fontSize: 10 }}>Wall</Text>
-            </View>
-          )}
-        </View>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Text style={{ flex: 1, fontSize: 15, fontWeight: '600', color: colors.text }} numberOfLines={1}>
-              {route.name}
-            </Text>
-            {displayGrade && (
-              <View style={{ marginLeft: 8, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, backgroundColor: `${colors.primary}1a` }}>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: colors.primary }}>{displayGrade}</Text>
+    <View>
+      <Pressable
+        style={{
+          paddingVertical: 14,
+          paddingHorizontal: 4,
+          borderRadius: 16,
+          backgroundColor: 'transparent',
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border,
+        }}
+        className="active:opacity-60"
+        onPress={onPress}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+          <View style={{ width: 56, height: 56, borderRadius: 14, overflow: 'hidden', marginRight: 12, backgroundColor: colors.border }}>
+            {wallImage ? (
+              <Image source={{ uri: wallImage }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+            ) : (
+              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: colors.muted, fontSize: 10 }}>Wall</Text>
               </View>
             )}
           </View>
-          <Text style={{ fontSize: 12, color: colors.muted, marginTop: 4 }} numberOfLines={1}>
-            {meta}
-          </Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
-            <HoldDots holds={route.holds} />
-            <Text style={{ fontSize: 11, color: `${colors.muted}80` }} numberOfLines={1}>
-              {metrics}
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={{ flex: 1, fontSize: 15, fontWeight: '600', color: colors.text }} numberOfLines={1}>
+                {route.name}
+              </Text>
+              {displayGrade && (
+                <View style={{ marginLeft: 8, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, backgroundColor: `${colors.primary}1a` }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: colors.primary }}>{displayGrade}</Text>
+                </View>
+              )}
+            </View>
+            <Text style={{ fontSize: 12, color: colors.muted, marginTop: 4 }} numberOfLines={1}>
+              {meta}
             </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+              <HoldDots holds={route.holds} />
+              <Text style={{ fontSize: 11, color: `${colors.muted}80` }} numberOfLines={1}>
+                {metrics}
+              </Text>
+            </View>
+            <Text style={{ fontSize: 10, color: `${colors.muted}60`, marginTop: 6 }}>{timeAgo}</Text>
           </View>
-          <Text style={{ fontSize: 10, color: `${colors.muted}60`, marginTop: 6 }}>{timeAgo}</Text>
         </View>
-      </View>
-    </Pressable>
+
+        {/* Action Buttons Row */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: `${colors.border}66` }}>
+          <Pressable
+            onPress={(e) => { e.stopPropagation?.(); onLike?.(route); }}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 10 }}
+            className="active:opacity-50"
+          >
+            <Text style={{ fontSize: 14, color: isLiked ? '#ef4444' : colors.muted }}>
+              {isLiked ? '\u2665' : '\u2661'}
+            </Text>
+            {likeCount > 0 && (
+              <Text style={{ fontSize: 11, color: isLiked ? '#ef4444' : colors.muted }}>{likeCount}</Text>
+            )}
+          </Pressable>
+          <Pressable
+            onPress={(e) => { e.stopPropagation?.(); onLog?.(route); }}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 10 }}
+            className="active:opacity-50"
+          >
+            <Text style={{ fontSize: 14, color: hasClimbed ? colors.secondary : colors.muted }}>
+              {hasClimbed ? '\u2713' : '\u25CB'} Log
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={(e) => { e.stopPropagation?.(); onShare?.(route); }}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 10 }}
+            className="active:opacity-50"
+          >
+            <Text style={{ fontSize: 14, color: colors.muted }}>{'\u2197'}</Text>
+            <Text style={{ fontSize: 11, color: colors.muted }}>Share</Text>
+          </Pressable>
+          <Pressable
+            onPress={(e) => { e.stopPropagation?.(); onExpand?.(); }}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 10 }}
+            className="active:opacity-50"
+          >
+            <Text style={{ fontSize: 14, color: colors.muted, transform: isExpanded ? [{ rotate: '180deg' }] : [] }}>{'\u25BC'}</Text>
+          </Pressable>
+        </View>
+      </Pressable>
+
+      {/* Expanded Info Panel */}
+      {isExpanded && (
+        <View style={{
+          marginHorizontal: 4,
+          marginBottom: 10,
+          padding: 14,
+          borderRadius: 14,
+          backgroundColor: colors.card,
+          borderWidth: 1,
+          borderColor: colors.border,
+        }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginBottom: 12 }}>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: 10, color: colors.muted }}>GRADE</Text>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: colors.primary, marginTop: 2 }}>{displayGrade || '—'}</Text>
+            </View>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: 10, color: colors.muted }}>RATING</Text>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: colors.text, marginTop: 2 }}>
+                {avgRating > 0 ? avgRating.toFixed(1) : '—'}
+              </Text>
+            </View>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: 10, color: colors.muted }}>SENDS</Text>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: colors.text, marginTop: 2 }}>{ascents.length}</Text>
+            </View>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: 10, color: colors.muted }}>LIKES</Text>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: colors.text, marginTop: 2 }}>{likeCount}</Text>
+            </View>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: 10, color: colors.muted }}>VIEWS</Text>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: colors.text, marginTop: 2 }}>{route.view_count || 0}</Text>
+            </View>
+          </View>
+
+          {/* Recent climbers */}
+          {recentClimbers.length > 0 && (
+            <View style={{ marginTop: 8, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border }}>
+              <Text style={{ fontSize: 10, color: colors.muted, marginBottom: 6 }}>RECENT CLIMBERS</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {recentClimbers.map((a, i) => (
+                  <View key={i} style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: `${colors.muted}1a` }}>
+                    <Text style={{ fontSize: 11, color: colors.text }}>{a.user_name || 'Anonymous'}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Action buttons */}
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border }}>
+            <Pressable
+              onPress={(e) => { e.stopPropagation?.(); onLog?.(route); }}
+              style={{ flex: 1, paddingVertical: 8, borderRadius: 10, backgroundColor: `${colors.secondary}14`, alignItems: 'center' }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '600', color: colors.secondary }}>Log</Text>
+            </Pressable>
+            <Pressable
+              onPress={(e) => { e.stopPropagation?.(); onShare?.(route); }}
+              style={{ flex: 1, paddingVertical: 8, borderRadius: 10, backgroundColor: `${colors.primary}14`, alignItems: 'center' }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '600', color: colors.primary }}>Share</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -222,6 +352,19 @@ export default function HomeScreen() {
       if (sortBy === 'highest-rated') return averageRating(b) - averageRating(a);
       if (sortBy === 'most-liked') return (b.like_count || 0) - (a.like_count || 0);
       if (sortBy === 'most-climbed') return (b.ascents?.length || 0) - (a.ascents?.length || 0);
+      if (sortBy === 'most-viewed') return (b.view_count || 0) - (a.view_count || 0);
+      if (sortBy === 'oldest') return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      if (sortBy === 'name') return (a.name || '').localeCompare(b.name || '');
+      if (sortBy === 'grade-asc') {
+        const ga = a.grade_v ? parseInt(a.grade_v.replace(/\D/g, '')) || 0 : 0;
+        const gb = b.grade_v ? parseInt(b.grade_v.replace(/\D/g, '')) || 0 : 0;
+        return ga - gb;
+      }
+      if (sortBy === 'grade-desc') {
+        const ga = a.grade_v ? parseInt(a.grade_v.replace(/\D/g, '')) || 0 : 0;
+        const gb = b.grade_v ? parseInt(b.grade_v.replace(/\D/g, '')) || 0 : 0;
+        return gb - ga;
+      }
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
     return next;
@@ -360,7 +503,7 @@ export default function HomeScreen() {
           flexDirection: 'row',
           alignItems: 'center',
         }}>
-          <Text style={{ color: colors.muted, marginRight: 8, fontSize: 14 }}>🔍</Text>
+          <Text style={{ color: colors.muted, marginRight: 8, fontSize: 16 }}>{'\u2315'}</Text>
           <TextInput
             style={{ flex: 1, fontSize: 14, color: colors.text }}
             placeholder="Search routes, setters..."
@@ -370,7 +513,7 @@ export default function HomeScreen() {
           />
           {searchQuery.length > 0 && (
             <Pressable onPress={() => setSearchQuery('')}>
-              <Text style={{ color: colors.muted, fontSize: 14 }}>✕</Text>
+          <Text style={{ color: colors.muted, marginRight: 8, fontSize: 16 }}>{'\u2315'}</Text>
             </Pressable>
           )}
         </View>
@@ -391,11 +534,21 @@ export default function HomeScreen() {
               Sort: {
                 sortBy === 'newest'
                   ? 'Newest'
-                  : sortBy === 'highest-rated'
-                    ? 'Highest Rated'
-                    : sortBy === 'most-liked'
-                      ? 'Most Liked'
-                      : 'Most Climbed'
+                  : sortBy === 'oldest'
+                    ? 'Oldest'
+                    : sortBy === 'name'
+                      ? 'Name'
+                      : sortBy === 'grade-asc'
+                        ? 'Easiest'
+                        : sortBy === 'grade-desc'
+                          ? 'Hardest'
+                          : sortBy === 'highest-rated'
+                            ? 'Highest Rated'
+                            : sortBy === 'most-liked'
+                              ? 'Most Liked'
+                              : sortBy === 'most-climbed'
+                                ? 'Most Climbed'
+                                : 'Most Viewed'
               }
             </Text>
           </Pressable>
@@ -478,9 +631,14 @@ export default function HomeScreen() {
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                 {[
                   { id: 'newest', label: 'Newest' },
+                  { id: 'oldest', label: 'Oldest' },
+                  { id: 'name', label: 'Name' },
+                  { id: 'grade-asc', label: 'Easiest' },
+                  { id: 'grade-desc', label: 'Hardest' },
                   { id: 'highest-rated', label: 'Highest Rated' },
                   { id: 'most-liked', label: 'Most Liked' },
                   { id: 'most-climbed', label: 'Most Climbed' },
+                  { id: 'most-viewed', label: 'Most Viewed' },
                 ].map((option) => (
                   <Pressable
                     key={option.id}
@@ -684,6 +842,11 @@ export default function HomeScreen() {
               wallImage={item.wall_image_url || getWallById(item.wall_id)?.image_url}
               now={now}
               onPress={() => setRouteToViewId(item.id)}
+              onLike={() => toggleLike(item.id)}
+              onLog={() => { setRouteToViewId(item.id); setShowLogModal(true); }}
+              onShare={() => handleShare(item)}
+              onExpand={() => setExpandedRouteId(expandedRouteId === item.id ? null : item.id)}
+              isExpanded={expandedRouteId === item.id}
             />
           )}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 140, paddingTop: 8 }}

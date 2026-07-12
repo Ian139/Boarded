@@ -8,22 +8,30 @@ interface DeferredPrompt extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
+function detectIOS() {
+  if (typeof window === 'undefined') return false;
+  const isIOS = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+  const nav = window.navigator as Navigator & { standalone?: boolean };
+  const isStandalone = nav.standalone === true;
+  return isIOS && !isStandalone;
+}
+
 export function InstallPrompt() {
-  const detectIOS = () => {
-    if (typeof window === 'undefined') return false;
-    const isIOS = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
-    const nav = window.navigator as Navigator & { standalone?: boolean };
-    const isStandalone = nav.standalone === true;
-    return isIOS && !isStandalone;
-  };
 
   const [deferredPrompt, setDeferredPrompt] = useState<DeferredPrompt | null>(null);
   const [isVisible, setIsVisible] = useState(false);
-  const [showIOS] = useState(detectIOS);
+  const [showIOS, setShowIOS] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
     const dismissed = sessionStorage.getItem('climbset-install-dismissed') === '1';
     if (dismissed) return;
+
+    queueMicrotask(() => {
+      if (isMounted) {
+        setShowIOS(detectIOS());
+      }
+    });
 
     const handleBeforeInstall = (event: Event) => {
       event.preventDefault();
@@ -32,7 +40,10 @@ export function InstallPrompt() {
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstall);
-    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+    };
   }, []);
 
   const handleInstall = async () => {
@@ -41,12 +52,14 @@ export function InstallPrompt() {
     await deferredPrompt.userChoice;
     setDeferredPrompt(null);
     setIsVisible(false);
+    setShowIOS(false);
     sessionStorage.setItem('climbset-install-dismissed', '1');
   };
 
   const handleDismiss = () => {
     sessionStorage.setItem('climbset-install-dismissed', '1');
     setIsVisible(false);
+    setShowIOS(false);
   };
 
   return (

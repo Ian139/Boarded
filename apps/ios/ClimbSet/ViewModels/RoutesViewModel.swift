@@ -9,6 +9,7 @@ final class RoutesViewModel: ObservableObject {
     @Published var errorMessage: String? = nil
     @Published var searchText = ""
     @Published var selectedSort: SortOption = .newest
+    @Published var selectedWallFilterId: String? = nil
 
     private let repository: RoutesRepository
 
@@ -92,7 +93,11 @@ final class RoutesViewModel: ObservableObject {
 
     var filteredRoutes: [Route] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let base = query.isEmpty ? routes : routes.filter {
+        let wallFiltered = routes.filter { route in
+            guard let selectedWallFilterId else { return true }
+            return route.wallId == selectedWallFilterId
+        }
+        let base = query.isEmpty ? wallFiltered : wallFiltered.filter {
             $0.name.lowercased().contains(query)
                 || ($0.userName ?? "").lowercased().contains(query)
                 || ($0.gradeV ?? "").lowercased().contains(query)

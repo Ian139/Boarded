@@ -2,15 +2,23 @@
   "name": "@climbset/shared",
   "version": "0.0.1",
   "private": true,
+  "scripts": {
+    "test": "npx tsx --test tests/*.test.ts"
+  },
   "main": "./index.ts",
   "types": "./index.ts",
   "exports": {
     ".": "./index.ts",
     "./types": "./types/index.ts",
     "./utils/holds": "./utils/holds.ts",
-    "./utils/grades": "./utils/grades.ts"
+    "./utils/grades": "./utils/grades.ts",
+    "./utils/routes": "./utils/routes.ts"
   },
   "dependencies": {
     "nanoid": "^5.1.6"
+  },
+  "devDependencies": {
+    "tsx": "^4.22.4"
   }
 }
+

@@ -1,4 +1,4 @@
-# AGENTS.md
+# [AGENTS.md](http://AGENTS.md)
 
 This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
 
@@ -68,6 +68,7 @@ climbing-app-next/
 ### Data Models
 
 **TypeScript Types** (see `lib/types/index.ts`):
+
 ```typescript
 type HoldType = 'start' | 'hand' | 'foot' | 'finish';
 type HoldSize = 'small' | 'medium' | 'large';
@@ -101,6 +102,7 @@ interface Route {
 ```
 
 **Database Schema** (Supabase PostgreSQL):
+
 - `profiles` - User profiles (extends Supabase auth.users)
 - `walls` - Climbing wall images and metadata
 - `routes` - Saved climbing routes with holds
@@ -111,6 +113,7 @@ See implementation plan at `/Users/ian/.Codex/plans/jazzy-splashing-lynx.md` for
 ### Core Features
 
 **1. Hold System:**
+
 - 4 hold types: start (green), hand (red), foot (blue), finish (yellow)
 - Customizable colors and sizes
 - Sequence numbering (optional)
@@ -118,17 +121,20 @@ See implementation plan at `/Users/ian/.Codex/plans/jazzy-splashing-lynx.md` for
 - Keyboard shortcuts (1-4 for hold types)
 
 **2. Route Management:**
+
 - Save routes with metadata (name, grade, description, tags)
 - Load and edit existing routes
 - Delete routes with confirmation
 - Filter by wall, grade, or date
 
 **3. Wall Management:**
+
 - Upload custom wall images (Supabase Storage)
 - Multiple wall support
 - Wall selection in editor
 
 **4. Sharing:**
+
 - Generate shareable URLs (`/share/[token]`)
 - View-only mode for shared routes
 - QR code generation
@@ -136,11 +142,13 @@ See implementation plan at `/Users/ian/.Codex/plans/jazzy-splashing-lynx.md` for
 - Copy to clipboard
 
 **5. Authentication:**
+
 - Email/password authentication (Supabase Auth)
 - Protected routes with middleware
 - User profiles
 
 **6. Social Features:**
+
 - Like/favorite routes
 - View counters
 - Public route discovery
@@ -149,6 +157,7 @@ See implementation plan at `/Users/ian/.Codex/plans/jazzy-splashing-lynx.md` for
 ### API Routes
 
 **Route Endpoints:**
+
 - `GET /api/routes` - List routes (with filters)
 - `POST /api/routes` - Create route
 - `GET /api/routes/[id]` - Get single route
@@ -156,6 +165,7 @@ See implementation plan at `/Users/ian/.Codex/plans/jazzy-splashing-lynx.md` for
 - `DELETE /api/routes/[id]` - Delete route
 
 **Wall Endpoints:**
+
 - `GET /api/walls` - List walls
 - `POST /api/walls` - Create wall
 - `GET /api/walls/[id]` - Get single wall
@@ -163,6 +173,7 @@ See implementation plan at `/Users/ian/.Codex/plans/jazzy-splashing-lynx.md` for
 - `DELETE /api/walls/[id]` - Delete wall
 
 **Other Endpoints:**
+
 - `POST /api/upload` - Upload wall images
 - `GET /api/share/[token]` - Get shared route
 - `POST /api/routes/[id]/like` - Like/unlike route
@@ -175,36 +186,40 @@ See implementation plan at `/Users/ian/.Codex/plans/jazzy-splashing-lynx.md` for
 2. Run database schema from implementation plan
 3. Enable email authentication in Auth settings
 4. Create storage bucket named `walls` for wall images
-5. Add site URL to auth settings (http://localhost:3000 for dev)
-6. Get API keys from Settings > API
+5. Add site URL to auth settings ([http://localhost:3000](http://localhost:3000) for dev)
+6. Get API keys from Settings &gt; API
 7. Add keys to `.env.local`:
-   ```bash
+  ```bash
    NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
    SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
    NEXT_PUBLIC_APP_URL=http://localhost:3000
-   ```
+  ```
 
 ### Common Tasks
 
 **Add a new shadcn/ui component:**
+
 ```bash
 npx shadcn@latest add [component-name]
 ```
 
 **Create a new API route:**
+
 1. Create file in `app/api/[name]/route.ts`
 2. Export GET, POST, PUT, DELETE functions as needed
 3. Use `@/lib/supabase/server` for database access
 4. Handle auth with middleware or manual checks
 
 **Add a new hold type:**
+
 1. Update `HoldType` in `lib/types/index.ts`
 2. Add color to `HOLD_COLORS` in hold utilities
 3. Update `HoldTypeSelector` component
 4. Update keyboard shortcuts if needed
 
 **Create a new page:**
+
 1. Create folder in `app/` with `page.tsx`
 2. Add to navigation in `components/shared/Navbar.tsx`
 3. Add auth protection if needed (use `(dashboard)` route group)
@@ -212,22 +227,26 @@ npx shadcn@latest add [component-name]
 ### Testing Locally
 
 **Without Supabase:**
+
 - Landing page and UI components work
 - Editor works but can't save routes
 - Mock data can be used for development
 
 **With Supabase:**
+
 - Full functionality including auth, save/load, sharing
 - Requires valid Supabase credentials in `.env.local`
 
 ## Key Implementation Details
 
 **Hold Coordinate System:**
+
 - Holds stored as percentages (0-100) of wall dimensions
 - Converted to pixels for rendering based on current wall size
 - Responsive to window resizing
 
 **Hold Colors:**
+
 ```typescript
 const HOLD_COLORS = {
   start: '#10b981',   // green
@@ -238,12 +257,14 @@ const HOLD_COLORS = {
 ```
 
 **Authentication Flow:**
+
 1. User signs up/logs in via Supabase Auth
 2. Session stored in cookie by Supabase SSR
 3. Middleware checks auth on protected routes
 4. Client reads session from Supabase client
 
 **Image Upload:**
+
 1. User selects image file
 2. Frontend validates size/format
 3. POST to `/api/upload` with multipart form data
@@ -252,6 +273,7 @@ const HOLD_COLORS = {
 6. URL stored in database with wall metadata
 
 **Share Token Generation:**
+
 ```typescript
 import { nanoid } from 'nanoid';
 const shareToken = nanoid(10); // Short, URL-safe token
@@ -286,8 +308,8 @@ NEXT_PUBLIC_ANALYTICS_ID=your-analytics-id
 
 ### Supabase Configuration for Production
 
-1. Add production URL to Supabase Auth > URL Configuration
-2. Enable email confirmations in Auth > Email Templates
+1. Add production URL to Supabase Auth &gt; URL Configuration
+2. Enable email confirmations in Auth &gt; Email Templates
 3. Configure custom SMTP (optional) for emails
 4. Set up storage bucket CORS if needed
 
@@ -303,6 +325,7 @@ The original vanilla JS app stored data in localStorage. To migrate:
 6. Downloads backup JSON before clearing old data
 
 Migration logic handles:
+
 - Converting pixel coordinates to percentages
 - Adding default hold types (all as 'hand')
 - Creating default wall with original wall.jpg
@@ -311,23 +334,27 @@ Migration logic handles:
 ## Troubleshooting
 
 **Supabase connection fails:**
+
 - Check API keys in `.env.local`
 - Verify Supabase project is active
 - Check browser console for CORS errors
 - Verify site URL in Supabase Auth settings
 
 **Images not loading:**
+
 - Check Supabase Storage bucket exists and is public
 - Verify image URLs are correct
 - Check file size limits (recommend max 5MB)
 
 **Auth not working:**
+
 - Clear cookies and try again
 - Check Supabase Auth is enabled
 - Verify email templates are configured
 - Check middleware is running on protected routes
 
 **Holds not appearing:**
+
 - Check wall image dimensions are set correctly
 - Verify coordinates are percentages (0-100), not pixels
 - Check z-index of hold markers
@@ -335,13 +362,14 @@ Migration logic handles:
 
 ## Git Repository
 
-- Remote: https://github.com/Ian139/ClimbingApp.git
+- Remote: [https://github.com/Ian139/ClimbingApp.git](https://github.com/Ian139/ClimbingApp.git)
 - Current branch: main
 - Original vanilla JS app: Parent directory (`../`)
 
 ## Implementation Plan
 
 Detailed implementation plan with phases, tasks, and verification checklists:
+
 `/Users/ian/.Codex/plans/jazzy-splashing-lynx.md`
 
 ## Dependencies
@@ -359,3 +387,4 @@ Key packages and their purposes:
 - `nanoid` - ID and token generation
 - `zustand` - Client state management
 - `lucide-react` - Icon library
+

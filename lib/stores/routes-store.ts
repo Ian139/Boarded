@@ -9,7 +9,6 @@ import { nanoid } from 'nanoid';
 interface RoutesState {
   routes: Route[];
   isLoading: boolean;
-  lastFetched: string | null;
   isOfflineMode: boolean;
 
   // Actions
@@ -36,12 +35,25 @@ interface RoutesState {
   syncLocalRoutes: () => Promise<void>;
 }
 
+type RouteRelationKey = 'ascents' | 'comments' | 'wall' | 'user' | 'is_liked' | 'like_count' | 'liked_by';
+
+function stripRouteRelations<T extends Partial<Route>>(route: T): Omit<T, RouteRelationKey> {
+  const persisted = { ...route };
+  delete persisted.ascents;
+  delete persisted.comments;
+  delete persisted.wall;
+  delete persisted.user;
+  delete persisted.is_liked;
+  delete persisted.like_count;
+  delete persisted.liked_by;
+  return persisted as Omit<T, RouteRelationKey>;
+}
+
 export const useRoutesStore = create<RoutesState>()(
   persist(
     (set, get) => ({
       routes: [],
       isLoading: false,
-      lastFetched: null,
       isOfflineMode: false,
 
       // Fetch all public routes from Supabase
@@ -124,7 +136,6 @@ export const useRoutesStore = create<RoutesState>()(
 
             set({
               routes: mergedRoutes,
-              lastFetched: new Date().toISOString(),
               isLoading: false,
               isOfflineMode: false,
             });
@@ -147,14 +158,7 @@ export const useRoutesStore = create<RoutesState>()(
         const localRoutes = get().routes.filter(r => r.user_id === 'local-user');
 
         for (const route of localRoutes) {
-          const routeData = { ...route };
-          delete routeData.ascents;
-          delete routeData.wall;
-          delete routeData.user;
-          delete routeData.is_liked;
-          delete routeData.like_count;
-          delete routeData.liked_by;
-          delete routeData.comments;
+          const routeData = stripRouteRelations(route);
 
           const { error } = await supabase
             .from('routes')
@@ -187,14 +191,7 @@ export const useRoutesStore = create<RoutesState>()(
           const supabase = createClient();
           const { data: { user } } = await supabase.auth.getUser();
 
-          const routeData = { ...ensuredRoute };
-          delete routeData.ascents;
-          delete routeData.wall;
-          delete routeData.user;
-          delete routeData.is_liked;
-          delete routeData.like_count;
-          delete routeData.liked_by;
-          delete routeData.comments;
+          const routeData = stripRouteRelations(ensuredRoute);
 
           await supabase
             .from('routes')
@@ -223,14 +220,7 @@ export const useRoutesStore = create<RoutesState>()(
           const route = get().routes.find(r => r.id === id);
 
           if (route && route.user_id !== 'local-user') {
-            const safeUpdates = { ...updates };
-            delete safeUpdates.ascents;
-            delete safeUpdates.wall;
-            delete safeUpdates.user;
-            delete safeUpdates.is_liked;
-            delete safeUpdates.like_count;
-            delete safeUpdates.liked_by;
-            delete safeUpdates.comments;
+            const safeUpdates = stripRouteRelations(updates);
 
             await supabase
               .from('routes')
@@ -502,7 +492,6 @@ export const useRoutesStore = create<RoutesState>()(
       name: 'climbset-routes',
       partialize: (state) => ({
         routes: state.routes,
-        lastFetched: state.lastFetched,
       }),
     }
   )

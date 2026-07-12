@@ -33,16 +33,6 @@ const monorepoRoot = path.resolve(projectRoot, '../..');
 
 const config = getDefaultConfig(projectRoot);
 
-// Only watch the shared package — nothing else outside projectRoot
-config.watchFolders = [
-  path.resolve(monorepoRoot, 'packages/shared'),
-];
-
-config.resolver.nodeModulesPaths = [
-  path.resolve(projectRoot, 'node_modules'),
-  path.resolve(monorepoRoot, 'node_modules'),
-];
-
 const resolveFromProject = (name) => {
   const localPath = path.resolve(projectRoot, 'node_modules', name);
   if (fs.existsSync(localPath)) return localPath;
@@ -51,12 +41,11 @@ const resolveFromProject = (name) => {
 
 config.resolver.extraNodeModules = {
   ...config.resolver.extraNodeModules,
+  react: resolveFromProject('react'),
   tailwindcss: resolveFromProject('tailwindcss'),
   postcss: resolveFromProject('postcss'),
 };
 
-// Block root's react to prevent duplicate copies.
-// Block root's tailwindcss to prevent v4 from being picked up.
 const escRoot = monorepoRoot.replace(/[/\\]/g, '[/\\\\]');
 config.resolver.blockList = [
   /\.next\/.*/,

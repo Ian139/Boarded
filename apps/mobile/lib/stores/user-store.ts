@@ -76,7 +76,7 @@ export const useUserStore = create<UserState>()(
             set({ isLoading: false });
           }
 
-          supabase.auth.onAuthStateChange((event, session) => {
+          supabase.auth.onAuthStateChange((_event, session) => {
             if (session?.user) {
               const user = mapSupabaseUser(session.user);
               set({ user, isAuthenticated: true });

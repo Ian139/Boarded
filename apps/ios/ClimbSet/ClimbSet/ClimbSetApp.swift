@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import Combine
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -44,7 +43,7 @@ struct ClimbSetApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView()
         }
     }
 }

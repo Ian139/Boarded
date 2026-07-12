@@ -49,12 +49,7 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
 
   const getShareUrl = (token: string) => {
     if (typeof window === 'undefined') return token;
-    const envBase = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_VERCEL_URL || '';
-    const sanitizedEnv = envBase.includes('$') ? '' : envBase;
-    const base = sanitizedEnv
-      ? (sanitizedEnv.startsWith('http') ? sanitizedEnv : `https://${sanitizedEnv}`)
-      : window.location.origin;
-    return `${base.replace(/\/$/, '')}/share/${token}`;
+    return `${window.location.origin}/share/${token}`;
   };
 
   const handleShareRoute = async (route: Route, e: React.MouseEvent) => {
@@ -83,9 +78,7 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
     return isModerator || route.user_id === userId || route.user_id === 'local-user';
   };
 
-  const canEditRoute = (route: Route) => {
-    return isModerator || route.user_id === userId || route.user_id === 'local-user';
-  };
+  const canEditRoute = canDeleteRoute;
 
   return (
     <>

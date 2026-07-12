@@ -279,9 +279,10 @@ export default function ProfileScreen() {
             <SectionTitle>Recent Activity</SectionTitle>
             <View style={{ backgroundColor: colors.card, borderRadius: 16 }}>
               {stats.recentActivity.map((activity, idx) => (
-                <View
+                <Pressable
                   key={activity.id}
-                  style={{
+                  onPress={() => router.push('/(tabs)')}
+                  style={({ pressed }) => ({
                     flexDirection: 'row',
                     alignItems: 'center',
                     gap: 12,
@@ -289,7 +290,8 @@ export default function ProfileScreen() {
                     paddingVertical: 12,
                     borderBottomWidth: idx === stats.recentActivity.length - 1 ? 0 : 1,
                     borderBottomColor: `${colors.border}99`,
-                  }}
+                    opacity: pressed ? 0.7 : 1,
+                  })}
                 >
                   <View style={{
                     width: 32,
@@ -311,8 +313,16 @@ export default function ProfileScreen() {
                       {activity.userGrade && activity.userGrade !== activity.routeGrade ? ` • You: ${activity.userGrade}` : ''}
                       {` • ${formatShortDate(activity.created_at)}`}
                     </Text>
+                    {activity.rating ? (
+                      <View style={{ flexDirection: 'row', gap: 2, marginTop: 3 }}>
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <Text key={n} style={{ fontSize: 12, color: n <= activity.rating! ? colors.accent : colors.border }}>★</Text>
+                        ))}
+                      </View>
+                    ) : null}
                   </View>
-                </View>
+                  <Text style={{ fontSize: 16, color: colors.muted }}>›</Text>
+                </Pressable>
               ))}
             </View>
           </View>

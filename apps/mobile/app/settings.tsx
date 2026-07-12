@@ -29,6 +29,43 @@ function SectionTitle({ children }: { children: string }) {
   );
 }
 
+function SunIcon({ size = 22 }: { size?: number }) {
+  const s = size;
+  const half = s / 2;
+  const rayLen = s * 0.24;
+  const rayW = 2;
+  const color = '#f5a623';
+  return (
+    <View style={{ width: s, height: s, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ width: s * 0.44, height: s * 0.44, borderRadius: s * 0.22, backgroundColor: color }} />
+      <View style={{ position: 'absolute', width: rayLen, height: rayW, borderRadius: 1, backgroundColor: color, top: 1, left: half - rayLen / 2 }} />
+      <View style={{ position: 'absolute', width: rayLen, height: rayW, borderRadius: 1, backgroundColor: color, bottom: 1, left: half - rayLen / 2 }} />
+      <View style={{ position: 'absolute', width: rayW, height: rayLen, borderRadius: 1, backgroundColor: color, left: 1, top: half - rayLen / 2 }} />
+      <View style={{ position: 'absolute', width: rayW, height: rayLen, borderRadius: 1, backgroundColor: color, right: 1, top: half - rayLen / 2 }} />
+    </View>
+  );
+}
+
+function MoonIcon({ size = 22 }: { size?: number }) {
+  const s = size;
+  return (
+    <View style={{ width: s, height: s, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ width: s * 0.42, height: s * 0.42, borderRadius: s * 0.21, backgroundColor: '#5b6e8a' }} />
+      <View style={{ width: s * 0.28, height: s * 0.28, borderRadius: s * 0.14, backgroundColor: '#8ba3c4', position: 'absolute', top: 1, right: 0 }} />
+    </View>
+  );
+}
+
+function SystemIcon({ size = 22 }: { size?: number }) {
+  const s = size;
+  return (
+    <View style={{ width: s, height: s, borderRadius: s / 2, overflow: 'hidden', flexDirection: 'row', borderWidth: 1, borderColor: `${colors.muted}55` }}>
+      <View style={{ flex: 1, backgroundColor: '#f5a623' }} />
+      <View style={{ flex: 1, backgroundColor: '#5b6e8a' }} />
+    </View>
+  );
+}
+
 export default function SettingsScreen() {
   const { mode, resolvedMode, setMode } = useTheme();
   const { addWall, walls, fetchWalls } = useWallsStore();
@@ -312,13 +349,18 @@ export default function SettingsScreen() {
                     style={{
                       flex: 1,
                       borderRadius: 14,
-                      paddingVertical: 10,
+                      paddingVertical: 12,
+                      paddingHorizontal: 6,
                       alignItems: 'center',
+                      gap: 8,
                       backgroundColor: isActive ? `${colors.primary}22` : colors.background,
                       borderWidth: 1,
                       borderColor: isActive ? `${colors.primary}55` : colors.border,
                     }}
                   >
+                    {option.value === 'light' && <SunIcon />}
+                    {option.value === 'dark' && <MoonIcon />}
+                    {option.value === 'system' && <SystemIcon />}
                     <Text style={{ fontSize: 12, fontWeight: '600', color: isActive ? colors.primary : colors.text }}>
                       {option.label}
                     </Text>

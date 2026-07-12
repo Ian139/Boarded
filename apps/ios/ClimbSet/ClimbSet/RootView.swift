@@ -3,6 +3,11 @@ import SwiftUI
 struct RootView: View {
     @StateObject private var session = AppSession()
     @StateObject private var routesViewModel = RoutesViewModel(repository: AppServices.routesRepository)
+    @AppStorage("appearanceMode") private var appearanceModeRaw = AppAppearanceMode.system.rawValue
+
+    private var appearanceMode: AppAppearanceMode {
+        AppAppearanceMode(rawValue: appearanceModeRaw) ?? .system
+    }
 
     var body: some View {
         TabView {
@@ -21,17 +26,14 @@ struct RootView: View {
             }
 
             NavigationStack {
-                if session.userId == nil {
-                    AuthView()
-                } else {
-                    ProfileView()
-                }
+                ProfileView()
             }
             .tabItem {
                 Label("Profile", systemImage: "person.crop.circle")
             }
         }
         .tint(AppColor.primary)
+        .preferredColorScheme(appearanceMode.colorScheme)
         .environmentObject(session)
         .environmentObject(routesViewModel)
         .task {

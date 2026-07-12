@@ -5,7 +5,6 @@ import type { Route, Ascent, Comment } from '@climbset/shared';
 interface RoutesState {
   routes: Route[];
   isLoading: boolean;
-  lastFetched: string | null;
   isOfflineMode: boolean;
 
   fetchRoutes: () => Promise<void>;
@@ -24,7 +23,6 @@ export const useRoutesStore = create<RoutesState>()(
   (set, get) => ({
     routes: [],
     isLoading: false,
-    lastFetched: null,
     isOfflineMode: false,
 
     fetchRoutes: async () => {
@@ -91,7 +89,6 @@ export const useRoutesStore = create<RoutesState>()(
         if (remoteRoutes) {
           set({
             routes: remoteRoutes,
-            lastFetched: new Date().toISOString(),
             isLoading: false,
             isOfflineMode: false,
           });

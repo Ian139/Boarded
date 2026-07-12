@@ -223,13 +223,12 @@ export default function EditorScreen() {
             onPress={handleUndo}
             disabled={undoStack.length === 0}
           >
-            <Text
-              style={{
-                color: undoStack.length > 0 ? colors.text : `${colors.muted}80`,
-                fontSize: 18,
-              }}
-            >
-              ↩
+            <Text style={{
+              color: undoStack.length > 0 ? colors.text : `${colors.muted}80`,
+              fontSize: 12,
+              fontWeight: '600',
+            }}>
+              Undo
             </Text>
           </Pressable>
 
@@ -531,7 +530,7 @@ export default function EditorScreen() {
               onPress={clearHolds}
               disabled={holds.length === 0}
             >
-              <Text style={{ color: holds.length > 0 ? colors.muted : `${colors.muted}40` }}>🗑</Text>
+              <Text style={{ color: holds.length > 0 ? colors.destructive : `${colors.muted}40`, fontSize: 12, fontWeight: '600' }}>Clear</Text>
             </Pressable>
           </View>
         </View>
