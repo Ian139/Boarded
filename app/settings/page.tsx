@@ -204,6 +204,10 @@ export default function SettingsPage() {
       const path = getStoragePathFromUrl(wall.image_url);
       if (path) referenced.add(path);
     });
+    routes.forEach((route) => {
+      const path = route.wall_image_url ? getStoragePathFromUrl(route.wall_image_url) : null;
+      if (path) referenced.add(path);
+    });
 
     const { data: roots, error: rootError } = await supabase.storage
       .from('walls')
@@ -211,22 +215,22 @@ export default function SettingsPage() {
 
     if (rootError) throw rootError;
 
-    const folders = (roots || []).filter((item) => !item.metadata).map((item) => item.name);
+    const ownerFolders = (roots || []).filter((item) => !item.metadata).map((item) => item.name);
     const deletions: string[] = [];
-
-    for (const folder of folders) {
-      const { data, error } = await supabase.storage
-        .from('walls')
-        .list(folder, { limit: 100, offset: 0, sortBy: { column: 'name', order: 'asc' } });
-      if (error) throw error;
-      (data || []).forEach((item) => {
-        const updatedAt = item.updated_at || item.created_at;
-        const ageOk = updatedAt ? (now - new Date(updatedAt).getTime() > sevenDays) : false;
-        const path = `${folder}/${item.name}`;
-        if (!referenced.has(path) && ageOk) {
-          deletions.push(path);
-        }
-      });
+    for (const ownerFolder of ownerFolders) {
+      const { data: wallFolders, error: wallFolderError } = await supabase.storage.from('walls').list(ownerFolder, { limit: 100, offset: 0, sortBy: { column: 'name', order: 'asc' } });
+      if (wallFolderError) throw wallFolderError;
+      for (const wallFolder of (wallFolders || []).filter((item) => !item.metadata)) {
+        const folder = `${ownerFolder}/${wallFolder.name}`;
+        const { data, error } = await supabase.storage.from('walls').list(folder, { limit: 100, offset: 0, sortBy: { column: 'name', order: 'asc' } });
+        if (error) throw error;
+        (data || []).forEach((item) => {
+          const updatedAt = item.updated_at || item.created_at;
+          const ageOk = updatedAt ? (now - new Date(updatedAt).getTime() > sevenDays) : false;
+          const path = `${folder}/${item.name}`;
+          if (!referenced.has(path) && ageOk) deletions.push(path);
+        });
+      }
     }
 
     return deletions;
@@ -284,9 +288,9 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-dvh bg-background pb-28">
+    <div className="app-shell min-h-dvh pb-28">
       {/* Header */}
-      <header className="px-6 pt-6 pb-6">
+      <header className="page-header px-6 pt-5 pb-5">
         <div className="flex items-center gap-3">
           <Link
             href="/"
@@ -301,7 +305,7 @@ export default function SettingsPage() {
         </div>
       </header>
 
-      <main className="px-6 space-y-8">
+      <main className="page-frame max-w-3xl px-6 py-8 space-y-10">
         {/* Account */}
         <section>
           <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4">Account</h2>

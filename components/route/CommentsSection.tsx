@@ -21,7 +21,7 @@ export function CommentsSection({ routeId, comments }: CommentsSectionProps) {
   const [isBeta, setIsBeta] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const currentUserId = userId || 'local-user';
+  const currentUserId = userId;
 
   // Sort comments: beta first, then by date
   const sortedComments = [...comments].sort((a, b) => {
@@ -40,6 +40,10 @@ export function CommentsSection({ routeId, comments }: CommentsSectionProps) {
       return;
     }
 
+    if (!userId) {
+      toast.error('Log in to comment on routes.');
+      return;
+    }
     setIsSubmitting(true);
 
     const comment: Comment = {
@@ -52,16 +56,25 @@ export function CommentsSection({ routeId, comments }: CommentsSectionProps) {
       created_at: new Date().toISOString(),
     };
 
-    await addComment(routeId, comment);
+    const saved = await addComment(routeId, comment);
+    setIsSubmitting(false);
+    if (!saved) {
+      toast.error('Unable to save comment. Please try again.');
+      return;
+    }
+
     setNewComment('');
     setIsBeta(false);
-    setIsSubmitting(false);
     toast.success(isBeta ? 'Beta added!' : 'Comment added!');
   };
 
   const handleDelete = async (commentId: string) => {
-    await deleteComment(routeId, commentId);
-    toast.success('Comment deleted');
+    const deleted = await deleteComment(routeId, commentId);
+    if (deleted) {
+      toast.success('Comment deleted');
+    } else {
+      toast.error('Unable to delete comment. Please try again.');
+    }
   };
 
   const canDeleteComment = (comment: Comment) => {

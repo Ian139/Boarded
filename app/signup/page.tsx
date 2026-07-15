@@ -44,8 +44,13 @@ export default function SignupPage() {
     const result = await signup(email, password, displayName || undefined);
 
     if (result.success) {
-      toast.success('Account created!');
-      router.push('/');
+      if (result.requiresConfirmation) {
+        toast.success('Check your email to confirm your account.');
+        router.push('/login');
+      } else {
+        toast.success('Account created!');
+        router.push('/');
+      }
     } else {
       setError(result.error || 'Signup failed');
     }
@@ -54,9 +59,9 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-dvh bg-background flex flex-col">
+    <div className="auth-shell min-h-dvh flex flex-col">
       {/* Header */}
-      <header className="px-4 pt-6 pb-4">
+      <header className="page-frame px-4 md:px-8 pt-6 pb-5">
         <div className="flex items-center gap-3">
           <Link
             href="/"
@@ -72,8 +77,8 @@ export default function SignupPage() {
       </header>
 
       {/* Form */}
-      <main className="flex-1 px-4">
-        <form onSubmit={handleSubmit} className="space-y-5 max-w-sm mx-auto">
+      <main className="flex-1 px-4 pb-12 flex items-center justify-center">
+        <form onSubmit={handleSubmit} className="auth-card w-full space-y-5 max-w-md">
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input

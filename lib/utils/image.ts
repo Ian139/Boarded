@@ -5,10 +5,22 @@ export interface CompressOptions {
   mimeType?: string;
 }
 
-export async function compressImage(
+export interface CompressedImage {
+  blob: Blob;
+  width: number;
+  height: number;
+}
+
+/**
+ * Compress an image and return the dimensions of the encoded canvas.
+ *
+ * The canvas dimensions are also the dimensions stored alongside a wall row,
+ * so callers can render the image at its actual aspect ratio after upload.
+ */
+export async function compressImageWithDimensions(
   file: File,
   { maxWidth, maxHeight, quality, mimeType = 'image/jpeg' }: CompressOptions
-): Promise<Blob> {
+): Promise<CompressedImage> {
   const bitmap = await createImageBitmap(file);
   const width = bitmap.width;
   const height = bitmap.height;
@@ -22,19 +34,28 @@ export async function compressImage(
   canvas.height = targetHeight;
   const ctx = canvas.getContext('2d');
   if (!ctx) {
-    return file;
+    bitmap.close();
+    return { blob: file, width, height };
   }
 
   ctx.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
   bitmap.close();
 
-  return new Promise((resolve) => {
+  const blob = await new Promise<Blob>((resolve) => {
     canvas.toBlob(
-      (blob) => {
-        resolve(blob || file);
-      },
+      (encoded) => resolve(encoded || file),
       mimeType,
       quality
     );
   });
+
+  return { blob, width: targetWidth, height: targetHeight };
+}
+
+export async function compressImage(
+  file: File,
+  options: CompressOptions
+): Promise<Blob> {
+  const { blob } = await compressImageWithDimensions(file, options);
+  return blob;
 }

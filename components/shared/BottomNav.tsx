@@ -66,11 +66,10 @@ export function BottomNav() {
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden">
-      {/* Glass effect background */}
-      <div className="absolute inset-0 bg-background/80 backdrop-blur-xl border-t border-border/50" />
+    <nav aria-label="Primary navigation" className="fixed bottom-0 left-0 right-0 z-50 px-3 pb-2 md:hidden">
+      <div className="absolute inset-x-3 inset-y-0 rounded-2xl border border-border/70 bg-card/85 shadow-[var(--shadow-float)] backdrop-blur-xl" />
 
-      <div className="relative flex items-center justify-evenly px-6 py-2 pb-safe">
+      <div className="relative flex items-center justify-evenly px-2 py-2 pb-safe">
         {navItems.map((item) => {
           const isActive = pathname === item.href;
 
@@ -79,45 +78,30 @@ export function BottomNav() {
               key={item.href}
               href={item.href}
               onClick={(e) => handleNavClick(e, item.href, item.color)}
+              aria-current={isActive ? 'page' : undefined}
               className={cn(
-                'relative flex flex-col items-center justify-center py-2 px-6 min-w-[72px]',
-                isActive ? 'text-primary' : 'text-muted-foreground'
+                'relative flex min-w-[72px] flex-col items-center justify-center rounded-xl px-5 py-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
               )}
             >
               {/* Animated background pill */}
               {isActive && (
                 <motion.div
                   layoutId="nav-indicator"
-                  className="absolute inset-0 bg-primary/10 rounded-xl"
-                  transition={{
-                    type: 'spring',
-                    stiffness: 350,
-                    damping: 30,
-                  }}
+                  className="absolute inset-0 rounded-xl border border-primary/10 bg-primary/10"
+                  transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
                 />
               )}
               <motion.div
-                animate={{
-                  scale: isActive ? 1.05 : 1,
-                }}
-                transition={{
-                  type: 'spring',
-                  stiffness: 400,
-                  damping: 20,
-                }}
+                animate={{ scale: isActive ? 1.05 : 1 }}
+                transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
                 className="relative z-10"
               >
                 {item.icon(isActive)}
               </motion.div>
               <motion.span
-                animate={{
-                  opacity: isActive ? 1 : 0.7,
-                }}
-                transition={{
-                  type: 'spring',
-                  stiffness: 400,
-                  damping: 20,
-                }}
+                animate={{ opacity: isActive ? 1 : 0.7 }}
+                transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
                 className={cn(
                   'relative z-10 text-xs mt-1 font-medium',
                   isActive ? 'text-primary' : 'text-muted-foreground'

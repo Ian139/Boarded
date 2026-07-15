@@ -39,3 +39,7 @@ CREATE TRIGGER update_profiles_updated_at
   BEFORE UPDATE ON profiles
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
+
+GRANT SELECT ON TABLE profiles TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE profiles TO authenticated;
+GRANT ALL ON TABLE profiles TO service_role;

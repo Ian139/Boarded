@@ -35,6 +35,8 @@ export function RouteViewerDialog({ route, onOpenChange, wallImageUrl }: RouteVi
         {route && (
           <RouteViewer
             wallImageUrl={route.wall_image_url || wallImageUrl}
+            wallImageWidth={route.wall_image_width}
+            wallImageHeight={route.wall_image_height}
             holds={route.holds}
             routeName={route.name}
             grade={calculateDisplayGrade(route.grade_v, route.ascents)}

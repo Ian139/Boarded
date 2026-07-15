@@ -1,8 +1,13 @@
 -- Storage policies for walls bucket
 
--- Enable RLS on storage.objects
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+-- Fresh stacks do not have storage buckets until one is explicitly created.
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('walls', 'walls', true)
+ON CONFLICT (id) DO UPDATE SET public = EXCLUDED.public;
 
+DROP POLICY IF EXISTS "Public read access for walls" ON storage.objects;
+DROP POLICY IF EXISTS "Public insert for walls" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated delete for walls" ON storage.objects;
 -- Public read access for walls bucket
 CREATE POLICY "Public read access for walls" ON storage.objects
   FOR SELECT

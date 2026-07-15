@@ -1,4 +1,4 @@
-import { nanoid } from 'nanoid';
+import { nanoid } from 'nanoid/non-secure';
 import { Hold, HoldType, HoldSize, HOLD_COLORS, HOLD_TYPE_CYCLE } from '../types';
 
 const TOLERANCE = 3; // Tolerance in percentage for hold proximity detection

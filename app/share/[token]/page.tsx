@@ -62,6 +62,7 @@ export default function SharePage() {
           .from('routes')
           .select('*, ascents (*), comments (*)')
           .eq('share_token', token)
+          .eq('is_public', true)
           .limit(1)
           .single();
 
@@ -70,6 +71,7 @@ export default function SharePage() {
             .from('routes')
             .select('*, ascents (*)')
             .eq('share_token', token)
+            .eq('is_public', true)
             .limit(1)
             .single();
         }
@@ -78,8 +80,10 @@ export default function SharePage() {
           setError('Route not found');
         } else {
           setRoute(result.data as Route);
-          const viewCount = (result.data.view_count || 0) + 1;
-          await supabase.from('routes').update({ view_count: viewCount }).eq('id', result.data.id);
+          const { data: nextCount, error: viewError } = await supabase.rpc('increment_route_view', { target_route_id: result.data.id });
+          if (viewError || typeof nextCount !== 'number') {
+            console.warn('Unable to increment route view count');
+          }
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load route');
@@ -92,8 +96,8 @@ export default function SharePage() {
   }, [token]);
 
   return (
-    <div className="min-h-dvh bg-background">
-      <header className="px-4 md:px-8 pt-6 pb-4 border-b border-border/50">
+    <div className="app-shell min-h-dvh">
+      <header className="page-header px-4 md:px-8 pt-5 pb-4">
         <div className="flex items-center gap-3">
           <Link
             href="/"
@@ -116,6 +120,8 @@ export default function SharePage() {
         ) : route ? (
           <RouteViewer
             wallImageUrl={route.wall_image_url || DEFAULT_WALL.image_url}
+            wallImageWidth={route.wall_image_width || DEFAULT_WALL.image_width}
+            wallImageHeight={route.wall_image_height || DEFAULT_WALL.image_height}
             holds={route.holds}
             routeName={route.name}
             grade={calculateDisplayGrade(route.grade_v, route.ascents)}

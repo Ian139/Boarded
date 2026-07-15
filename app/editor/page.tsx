@@ -1,8 +1,8 @@
 'use client';
 
-import { Suspense, useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { WallCanvas } from '@/components/wall/WallCanvas';
 import { useHolds } from '@/lib/hooks/useHolds';
 import { HoldType, HoldSize, Route, V_GRADES, HOLD_COLORS, HOLD_TYPE_CYCLE, HOLD_BORDER_WIDTH } from '@/lib/types';
@@ -18,27 +18,36 @@ import { useWallsStore, DEFAULT_WALL } from '@/lib/stores/walls-store';
 import { useRoutesStore } from '@/lib/stores/routes-store';
 import { useUserStore } from '@/lib/stores/user-store';
 
-// Wrapper component with Suspense for useSearchParams
 export default function EditorPage() {
-  return (
-    <Suspense fallback={<EditorLoadingFallback />}>
-      <EditorContent />
-    </Suspense>
-  );
+  const [editRouteId, setEditRouteId] = useState<string | null>(null);
+  const [paramsReady, setParamsReady] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const search = new URLSearchParams(window.location.search).get('edit');
+    queueMicrotask(() => {
+      if (!active) return;
+      setEditRouteId(search);
+      setParamsReady(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (!paramsReady) {
+    return (
+      <div className="h-dvh bg-background md:bg-zinc-950 flex items-center justify-center">
+        <div className="text-muted-foreground">Loading editor...</div>
+      </div>
+    );
+  }
+
+  return <EditorContent editRouteId={editRouteId} />;
 }
 
-function EditorLoadingFallback() {
-  return (
-    <div className="h-dvh bg-background md:bg-zinc-950 flex items-center justify-center">
-      <div className="text-muted-foreground">Loading editor...</div>
-    </div>
-  );
-}
-
-function EditorContent() {
-  const searchParams = useSearchParams();
+function EditorContent({ editRouteId }: { editRouteId: string | null }) {
   const router = useRouter();
-  const editRouteId = searchParams.get('edit');
 
   const {
     holds,
@@ -61,41 +70,102 @@ function EditorContent() {
   } = useHolds();
 
   const { selectedWall } = useWallsStore();
-  const { routes, addRoute, updateRoute } = useRoutesStore();
-  const { userId, displayName, isModerator } = useUserStore();
+  const {
+    routes,
+    addRoute,
+    updateRoute,
+    fetchRouteById,
+  } = useRoutesStore();
+  const {
+    userId,
+    displayName,
+    isModerator,
+    isLoading: userLoading,
+  } = useUserStore();
   const wall = selectedWall?.id === 'all-walls' ? DEFAULT_WALL : (selectedWall || DEFAULT_WALL);
 
   // Edit mode state
   const [editingRoute, setEditingRoute] = useState<Route | null>(null);
+  const [editResolution, setEditResolution] = useState<'loading' | 'ready' | 'error'>(
+    editRouteId ? 'loading' : 'ready'
+  );
+  const editFetchRef = useRef<string | null>(null);
   const isEditMode = !!editRouteId;
+  const canvasWall = editingRoute
+    ? {
+        ...wall,
+        image_url: editingRoute.wall_image_url || editingRoute.wall?.image_url || wall.image_url,
+        image_width: editingRoute.wall_image_width || editingRoute.wall?.image_width || wall.image_width,
+        image_height: editingRoute.wall_image_height || editingRoute.wall?.image_height || wall.image_height,
+      }
+    : wall;
+  const loadedEditRef = useRef<string | null>(null);
 
   // Check if user can edit a route
   const canEditRoute = useCallback((route: Route) => {
     return isModerator || route.user_id === userId || route.user_id === 'local-user';
   }, [isModerator, userId]);
 
-  // Load route data when in edit mode
+  // Resolve direct edit URLs even when the route store starts empty.
   useEffect(() => {
-    if (editRouteId && routes.length > 0) {
-      const route = routes.find(r => r.id === editRouteId);
-      if (route) {
-        if (!canEditRoute(route)) {
-          toast.error('You do not have permission to edit this route');
-          router.push('/');
-          return;
-        }
-        setEditingRoute(route);
-        setAllHolds(route.holds);
-        // Clear localStorage draft to avoid conflicts
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('climbset-draft');
-        }
-      } else {
-        toast.error('Route not found');
-        router.push('/');
-      }
+    if (!editRouteId) {
+      editFetchRef.current = null;
+      loadedEditRef.current = null;
+      setEditingRoute(null);
+      setEditResolution('ready');
+      return;
     }
-  }, [editRouteId, routes, router, setAllHolds, canEditRoute]);
+    if (userLoading) return;
+    if (editFetchRef.current && editFetchRef.current !== editRouteId) {
+      editFetchRef.current = null;
+      loadedEditRef.current = null;
+    }
+    if (loadedEditRef.current === editRouteId) return;
+
+    const loadRoute = (route: Route) => {
+      if (!canEditRoute(route)) {
+        setEditResolution('error');
+        toast.error('You do not have permission to edit this route');
+        router.push('/');
+        return;
+      }
+      setEditingRoute(route);
+      setAllHolds(route.holds);
+      setEditResolution('ready');
+      localStorage.removeItem('climbset-draft');
+      loadedEditRef.current = editRouteId;
+    };
+
+    const route = routes.find((candidate) => candidate.id === editRouteId);
+    if (route) {
+      loadRoute(route);
+      return;
+    }
+    if (editFetchRef.current === editRouteId) return;
+
+    editFetchRef.current = editRouteId;
+    setEditResolution('loading');
+    let active = true;
+    void fetchRouteById(editRouteId).then((resolvedRoute) => {
+      if (!active) return;
+      if (resolvedRoute) {
+        loadRoute(resolvedRoute);
+        return;
+      }
+      setEditResolution('error');
+      toast.error('Route not found');
+      router.push('/');
+    }).catch(() => {
+      if (!active) return;
+      setEditResolution('error');
+      toast.error('Unable to load this route');
+      router.push('/');
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [editRouteId, userLoading, routes, router, setAllHolds, canEditRoute, fetchRouteById]);
 
   // Save state
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -114,6 +184,10 @@ function EditorContent() {
 
   // Handle save
   const handleSave = async () => {
+    if (isEditMode && (editResolution !== 'ready' || !editingRoute)) {
+      setSaveError('This route is still loading. Please try again.');
+      return;
+    }
     if (!routeName.trim()) {
       setSaveError('Please enter a route name');
       return;
@@ -124,12 +198,12 @@ function EditorContent() {
 
     try {
       if (isEditMode && editingRoute) {
-        // Update existing route
-        await updateRoute(editingRoute.id, {
+        const updated = await updateRoute(editingRoute.id, {
           name: routeName.trim(),
           grade_v: routeGrade && routeGrade !== 'ungraded' ? routeGrade : undefined,
           holds,
         });
+        if (!updated) throw new Error('Unable to update this route. Check your permissions and try again.');
         toast.success('Route updated!');
         router.push('/');
       } else {
@@ -140,6 +214,8 @@ function EditorContent() {
           user_name: displayName || 'Anonymous',
           wall_id: wall.id,
           wall_image_url: wall.image_url, // Snapshot wall image at creation time
+          wall_image_width: wall.image_width,
+          wall_image_height: wall.image_height,
           name: routeName.trim(),
           grade_v: routeGrade && routeGrade !== 'ungraded' ? routeGrade : undefined,
           holds,
@@ -150,8 +226,8 @@ function EditorContent() {
           updated_at: new Date().toISOString(),
         };
 
-        // Save to local store
-        addRoute(route);
+        const saved = await addRoute(route);
+        if (!saved) throw new Error('Route was saved locally but could not be synced to the server.');
         toast.success('Route saved!');
       }
 
@@ -171,6 +247,8 @@ function EditorContent() {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && typeof target.closest === 'function' && target.closest('input, textarea, select, [contenteditable="true"]')) return;
       if (e.key === '1') setSelectedType('start');
       if (e.key === '2') setSelectedType('hand');
       if (e.key === '3') setSelectedType('foot');
@@ -278,10 +356,19 @@ function EditorContent() {
     setSaveError(null);
   };
 
+  if (isEditMode && editResolution !== 'ready') {
+    return (
+      <div className="h-dvh bg-background md:bg-zinc-950 flex items-center justify-center">
+        <div className="text-center text-muted-foreground" aria-live="polite">
+          {editResolution === 'error' ? 'Unable to load route.' : 'Loading route...'}
+        </div>
+      </div>
+    );
+  }
   return (
-    <div className="h-dvh bg-background md:bg-zinc-950 flex flex-col overflow-hidden">
+    <div className="app-shell h-dvh bg-background/30 md:bg-zinc-950 flex flex-col overflow-hidden">
       {/* Header - minimal, floating feel */}
-      <header className="absolute top-0 left-0 right-0 z-50 px-4 pt-4 pb-2">
+      <header className="absolute top-0 left-0 right-0 z-50 px-4 pt-4 pb-2 bg-gradient-to-b from-black/55 to-transparent">
         <div className="flex items-center justify-between">
           <Link
             href="/"
@@ -298,7 +385,7 @@ function EditorContent() {
               onClick={undo}
               disabled={!canUndo}
               aria-label="Undo"
-              className="size-10 rounded-xl bg-black/50 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white/70 hover:text-white hover:bg-black/60 transition-colors disabled:opacity-30 disabled:hover:bg-black/50"
+              className="size-10 rounded-xl bg-black/55 backdrop-blur-xl border border-white/15 flex items-center justify-center text-white/80 hover:text-white hover:bg-black/70 transition-colors disabled:cursor-not-allowed disabled:text-white/45 disabled:bg-black/35 disabled:border-white/10"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
@@ -308,7 +395,7 @@ function EditorContent() {
               onClick={redo}
               disabled={!canRedo}
               aria-label="Redo"
-              className="size-10 rounded-xl bg-black/50 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white/70 hover:text-white hover:bg-black/60 transition-colors disabled:opacity-30 disabled:hover:bg-black/50"
+              className="size-10 rounded-xl bg-black/55 backdrop-blur-xl border border-white/15 flex items-center justify-center text-white/80 hover:text-white hover:bg-black/70 transition-colors disabled:cursor-not-allowed disabled:text-white/45 disabled:bg-black/35 disabled:border-white/10"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 15l6-6m0 0l-6-6m6 6H9a6 6 0 000 12h3" />
@@ -316,7 +403,7 @@ function EditorContent() {
             </button>
             <button
               onClick={() => setShowSaveDialog(true)}
-              disabled={holds.length === 0}
+              disabled={holds.length === 0 || (isEditMode && editResolution !== 'ready')}
               className="h-10 px-5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
               {isEditMode ? 'Update' : 'Save'}
@@ -324,11 +411,16 @@ function EditorContent() {
           </div>
         </div>
       </header>
+      <p className="pointer-events-none absolute left-1/2 top-20 z-40 -translate-x-1/2 rounded-lg border border-white/10 bg-black/55 px-3 py-1.5 text-center text-xs font-medium text-white/85 shadow-lg backdrop-blur-md">
+        Tap the wall to place holds · tap a hold to change its type
+      </p>
 
       {/* Wall - full screen */}
       <div className="flex-1">
         <WallCanvas
-          wallImageUrl={wall.image_url}
+          wallImageWidth={canvasWall.image_width}
+          wallImageHeight={canvasWall.image_height}
+          wallImageUrl={canvasWall.image_url}
           holds={holds}
           showSequence={showSequence}
           onAddHold={addHold}
@@ -399,8 +491,9 @@ function EditorContent() {
                 <button
                   onClick={() => toggleSequenceVisibility(!showSequence)}
                   aria-label="Toggle sequence numbers"
+                  title={showSequence ? "Hide sequence numbers" : "Show sequence numbers"}
                   className={cn(
-                    'size-10 rounded-lg flex items-center justify-center transition-all',
+                    'h-10 rounded-lg px-2 flex items-center justify-center gap-1.5 transition-all',
                     showSequence
                       ? 'bg-primary/15 text-primary'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -409,16 +502,19 @@ function EditorContent() {
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 8.25h15m-16.5 7.5h15m-1.8-13.5l-3.9 19.5m-2.1-19.5l-3.9 19.5" />
                   </svg>
+                  <span className="hidden text-xs font-medium min-[400px]:inline">Sequence</span>
                 </button>
 
                 <button
                   onClick={clearHolds}
                   aria-label="Clear all holds"
-                  className="size-10 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
+                  title="Clear all holds"
+                  className="h-10 rounded-lg px-2 flex items-center justify-center gap-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                   </svg>
+                  <span className="hidden text-xs font-medium min-[400px]:inline">Clear</span>
                 </button>
               </div>
             </div>
@@ -434,9 +530,9 @@ function EditorContent() {
               </span>
             </div>
 
-            <div className="bg-zinc-900/95 backdrop-blur-xl border border-zinc-800 rounded-xl p-1.5 flex items-center gap-1 shadow-xl">
+            <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-1 rounded-xl border border-zinc-800 bg-zinc-900/95 p-1.5 shadow-xl backdrop-blur-xl">
             {/* Hold type pills */}
-            <div className="flex-1 flex gap-1">
+            <div className="flex min-w-[22rem] flex-1 gap-1 max-lg:basis-full">
               {holdTypes.map((type) => (
                 <button
                   key={type}
@@ -470,7 +566,7 @@ function EditorContent() {
             </div>
 
             {/* Divider */}
-            <div className="w-px h-8 bg-zinc-700 mx-1" />
+            <div className="hidden h-8 w-px bg-zinc-700 mx-1 lg:block" />
 
             {/* Size selector - slider on desktop */}
             <div className="flex items-center gap-2 bg-zinc-800/50 rounded-lg px-3 py-2">
@@ -496,14 +592,15 @@ function EditorContent() {
             </div>
 
             {/* Divider */}
-            <div className="w-px h-8 bg-zinc-700 mx-1" />
+            <div className="hidden h-8 w-px bg-zinc-700 mx-1 lg:block" />
 
             {/* More actions */}
             <button
               onClick={() => toggleSequenceVisibility(!showSequence)}
               aria-label="Toggle sequence numbers"
+              title={showSequence ? "Hide sequence numbers" : "Show sequence numbers"}
               className={cn(
-                'size-10 rounded-lg flex items-center justify-center transition-colors',
+                'h-10 rounded-lg px-2.5 flex items-center justify-center gap-1.5 text-xs font-medium transition-colors',
                 showSequence
                   ? 'bg-primary/20 text-primary'
                   : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/80'
@@ -512,16 +609,19 @@ function EditorContent() {
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 8.25h15m-16.5 7.5h15m-1.8-13.5l-3.9 19.5m-2.1-19.5l-3.9 19.5" />
               </svg>
+              <span>Sequence</span>
             </button>
 
             <button
               onClick={clearHolds}
               aria-label="Clear all holds"
-              className="size-10 rounded-lg flex items-center justify-center text-zinc-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+              title="Clear all holds"
+              className="h-10 rounded-lg px-2.5 flex items-center justify-center gap-1.5 text-xs font-medium text-zinc-300 hover:text-red-300 hover:bg-red-500/10 transition-colors"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
               </svg>
+              <span>Clear</span>
             </button>
           </div>
           </div>

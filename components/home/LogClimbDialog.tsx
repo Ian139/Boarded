@@ -49,13 +49,17 @@ function LogClimbDialogContent({
   const [logFlashed, setLogFlashed] = useState(false);
   const [isLogging, setIsLogging] = useState(false);
 
-  const handleLogClimb = () => {
+  const handleLogClimb = async () => {
+    if (!userId) {
+      toast.error('Log in to log a climb.');
+      return;
+    }
     setIsLogging(true);
 
     const ascent: Ascent = {
       id: crypto.randomUUID(),
       route_id: route.id,
-      user_id: userId || 'local-user',
+      user_id: userId,
       user_name: displayName || 'Anonymous',
       grade_v: logGrade || undefined,
       rating: logRating > 0 ? logRating : undefined,
@@ -64,10 +68,14 @@ function LogClimbDialogContent({
       created_at: new Date().toISOString(),
     };
 
-    addAscent(route.id, ascent);
+    const saved = await addAscent(route.id, ascent);
+    setIsLogging(false);
+    if (!saved) {
+      toast.error('Unable to save climb. Please try again.');
+      return;
+    }
 
     onOpenChange(false);
-    setIsLogging(false);
     toast.success('Climb logged!');
   };
 

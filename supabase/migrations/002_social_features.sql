@@ -72,3 +72,7 @@ CREATE POLICY "Users can remove their own likes" ON route_likes
 -- Allow updating public routes to increment view_count
 CREATE POLICY "Public routes can update view_count" ON routes
   FOR UPDATE USING (is_public = true) WITH CHECK (is_public = true);
+
+GRANT SELECT ON TABLE comments, route_likes TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE comments, route_likes TO authenticated;
+GRANT ALL ON TABLE comments, route_likes TO service_role;

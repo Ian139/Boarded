@@ -75,15 +75,15 @@ export function SearchFilterBar({
                 <SelectValue placeholder="Sort" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="newest">Newest</SelectItem>
-                <SelectItem value="oldest">Oldest</SelectItem>
-                <SelectItem value="name">Name</SelectItem>
-                <SelectItem value="grade-asc">Easiest</SelectItem>
-                <SelectItem value="grade-desc">Hardest</SelectItem>
-                <SelectItem value="rating">Top Rated</SelectItem>
-                <SelectItem value="most-liked">Most Liked</SelectItem>
-                <SelectItem value="most-climbed">Most Climbed</SelectItem>
-                <SelectItem value="most-viewed">Most Viewed</SelectItem>
+                <SelectItem value="newest">Sort: Newest</SelectItem>
+                <SelectItem value="oldest">Sort: Oldest</SelectItem>
+                <SelectItem value="name">Sort: Name</SelectItem>
+                <SelectItem value="grade-asc">Sort: Easiest</SelectItem>
+                <SelectItem value="grade-desc">Sort: Hardest</SelectItem>
+                <SelectItem value="rating">Sort: Top Rated</SelectItem>
+                <SelectItem value="most-liked">Sort: Most Liked</SelectItem>
+                <SelectItem value="most-climbed">Sort: Most Climbed</SelectItem>
+                <SelectItem value="most-viewed">Sort: Most Viewed</SelectItem>
               </SelectContent>
             </Select>
 
@@ -153,15 +153,15 @@ export function SearchFilterBar({
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="newest">Newest First</SelectItem>
-              <SelectItem value="oldest">Oldest First</SelectItem>
-              <SelectItem value="name">Name A-Z</SelectItem>
-              <SelectItem value="grade-asc">Grade (Easiest)</SelectItem>
-              <SelectItem value="grade-desc">Grade (Hardest)</SelectItem>
-              <SelectItem value="rating">Highest Rated</SelectItem>
-              <SelectItem value="most-liked">Most Liked</SelectItem>
-              <SelectItem value="most-climbed">Most Climbed</SelectItem>
-              <SelectItem value="most-viewed">Most Viewed</SelectItem>
+              <SelectItem value="newest">Sort: Newest</SelectItem>
+              <SelectItem value="oldest">Sort: Oldest</SelectItem>
+              <SelectItem value="name">Sort: Name</SelectItem>
+              <SelectItem value="grade-asc">Sort: Easiest</SelectItem>
+              <SelectItem value="grade-desc">Sort: Hardest</SelectItem>
+              <SelectItem value="rating">Sort: Top Rated</SelectItem>
+              <SelectItem value="most-liked">Sort: Most Liked</SelectItem>
+              <SelectItem value="most-climbed">Sort: Most Climbed</SelectItem>
+              <SelectItem value="most-viewed">Sort: Most Viewed</SelectItem>
             </SelectContent>
           </Select>
 

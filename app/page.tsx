@@ -19,7 +19,7 @@ import { SearchFilterBar } from '@/components/home/SearchFilterBar';
 import { WallPickerDialog } from '@/components/home/WallPickerDialog';
 import { RouteList } from '@/components/home/RouteList';
 import { toast } from 'sonner';
-import type { Route } from '@/lib/types';
+import type { Route, Wall } from '@/lib/types';
 
 type SortOption =
   | 'newest'
@@ -65,31 +65,38 @@ export default function Home() {
     if (routes.length === 0) return;
 
     const knownWallIds = new Set(walls.map((w) => w.id));
-    const missingWalls = new Map<string, { imageUrl?: string }>();
+    const missingWalls = new Map<string, { imageUrl?: string; imageWidth?: number; imageHeight?: number }>();
 
     routes.forEach((route) => {
       if (!route.wall_id || route.wall_id === 'default-wall') return;
       if (knownWallIds.has(route.wall_id)) return;
       if (!missingWalls.has(route.wall_id)) {
-        missingWalls.set(route.wall_id, { imageUrl: route.wall_image_url });
+        missingWalls.set(route.wall_id, {
+          imageUrl: route.wall_image_url,
+          imageWidth: route.wall_image_width,
+          imageHeight: route.wall_image_height,
+        });
       }
     });
 
     if (missingWalls.size === 0) return;
 
     missingWalls.forEach((meta, wallId) => {
-      addWall({
+      const derivedWall = {
         id: wallId,
         user_id: 'local-user',
         name: `Imported Wall ${wallId.slice(0, 4).toUpperCase()}`,
         image_url: meta.imageUrl || DEFAULT_WALL.image_url,
-        image_width: 1920,
-        image_height: 1080,
+        image_width: meta.imageWidth || 1920,
+        image_height: meta.imageHeight || 1080,
         is_public: false,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-      });
+        _derivedFromRoute: true,
+      } as Wall & { _derivedFromRoute: true };
+      addWall(derivedWall);
     });
+
   }, [routes, walls, addWall]);
 
   // Auto-select first wall if none selected
@@ -196,9 +203,9 @@ export default function Home() {
   if (!isClient) return null;
 
   return (
-    <div className="min-h-dvh bg-background pb-28 md:pb-8">
+    <div className="app-shell min-h-dvh pb-28 md:pb-10">
       {/* Header */}
-      <header className="px-4 md:px-8 pt-6 pb-4">
+      <header className="page-header px-4 md:px-8 pt-5 pb-4">
         {isOfflineMode && (
           <div className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-700 dark:text-amber-300">
             Local-only mode. Cloud sync is unavailable.
@@ -313,7 +320,7 @@ export default function Home() {
       </header>
 
       {/* Routes List */}
-      <main className="px-4 md:px-8 mt-2">
+      <main className="page-frame px-4 md:px-8 mt-5 md:mt-8">
         {!selectedWall ? (
           <div className="py-12 text-center max-w-sm mx-auto">
             <div className="size-20 rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/20 mx-auto mb-6 flex items-center justify-center">
@@ -406,13 +413,21 @@ export default function Home() {
                 </div>
               </div>
             ) : (
-              <RouteList
-                routes={wallRoutes}
-                onViewRoute={handleViewRoute}
-                onLogClimb={setRouteToLog}
-                onDeleteRoute={setRouteToDelete}
-                onEditRoute={handleEditRoute}
-              />
+              <>
+                <RouteList
+                  routes={wallRoutes}
+                  onViewRoute={handleViewRoute}
+                  onLogClimb={setRouteToLog}
+                  onDeleteRoute={setRouteToDelete}
+                  onEditRoute={handleEditRoute}
+                />
+                {wallRoutes.length <= 3 && (
+                  <div className="mx-auto mt-8 flex max-w-md items-center justify-between gap-4 rounded-2xl border border-border/60 bg-card/55 px-4 py-3">
+                    <p className="text-sm text-muted-foreground">Add another problem to this wall.</p>
+                    <Button onClick={handleNewRoute} variant="outline" size="sm">Create route</Button>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}
@@ -429,10 +444,14 @@ export default function Home() {
         onOpenChange={() => setRouteToDelete(null)}
         title="Delete Route"
         description={`Are you sure you want to delete "${routeToDelete?.name}"? This action cannot be undone.`}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (routeToDelete) {
-            deleteRoute(routeToDelete.id);
-            toast.success('Route deleted');
+            const deleted = await deleteRoute(routeToDelete.id);
+            if (deleted) {
+              toast.success('Route deleted');
+            } else {
+              toast.error('Unable to delete route. Please try again.');
+            }
           }
         }}
       />

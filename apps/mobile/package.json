@@ -6,7 +6,9 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "e2e:ios": "~/.maestro/bin/maestro test e2e",
+    "test": "jest --runInBand"
   },
   "dependencies": {
     "@climbset/shared": "*",
@@ -41,6 +43,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
+    "jest-expo": "~54.0.17",
     "typescript": "~5.9.2"
   },
   "private": true

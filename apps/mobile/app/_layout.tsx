@@ -39,22 +39,8 @@ function RootLayoutContent() {
       >
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="(auth)" />
-        <Stack.Screen
-          name="share/[token]"
-          options={{
-            headerShown: true,
-            title: 'Shared Route',
-            presentation: 'modal',
-          }}
-        />
-        <Stack.Screen
-          name="settings"
-          options={{
-            headerShown: true,
-            title: 'Settings',
-            presentation: 'modal',
-          }}
-        />
+        <Stack.Screen name="share/[token]" options={{ headerShown: false }} />
+        <Stack.Screen name="settings" options={{ headerShown: false }} />
       </Stack>
     </SafeAreaProvider>
   );

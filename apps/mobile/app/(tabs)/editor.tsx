@@ -1,656 +1,365 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
-import {
-  View,
-  Text,
-  Pressable,
-  Modal,
-  TextInput,
-  ScrollView,
-  Alert,
-  LayoutChangeEvent,
-  GestureResponderEvent,
-  Image,
-} from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   HOLD_COLORS,
   V_GRADES,
+  createHold,
+  createUuid,
+  createShareToken,
+  cycleHoldType,
+  findHoldNearPoint,
+  removeHold,
+  toggleSequencing,
   type Hold,
-  type HoldType,
   type HoldSize,
+  type HoldType,
   type Route,
 } from '@climbset/shared';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { nanoid } from 'nanoid/non-secure';
 import { useRoutesStore } from '../../lib/stores/routes-store';
 import { useWallsStore } from '../../lib/stores/walls-store';
-import { colors } from '../../lib/theme';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useUserStore } from '../../lib/stores/user-store';
+import { useTheme } from '../../lib/theme';
+import EditorWallCanvas from '../../components/wall/EditorWallCanvas';
 
 const HOLD_TYPES: HoldType[] = ['start', 'hand', 'foot', 'finish'];
-const HOLD_SIZE_PX: Record<HoldSize, number> = { small: 16, medium: 24, large: 36 };
-const HOLD_BORDER: Record<HoldSize, number> = { small: 2, medium: 3, large: 4 };
+const DRAFT_KEY_PREFIX = 'climbset-draft';
 
 export default function EditorScreen() {
   const router = useRouter();
+  const { colors, reduceMotion } = useTheme();
   const { edit } = useLocalSearchParams<{ edit?: string }>();
-  const editRouteId = typeof edit === 'string' ? edit : null;
+  const editRouteId = typeof edit === 'string' ? edit : undefined;
+  const { routes, isLoading, hasHydrated, fetchRoutes, addRoute, updateRoute } = useRoutesStore();
+  const { selectedWall, fetchWalls, setSelectedWall, getWallById, walls } = useWallsStore();
+  const { user, userId, isModerator } = useUserStore();
+  const draftKey = `${DRAFT_KEY_PREFIX}:${userId || user?.id || 'local-user'}`;
   const [holds, setHolds] = useState<Hold[]>([]);
+  const [history, setHistory] = useState<Hold[][]>([]);
+  const [future, setFuture] = useState<Hold[][]>([]);
   const [selectedType, setSelectedType] = useState<HoldType>('hand');
   const [selectedSize, setSelectedSize] = useState<HoldSize>('medium');
   const [showSequence, setShowSequence] = useState(false);
-  const [saveModalVisible, setSaveModalVisible] = useState(false);
   const [routeName, setRouteName] = useState('');
   const [routeGrade, setRouteGrade] = useState('');
-  const [undoStack, setUndoStack] = useState<Hold[][]>([]);
-  const { selectedWall, fetchWalls, setSelectedWall, getWallById } = useWallsStore();
-  const { routes, addRoute, updateRoute } = useRoutesStore();
-  const loadedRouteIdRef = useRef<string | null>(null);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [saveBusy, setSaveBusy] = useState(false);
+  const [draftHydrated, setDraftHydrated] = useState(false);
+  const [wallReady, setWallReady] = useState(Boolean(selectedWall?.image_url));
+  const loadedRouteRef = useRef<string | undefined>(undefined);
+  const draftGenerationRef = useRef(0);
+  const [editFetchSettled, setEditFetchSettled] = useState(!editRouteId);
 
   useEffect(() => {
-    fetchWalls();
-  }, [fetchWalls]);
+    setEditFetchSettled(!editRouteId);
+    let active = true;
+    fetchRoutes().finally(() => { if (active) setEditFetchSettled(true); });
+    fetchWalls().then(() => {
+      if (!active || editRouteId || useWallsStore.getState().selectedWall) return;
+      const defaultWall = useWallsStore.getState().walls.find((wall) => wall.id === 'default-wall');
+      if (defaultWall) setSelectedWall(defaultWall);
+    });
+    return () => { active = false; };
+  }, [editRouteId, fetchRoutes, fetchWalls, setSelectedWall]);
 
   useEffect(() => {
-    if (!editRouteId) {
-      loadedRouteIdRef.current = null;
+    const generation = draftGenerationRef.current + 1;
+    draftGenerationRef.current = generation;
+    setDraftHydrated(false);
+    setHolds([]);
+    setHistory([]);
+    setFuture([]);
+    setRouteName('');
+    setRouteGrade('');
+    setShowSequence(false);
+    loadedRouteRef.current = undefined;
+    if (editRouteId) return;
+    let cancelled = false;
+    AsyncStorage.getItem(draftKey)
+      .then((raw) => {
+        if (cancelled || draftGenerationRef.current !== generation || !raw) return;
+        try {
+          const draft = JSON.parse(raw);
+          if (Array.isArray(draft)) {
+            setHolds(draft);
+            setHistory([]);
+            setFuture([]);
+            setShowSequence(draft.some((hold: Hold) => hold.sequence != null));
+          }
+        } catch {
+          AsyncStorage.removeItem(draftKey).catch(() => undefined);
+        }
+      })
+      .finally(() => {
+        if (!cancelled && draftGenerationRef.current === generation) setDraftHydrated(true);
+      });
+    return () => { cancelled = true; };
+  }, [draftKey, editRouteId]);
+
+  useEffect(() => {
+    if (!draftHydrated || editRouteId) return;
+    AsyncStorage.setItem(draftKey, JSON.stringify(holds)).catch(() => undefined);
+  }, [draftKey, draftHydrated, editRouteId, holds]);
+
+  useEffect(() => {
+    if (!editRouteId || loadedRouteRef.current === editRouteId || !hasHydrated || isLoading || !editFetchSettled) return;
+    const route = routes.find((candidate) => candidate.id === editRouteId);
+    if (!route) {
+      loadedRouteRef.current = editRouteId;
+      Alert.alert('Route not found', 'This route is no longer available.');
+      router.replace('/(tabs)');
       return;
     }
-
-    if (loadedRouteIdRef.current === editRouteId) return;
-
-    const route = routes.find((r) => r.id === editRouteId);
-    if (!route) return;
-
-    loadedRouteIdRef.current = editRouteId;
+    const canEdit = isModerator || route.user_id === (user?.id || userId || 'local-user') || route.user_id === 'local-user';
+    if (!canEdit) {
+      loadedRouteRef.current = editRouteId;
+      Alert.alert('Permission denied', 'You do not have permission to edit this route.');
+      router.replace('/(tabs)');
+      return;
+    }
+    loadedRouteRef.current = editRouteId;
+    const generation = draftGenerationRef.current;
     const timer = setTimeout(() => {
+      if (draftGenerationRef.current !== generation) return;
+      const nextHolds = route.holds || [];
+      setHolds(nextHolds);
+      setHistory([]);
+      setFuture([]);
       setRouteName(route.name || '');
       setRouteGrade(route.grade_v || '');
-      setHolds(route.holds || []);
-      setUndoStack([]);
-      setShowSequence((route.holds || []).some((h) => h.sequence != null));
-
+      setDraftHydrated(true);
       if (route.wall_id) {
         const wall = getWallById(route.wall_id);
         if (wall) setSelectedWall(wall);
       }
+      AsyncStorage.removeItem(draftKey).catch(() => undefined);
     }, 0);
-
     return () => clearTimeout(timer);
-  }, [editRouteId, routes, getWallById, setSelectedWall]);
+  }, [draftKey, editFetchSettled, editRouteId, getWallById, hasHydrated, isLoading, isModerator, router, routes, setSelectedWall, user?.id, userId, walls]);
+  const commit = useCallback((next: Hold[]) => {
+    setHistory((previous) => [...previous, holds]);
+    setFuture([]);
+    setHolds(next);
+  }, [holds]);
 
-  const canvasLayout = useRef({ width: 0, height: 0 });
-
-  const handleCanvasLayout = useCallback((e: LayoutChangeEvent) => {
-    const { width, height } = e.nativeEvent.layout;
-    canvasLayout.current = { width, height };
-  }, []);
-
-  const handleCanvasPress = useCallback(
-    (e: GestureResponderEvent) => {
-      const { locationX, locationY } = e.nativeEvent;
-      const { width, height } = canvasLayout.current;
-      if (width === 0 || height === 0) return;
-
-      const x = (locationX / width) * 100;
-      const y = (locationY / height) * 100;
-
-      const newHold: Hold = {
-        id: `h-${Date.now()}`,
-        x,
-        y,
-        type: selectedType,
-        color: HOLD_COLORS[selectedType],
-        sequence: showSequence ? holds.length + 1 : null,
-        size: selectedSize,
-      };
-
-      setUndoStack((prev) => [...prev, holds]);
-      setHolds((prev) => [...prev, newHold]);
-    },
-    [selectedType, selectedSize, showSequence, holds]
-  );
-
-  const handleUndo = useCallback(() => {
-    if (undoStack.length === 0) return;
-    const prev = undoStack[undoStack.length - 1];
-    setUndoStack((s) => s.slice(0, -1));
-    setHolds(prev);
-  }, [undoStack]);
-
-  const removeHold = useCallback((holdId: string) => {
-    setHolds((prev) => {
-      setUndoStack((s) => [...s, prev]);
-      return prev.filter((h) => h.id !== holdId);
-    });
-  }, []);
-
-  const clearHolds = () => {
-    if (holds.length === 0) return;
-    Alert.alert('Clear All', 'Remove all holds?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Clear',
-        style: 'destructive',
-        onPress: () => {
-          setUndoStack((s) => [...s, holds]);
-          setHolds([]);
-        },
-      },
-    ]);
-  };
-
-  const isEditMode = !!editRouteId;
-
-  const handleSave = async () => {
-    if (!selectedWall) {
-      Alert.alert('Select a wall', 'Please select a wall before saving a route.');
+  const handleTap = useCallback((point: { x: number; y: number }) => {
+    if (!draftHydrated) return;
+    const near = findHoldNearPoint(holds, point.x, point.y);
+    if (near) {
+      commit(cycleHoldType(holds, near.id));
       return;
     }
-    const wallId = selectedWall.id;
-    const wallImageUrl = selectedWall.image_url || undefined;
+    commit([...holds, createHold(point.x, point.y, selectedType, selectedSize, showSequence ? Math.max(0, ...holds.map((hold) => hold.sequence || 0)) + 1 : null)]);
+  }, [commit, draftHydrated, holds, selectedSize, selectedType, showSequence]);
 
-    if (isEditMode && editRouteId) {
-      await updateRoute(editRouteId, {
-        name: routeName.trim(),
+  const handleLongPress = useCallback((point: { x: number; y: number }) => {
+    if (!draftHydrated) return;
+    const next = removeHold(holds, point.x, point.y);
+    if (next !== holds) commit(next);
+  }, [commit, draftHydrated, holds]);
+
+  const undo = useCallback(() => {
+    if (history.length === 0) return;
+    const previous = history[history.length - 1];
+    setHistory((items) => items.slice(0, -1));
+    setFuture((items) => [...items, holds]);
+    setHolds(previous);
+  }, [history, holds]);
+
+  const redo = useCallback(() => {
+    if (future.length === 0) return;
+    const next = future[future.length - 1];
+    setFuture((items) => items.slice(0, -1));
+    setHistory((items) => [...items, holds]);
+    setHolds(next);
+  }, [future, holds]);
+
+  const clear = useCallback(() => {
+    if (holds.length === 0) return;
+    Alert.alert('Clear all holds?', 'This action can be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Clear', style: 'destructive', onPress: () => commit([]) },
+    ]);
+  }, [commit, holds.length]);
+
+  const sequenceToggle = useCallback(() => {
+    const nextEnabled = !showSequence;
+    setShowSequence(nextEnabled);
+    commit(toggleSequencing(holds, nextEnabled));
+  }, [commit, holds, showSequence]);
+
+  const save = async () => {
+    if (saveBusy) return;
+    setSaveBusy(true);
+    try {
+      const name = routeName.trim();
+      if (!name) {
+        setSaveError('Please enter a route name');
+        return;
+      }
+      if (!editRouteId && (!selectedWall || selectedWall.id === 'all-walls')) {
+        setSaveError('Select a specific wall before saving');
+        return;
+      }
+      if (!wallReady) {
+        setSaveError('Wait for the wall image to finish loading before saving');
+        return;
+      }
+      setSaveError('');
+      const liveState = useRoutesStore.getState();
+      const liveUser = useUserStore.getState();
+      const saveOwnerId = liveUser.user?.id || liveUser.userId || 'local-user';
+      if (editRouteId) {
+        const currentRoute = liveState.routes.find((route) => route.id === editRouteId);
+        const canEdit = currentRoute && (liveUser.isModerator || currentRoute.user_id === liveUser.user?.id || currentRoute.user_id === 'local-user');
+        if (!currentRoute || !canEdit) {
+          setSaveError('This route is no longer available or you do not have permission to edit it.');
+          return;
+        }
+        if ((useUserStore.getState().userId || 'local-user') !== saveOwnerId) {
+          setSaveError('Session changed while saving; please retry.');
+          return;
+        }
+        const updated = await updateRoute(editRouteId, {
+          name,
+          grade_v: routeGrade || undefined,
+          holds,
+        });
+        if ((useUserStore.getState().userId || 'local-user') !== saveOwnerId) {
+          setSaveError('Session changed while saving; please retry.');
+          return;
+        }
+        if (!updated) {
+          setSaveError('Unable to update this route. Refresh and try again.');
+          return;
+        }
+        try { await AsyncStorage.removeItem(draftKey); } catch { /* saved route remains valid */ }
+        setSaveOpen(false);
+        router.replace('/(tabs)');
+        return;
+      }
+      const wall = selectedWall;
+      if (!wall) {
+        setSaveError('Select a specific wall before saving');
+        return;
+      }
+      if ((useUserStore.getState().userId || 'local-user') !== saveOwnerId) {
+        setSaveError('Session changed while saving; please retry.');
+        return;
+      }
+      const now = new Date().toISOString();
+      const route: Route = {
+        id: createUuid(),
+        user_id: liveUser.user?.id || liveUser.userId || 'local-user',
+        user_name: liveUser.user?.displayName || liveUser.displayName || 'Anonymous',
+        wall_id: wall.id,
+        wall_image_url: wall.image_url || undefined,
+        wall_image_width: wall.image_width,
+        wall_image_height: wall.image_height,
+        name,
         grade_v: routeGrade || undefined,
         holds,
-        wall_id: wallId,
-        wall_image_url: wallImageUrl,
-      });
-      Alert.alert('Updated!', `"${routeName}" updated with ${holds.length} holds.`);
-      setSaveModalVisible(false);
-      router.push('/(tabs)');
-      return;
+        is_public: false,
+        view_count: 0,
+        share_token: createShareToken(10),
+        created_at: now,
+        updated_at: now,
+        like_count: 0,
+      };
+      const added = await addRoute(route, saveOwnerId);
+      if ((useUserStore.getState().userId || 'local-user') !== saveOwnerId) {
+        setSaveError('Session changed while saving; please retry.');
+        return;
+      }
+      if (!added) {
+        setSaveError('Unable to save route while offline. Try again when connected.');
+        return;
+      }
+      Alert.alert('Route saved', `${name} is ready to climb.`);
+      try { await AsyncStorage.removeItem(draftKey); } catch { /* saved route remains valid */ }
+      setSaveOpen(false);
+      setRouteName('');
+      setRouteGrade('');
+      setHolds([]);
+      setHistory([]);
+      setFuture([]);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Unable to save route');
+    } finally {
+      setSaveBusy(false);
     }
-
-    const route: Route = {
-      id: nanoid(),
-      user_id: 'local-user',
-      user_name: 'You',
-      wall_id: wallId,
-      wall_image_url: wallImageUrl,
-      name: routeName.trim(),
-      grade_v: routeGrade || undefined,
-      holds,
-      is_public: true,
-      view_count: 0,
-      share_token: nanoid(10),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      like_count: 0,
-    };
-
-    await addRoute(route);
-    Alert.alert('Saved!', `"${routeName}" saved with ${holds.length} holds.`);
-    setSaveModalVisible(false);
-    setRouteName('');
-    setRouteGrade('');
-    setHolds([]);
-    setUndoStack([]);
   };
 
-  const holdCounts = holds.reduce(
-    (acc, h) => {
-      acc[h.type] = (acc[h.type] || 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>
-  );
+  const editingRoute = editRouteId ? routes.find((route) => route.id === editRouteId) : undefined;
+  const wallImage = editRouteId ? editingRoute?.wall_image_url || editingRoute?.wall?.image_url || selectedWall?.image_url : selectedWall?.image_url;
+  const wallWidth = editRouteId ? editingRoute?.wall_image_width || editingRoute?.wall?.image_width : selectedWall?.image_width;
+  const wallHeight = editRouteId ? editingRoute?.wall_image_height || editingRoute?.wall?.image_height : selectedWall?.image_height;
+  useEffect(() => {
+    setWallReady(false);
+  }, [wallImage]);
+  const handleImageStateChange = useCallback((state: 'loading' | 'ready' | 'error') => {
+    setWallReady(state === 'ready');
+  }, []);
+  const holdCounts = useMemo(() => HOLD_TYPES.map((type) => ({ type, count: holds.filter((hold) => hold.type === type).length })), [holds]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
-      {/* Header */}
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          paddingHorizontal: 16,
-          paddingVertical: 8,
-          backgroundColor: colors.card,
-        }}
-      >
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <Pressable
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 12,
-              backgroundColor: undoStack.length > 0 ? `${colors.card}f2` : `${colors.card}99`,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-            onPress={handleUndo}
-            disabled={undoStack.length === 0}
-          >
-            <Text style={{
-              color: undoStack.length > 0 ? colors.text : `${colors.muted}80`,
-              fontSize: 12,
-              fontWeight: '600',
-            }}>
-              Undo
-            </Text>
-          </Pressable>
-
-          {holds.length > 0 && (
-            <View
-              style={{
-                backgroundColor: `${colors.card}f2`,
-                borderRadius: 10,
-                paddingHorizontal: 10,
-                paddingVertical: 4,
-              }}
-            >
-              <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '500' }}>
-                {holds.length} {holds.length === 1 ? 'hold' : 'holds'}
-              </Text>
-            </View>
-          )}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 8 }}>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Undo" onPress={undo} disabled={!history.length} style={{ paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.card, opacity: history.length ? 1 : 0.45 }}><Text style={{ color: colors.text }}>Undo</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Redo" onPress={redo} disabled={!future.length} style={{ paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.card, opacity: future.length ? 1 : 0.45 }}><Text style={{ color: colors.text }}>Redo</Text></Pressable>
         </View>
-
-        <Pressable
-          style={{
-            paddingHorizontal: 20,
-            paddingVertical: 10,
-            borderRadius: 14,
-            backgroundColor: holds.length > 0 ? colors.primary : colors.border,
-            shadowColor: holds.length > 0 ? colors.primary : 'transparent',
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.25,
-            shadowRadius: 8,
-          }}
-          onPress={() => holds.length > 0 && setSaveModalVisible(true)}
-          disabled={holds.length === 0}
-        >
-          <Text style={{ fontWeight: '600', color: holds.length > 0 ? colors.card : `${colors.muted}80` }}>
-            {isEditMode ? 'Update' : 'Save'}
-          </Text>
-        </Pressable>
+        <Text style={{ color: colors.muted, fontSize: 12 }}>{holds.length} {holds.length === 1 ? 'hold' : 'holds'}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={editRouteId ? 'Update route' : 'Save route'} onPress={() => { setSaveError(''); setSaveOpen(true); }} disabled={!holds.length} style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.primary, opacity: holds.length ? 1 : 0.45 }}><Text style={{ color: colors.card, fontWeight: '700' }}>{editRouteId ? 'Update' : 'Save'}</Text></Pressable>
       </View>
 
-      {!selectedWall && (
-        <View style={{
-          marginHorizontal: 16,
-          marginBottom: 10,
-          padding: 12,
-          borderRadius: 12,
-          backgroundColor: colors.card,
-          borderWidth: 1,
-          borderColor: colors.border,
-        }}>
-          <Text style={{ fontSize: 12, color: colors.muted }}>
-            No walls found in the database. Add one in Settings to start setting routes.
-          </Text>
-          <Pressable onPress={() => router.push('/settings')} style={{ marginTop: 8 }}>
-            <Text style={{ fontSize: 12, fontWeight: '600', color: colors.primary }}>Open Settings</Text>
-          </Pressable>
-        </View>
-      )}
+      <View style={{ flex: 1, marginHorizontal: 10, marginBottom: 8, borderRadius: 16, overflow: 'hidden' }}>
+        <EditorWallCanvas imageUrl={wallImage} imageWidth={wallWidth} imageHeight={wallHeight} holds={holds} showSequence={showSequence} onImageStateChange={handleImageStateChange} onTap={handleTap} onLongPress={handleLongPress} />
+      </View>
 
-      {/* Canvas */}
-      <View
-        style={{
-          flex: 1,
-          marginHorizontal: 12,
-          marginBottom: 8,
-          borderRadius: 16,
-          overflow: 'hidden',
-          backgroundColor: colors.card,
-        }}
-        onLayout={handleCanvasLayout}
-        onStartShouldSetResponder={() => true}
-        onResponderRelease={handleCanvasPress}
-      >
-        {selectedWall?.image_url ? (
-          <Image
-            source={{ uri: selectedWall.image_url }}
-            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%' }}
-            resizeMode="cover"
-          />
-        ) : null}
-        {/* Placeholder */}
-        {holds.length === 0 && (
-          <View
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <View
-              style={{
-                width: 64,
-                height: 64,
-                borderRadius: 16,
-                backgroundColor: `${colors.border}e6`,
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: 12,
-              }}
-            >
-              <Text style={{ fontSize: 28 }}>👆</Text>
-            </View>
-            <Text style={{ color: colors.muted, fontSize: 14, fontWeight: '500' }}>Tap to place holds</Text>
-            <Text style={{ color: `${colors.muted}80`, fontSize: 12, marginTop: 4 }}>Long-press a hold to remove it</Text>
-          </View>
-        )}
-
-        {/* Hold count overlay */}
-        {holds.length > 0 && (
-          <View
-            style={{
-              position: 'absolute',
-              top: 12,
-              left: 12,
-              right: 12,
-              flexDirection: 'row',
-              flexWrap: 'wrap',
-              gap: 6,
-              zIndex: 10,
-            }}
-          >
-            {Object.entries(holdCounts).map(([type, count]) => (
-              <View
-                key={type}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 4,
-                  backgroundColor: colors.card,
-                  borderRadius: 8,
-                  paddingHorizontal: 8,
-                  paddingVertical: 2,
-                }}
-              >
-                <View style={{ backgroundColor: HOLD_COLORS[type as HoldType], width: 8, height: 8, borderRadius: 4 }} />
-                <Text style={{ color: colors.text, fontSize: 10, fontWeight: '500' }}>
-                  {count} {type}
-                </Text>
-              </View>
+      <View style={{ paddingHorizontal: 12, paddingBottom: 10, paddingTop: 8, backgroundColor: colors.card }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+          {HOLD_TYPES.map((type) => (
+            <Pressable key={type} accessibilityRole="button" accessibilityState={{ selected: selectedType === type }} accessibilityLabel={`Hold type ${type}`} onPress={() => setSelectedType(type)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10, backgroundColor: selectedType === type ? `${colors.primary}22` : colors.background }}>
+              <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: HOLD_COLORS[type] }} /><Text style={{ color: selectedType === type ? colors.primary : colors.muted, textTransform: 'capitalize' }}>{type}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            {(['small', 'medium', 'large'] as HoldSize[]).map((size) => (
+              <Pressable key={size} accessibilityRole="button" accessibilityState={{ selected: selectedSize === size }} accessibilityLabel={`Hold size ${size}`} onPress={() => setSelectedSize(size)} style={{ paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10, backgroundColor: selectedSize === size ? `${colors.primary}22` : colors.background }}><Text style={{ color: selectedSize === size ? colors.primary : colors.muted, textTransform: 'capitalize' }}>{size}</Text></Pressable>
             ))}
           </View>
-        )}
-
-        {/* Rendered holds */}
-        {holds.map((hold) => {
-          const size = HOLD_SIZE_PX[hold.size];
-          const bw = HOLD_BORDER[hold.size];
-          return (
-            <Pressable
-              key={hold.id}
-              onLongPress={() => removeHold(hold.id)}
-              delayLongPress={400}
-              style={{
-                position: 'absolute',
-                left: `${hold.x}%`,
-                top: `${hold.y}%`,
-                width: size,
-                height: size,
-                borderRadius: size / 2,
-                borderWidth: bw,
-                borderColor: hold.color,
-                backgroundColor: hold.color + '33',
-                transform: [{ translateX: -size / 2 }, { translateY: -size / 2 }],
-                alignItems: 'center',
-                justifyContent: 'center',
-                shadowColor: hold.color,
-                shadowOffset: { width: 0, height: 0 },
-                shadowOpacity: 0.35,
-                shadowRadius: 6,
-              }}
-            >
-              {showSequence && hold.sequence != null && (
-                <Text
-                  style={{
-                    color: colors.card,
-                    fontSize: size * 0.35,
-                    fontWeight: '700',
-                    textShadowColor: 'rgba(0,0,0,0.6)',
-                    textShadowOffset: { width: 0, height: 1 },
-                    textShadowRadius: 3,
-                  }}
-                >
-                  {hold.sequence}
-                </Text>
-              )}
-            </Pressable>
-          );
-        })}
-      </View>
-
-      {/* Bottom Controls */}
-      <View
-        style={{
-          paddingHorizontal: 12,
-          paddingBottom: 12,
-          backgroundColor: colors.card,
-        }}
-      >
-        {/* Hold Type Pills */}
-        <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8, marginTop: 8 }}>
-          {HOLD_TYPES.map((type) => {
-            const isSelected = selectedType === type;
-            const color = HOLD_COLORS[type];
-            return (
-              <Pressable
-                key={type}
-                style={{
-                  flex: 1,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 6,
-                  paddingVertical: 10,
-                  borderRadius: 12,
-                  backgroundColor: isSelected ? `${colors.primary}14` : colors.background,
-                }}
-                onPress={() => setSelectedType(type)}
-              >
-                <View style={{ backgroundColor: color, width: 10, height: 10, borderRadius: 5 }} />
-                <Text
-                  style={{
-                    fontSize: 12,
-                    fontWeight: '500',
-                    textTransform: 'capitalize',
-                    color: isSelected ? colors.primary : colors.muted,
-                  }}
-                >
-                  {type}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {/* Size + Actions Row */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          {/* Size selector */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            {(['small', 'medium', 'large'] as HoldSize[]).map((size) => {
-              const isSelected = selectedSize === size;
-              const dotSize = size === 'small' ? 8 : size === 'medium' ? 14 : 20;
-              const bw = HOLD_BORDER[size];
-              return (
-                <Pressable
-                  key={size}
-                  style={{
-                    width: 40,
-                    height: 40,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: 12,
-                    backgroundColor: isSelected ? `${colors.primary}14` : colors.background,
-                  }}
-                  onPress={() => setSelectedSize(size)}
-                >
-                  <View
-                    style={{
-                      width: dotSize,
-                      height: dotSize,
-                      borderRadius: dotSize / 2,
-                      borderWidth: bw,
-                      borderColor: colors.primary,
-                      backgroundColor: isSelected ? `${colors.primary}33` : 'transparent',
-                    }}
-                  />
-                </Pressable>
-              );
-            })}
-            <Text style={{ color: colors.muted, fontSize: 10, marginLeft: 4, textTransform: 'capitalize' }}>{selectedSize}</Text>
-          </View>
-
-          {/* Action buttons */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Pressable
-              style={{
-                width: 40,
-                height: 40,
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: 12,
-                backgroundColor: showSequence ? `${colors.primary}14` : colors.background,
-              }}
-              onPress={() => setShowSequence((v) => !v)}
-            >
-              <Text style={{ fontWeight: '700', color: showSequence ? colors.primary : colors.muted }}>#</Text>
-            </Pressable>
-            <Pressable
-              style={{
-                width: 40,
-                height: 40,
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: 12,
-                backgroundColor: colors.background,
-              }}
-              onPress={clearHolds}
-              disabled={holds.length === 0}
-            >
-              <Text style={{ color: holds.length > 0 ? colors.destructive : `${colors.muted}40`, fontSize: 12, fontWeight: '600' }}>Clear</Text>
-            </Pressable>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            <Pressable accessibilityRole="switch" accessibilityState={{ checked: showSequence }} accessibilityLabel="Toggle sequence numbers" onPress={sequenceToggle} style={{ paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10, backgroundColor: showSequence ? `${colors.primary}22` : colors.background }}><Text style={{ color: showSequence ? colors.primary : colors.muted }}>#</Text></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Clear all holds" onPress={clear} disabled={!holds.length} style={{ paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10, backgroundColor: colors.background, opacity: holds.length ? 1 : 0.4 }}><Text style={{ color: colors.destructive }}>Clear</Text></Pressable>
           </View>
         </View>
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>{holdCounts.filter(({ count }) => count > 0).map(({ type, count }) => <Text key={type} style={{ color: colors.muted, fontSize: 11 }}>{count} {type}</Text>)}</View>
       </View>
 
-      {/* Save Modal */}
-      <Modal
-        visible={saveModalVisible}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setSaveModalVisible(false)}
-      >
-        <View style={{ flex: 1, backgroundColor: colors.background }}>
-          <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-            {/* Modal Header */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-              <Pressable onPress={() => setSaveModalVisible(false)}>
-                <Text style={{ fontSize: 16, color: colors.muted }}>Cancel</Text>
-              </Pressable>
-              <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text }}>{isEditMode ? 'Update Route' : 'Save Route'}</Text>
-              <Pressable onPress={handleSave} disabled={!routeName.trim()}>
-                <Text style={{ fontSize: 16, fontWeight: '600', color: routeName.trim() ? colors.primary : colors.border }}>
-                  {isEditMode ? 'Update' : 'Save'}
-                </Text>
-              </Pressable>
-            </View>
-
-            <ScrollView style={{ flex: 1, paddingHorizontal: 16, paddingTop: 20 }}>
-              {/* Route Name */}
-              <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 6 }}>Route Name</Text>
-              <TextInput
-                style={{
-                  backgroundColor: colors.border,
-                  borderRadius: 12,
-                  paddingHorizontal: 16,
-                  paddingVertical: 12,
-                  fontSize: 16,
-                  color: colors.text,
-                  marginBottom: 20,
-                }}
-                placeholder="e.g., Crimpy Corner"
-                placeholderTextColor={colors.muted}
-                value={routeName}
-                onChangeText={setRouteName}
-                autoFocus
-              />
-
-              {/* Grade */}
-              <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 4 }}>Grade (Your Suggestion)</Text>
-              <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 8 }}>
-                This is your suggested grade as the setter
-              </Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
-                <View style={{ flexDirection: 'row', gap: 6 }}>
-                  <Pressable
-                    style={{
-                      paddingHorizontal: 14,
-                      paddingVertical: 8,
-                      borderRadius: 8,
-                      backgroundColor: !routeGrade ? colors.text : colors.border,
-                    }}
-                    onPress={() => setRouteGrade('')}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        color: !routeGrade ? colors.card : colors.muted,
-                        fontWeight: !routeGrade ? '500' : '400',
-                      }}
-                    >
-                      Ungraded
-                    </Text>
-                  </Pressable>
-                  {V_GRADES.map((g) => (
-                    <Pressable
-                      key={g}
-                      style={{
-                        paddingHorizontal: 14,
-                        paddingVertical: 8,
-                        borderRadius: 8,
-                        backgroundColor: routeGrade === g ? colors.text : colors.border,
-                      }}
-                      onPress={() => setRouteGrade(g)}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          color: routeGrade === g ? colors.card : colors.muted,
-                          fontWeight: routeGrade === g ? '500' : '400',
-                        }}
-                      >
-                        {g}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </ScrollView>
-
-              {/* Hold Summary */}
-              <View style={{ backgroundColor: colors.card, borderRadius: 16, padding: 16 }}>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text, marginBottom: 12 }}>
-                  Hold Summary — {holds.length} total
-                </Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
-                  {HOLD_TYPES.map((type) => {
-                    const count = holds.filter((h) => h.type === type).length;
-                    return (
-                      <View key={type} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <View style={{ backgroundColor: HOLD_COLORS[type], width: 14, height: 14, borderRadius: 7 }} />
-                        <Text style={{ fontSize: 14, color: colors.muted }}>
-                          <Text style={{ fontWeight: '600' }}>{count}</Text> {type}
-                        </Text>
-                      </View>
-                    );
-                  })}
-                </View>
-              </View>
+      <Modal visible={saveOpen} animationType={reduceMotion ? 'none' : 'slide'} presentationStyle="pageSheet" onRequestClose={() => setSaveOpen(false)}>
+        <SafeAreaView accessibilityViewIsModal style={{ flex: 1, backgroundColor: colors.background }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Cancel save" onPress={() => setSaveOpen(false)}><Text style={{ color: colors.muted }}>Cancel</Text></Pressable>
+            <Text accessibilityRole="header" style={{ color: colors.text, fontWeight: '700' }}>{editRouteId ? 'Update route' : 'Save route'}</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Confirm save" onPress={save} disabled={saveBusy} accessibilityState={{ disabled: saveBusy, busy: saveBusy }}><Text style={{ color: colors.primary, fontWeight: '700' }}>{saveBusy ? 'Saving…' : editRouteId ? 'Update' : 'Save'}</Text></Pressable>
+          </View>
+          <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
+            <Text style={{ color: colors.text, fontWeight: '600' }}>Route name</Text>
+            <TextInput value={routeName} onChangeText={setRouteName} placeholder="e.g., Crimpy Corner" placeholderTextColor={colors.muted} accessibilityLabel="Route name" style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 14, color: colors.text, backgroundColor: colors.card }} />
+            {saveError ? <Text accessibilityRole="alert" style={{ color: colors.destructive }}>{saveError}</Text> : null}
+            <Text style={{ color: colors.text, fontWeight: '600' }}>Setter grade</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+              {['', ...V_GRADES].map((grade) => <Pressable key={grade || 'ungraded'} accessibilityRole="button" accessibilityState={{ selected: routeGrade === grade }} onPress={() => setRouteGrade(grade)} style={{ paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10, backgroundColor: routeGrade === grade ? colors.primary : colors.card }}><Text style={{ color: routeGrade === grade ? colors.card : colors.muted }}>{grade || 'Ungraded'}</Text></Pressable>)}
             </ScrollView>
-          </SafeAreaView>
-        </View>
+            <View style={{ padding: 14, borderRadius: 14, backgroundColor: colors.card }}><Text style={{ color: colors.muted }}>This route will use {selectedWall?.name || 'the selected wall'} and {holds.length} holds.</Text></View>
+          </ScrollView>
+        </SafeAreaView>
       </Modal>
     </SafeAreaView>
   );

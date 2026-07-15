@@ -12,6 +12,8 @@ node_modules
 /.next/
 /out/
 /build
+/dist/
+apps/mobile/dist/
 next-env.d.ts
 
 # Environment variables (IMPORTANT - contains secrets)

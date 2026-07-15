@@ -7,6 +7,8 @@ import { CommentsSection } from '@/components/route/CommentsSection';
 
 interface RouteViewerProps {
   wallImageUrl: string;
+  wallImageWidth?: number;
+  wallImageHeight?: number;
   holds: Hold[];
   routeName: string;
   grade?: string;
@@ -15,7 +17,7 @@ interface RouteViewerProps {
   comments?: Comment[];
 }
 
-export function RouteViewer({ wallImageUrl, holds, routeName, grade, setterName, routeId, comments = [] }: RouteViewerProps) {
+export function RouteViewer({ wallImageUrl, wallImageWidth, wallImageHeight, holds, routeName, grade, setterName, routeId, comments = [] }: RouteViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0, left: 0, top: 0 });
@@ -80,8 +82,8 @@ export function RouteViewer({ wallImageUrl, holds, routeName, grade, setterName,
           <Image
             src={wallImageUrl}
             alt="Climbing wall"
-            width={1920}
-            height={1080}
+            width={wallImageWidth || 1920}
+            height={wallImageHeight || 1080}
             className="select-none object-contain"
             style={{ maxWidth: '100%', maxHeight: '100%', width: 'auto', height: 'auto' }}
             priority

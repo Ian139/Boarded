@@ -21,10 +21,12 @@ interface RouteListProps {
   onDeleteRoute: (route: Route) => void;
   onEditRoute: (route: Route) => void;
 }
+const hasPendingCreate = (route: Route) =>
+  Boolean((route as Route & { _createSyncPending?: boolean })._createSyncPending);
 
 export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEditRoute }: RouteListProps) {
   const { userId, isModerator } = useUserStore();
-  const { toggleLike, isLikedByUser, getLikeCount, hasUserClimbed, updateRoute } = useRoutesStore();
+  const { toggleLike, isLikedByUser, getLikeCount, hasUserClimbed, updateRoute, syncLocalRoutes, fetchRouteById } = useRoutesStore();
   const { getWallById } = useWallsStore();
 
   const [flippedCards, setFlippedCards] = useState<Set<string>>(new Set());
@@ -44,7 +46,15 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
 
   const handleToggleLike = (route: Route, e: React.MouseEvent) => {
     e.stopPropagation();
-    toggleLike(route.id, userId || 'local-user');
+    if (route.user_id === 'local-user' || hasPendingCreate(route)) {
+      toast.error('Sync this route before liking it.');
+      return;
+    }
+    if (!userId) {
+      toast.error('Log in to like routes.');
+      return;
+    }
+    toggleLike(route.id, userId);
   };
 
   const getShareUrl = (token: string) => {
@@ -54,15 +64,42 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
 
   const handleShareRoute = async (route: Route, e: React.MouseEvent) => {
     e.stopPropagation();
-    let token = route.share_token;
-
-    if (!token) {
+    let shareRoute = route;
+    if (shareRoute.user_id === 'local-user' || hasPendingCreate(shareRoute)) {
       if (!userId) {
-        toast.error('Log in to enable sharing for existing routes');
+        toast.error('Log in to share a route across devices.');
         return;
       }
-      token = nanoid(10);
-      await updateRoute(route.id, { share_token: token });
+      await syncLocalRoutes();
+      const syncedRoute = useRoutesStore.getState().routes.find((candidate) => candidate.id === shareRoute.id);
+      if (!syncedRoute || syncedRoute.user_id === 'local-user' || hasPendingCreate(syncedRoute)) {
+        toast.error('Unable to sync this route before sharing');
+        return;
+      }
+      const verifiedRoute = await fetchRouteById(shareRoute.id);
+      if (!verifiedRoute || verifiedRoute.user_id !== userId || hasPendingCreate(verifiedRoute)) {
+        toast.error('Unable to verify this route before sharing');
+        return;
+      }
+      shareRoute = verifiedRoute;
+    }
+    const canManageSharing = isModerator || shareRoute.user_id === userId;
+    if (!canManageSharing && !shareRoute.is_public) {
+      toast.error('Only the route owner can enable sharing for this route');
+      return;
+    }
+    if (!shareRoute.share_token && !canManageSharing) {
+      toast.error('Only the route owner can enable sharing for this route');
+      return;
+    }
+
+    const token = shareRoute.share_token || nanoid(10);
+    if (canManageSharing && (!shareRoute.is_public || shareRoute.share_token !== token)) {
+      const persisted = await updateRoute(shareRoute.id, { share_token: token, is_public: true });
+      if (!persisted) {
+        toast.error('Unable to persist a share link right now');
+        return;
+      }
     }
 
     const url = getShareUrl(token);
@@ -84,7 +121,7 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
     <>
       {/* Mobile Routes List */}
       <div className="md:hidden divide-y divide-border/50">
-        {routes.map((route, index) => {
+        {routes.map((route) => {
           const ascents = route.ascents || [];
           const avgRating = ascents.length > 0
             ? ascents.reduce((sum, a) => sum + (a.rating || 0), 0) / ascents.filter(a => a.rating).length || route.rating || 0
@@ -97,11 +134,8 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
           const wallName = wall?.name || 'Unknown wall';
 
           return (
-            <motion.div
+            <div
               key={route.id}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: index * 0.03 }}
               className="relative"
             >
               {/* Feathered active background */}
@@ -156,7 +190,10 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center gap-1 shrink-0">
+                <div className={cn(
+                  "flex shrink-0 items-center gap-1",
+                  !isExpanded && "[&>button:not(:last-child)]:hidden"
+                )}>
                   <button
                     onClick={(e) => handleToggleLike(route, e)}
                     aria-label="Like route"
@@ -205,9 +242,10 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
                   </button>
                   <button
                     onClick={(e) => toggleCardFlip(route.id, e)}
-                    aria-label="View info"
+                    aria-label={isExpanded ? "Hide actions" : "Show actions"}
+                    aria-expanded={isExpanded}
                     className={cn(
-                      "size-9 rounded-lg flex items-center justify-center transition-colors",
+                      "h-9 rounded-lg px-2.5 flex items-center justify-center gap-1.5 text-xs font-semibold transition-colors",
                       isExpanded
                         ? "text-primary"
                         : "text-muted-foreground"
@@ -225,6 +263,7 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
                     </svg>
+                    <span>{isExpanded ? 'Close' : 'Actions'}</span>
                   </button>
                 </div>
               </div>
@@ -347,7 +386,7 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
                   </motion.div>
                 )}
               </AnimatePresence>
-            </motion.div>
+            </div>
           );
         })}
       </div>
@@ -355,7 +394,7 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
       {/* Desktop Routes List */}
       <div className="hidden md:block">
         <div className="divide-y divide-border/50">
-          {routes.map((route, index) => {
+          {routes.map((route) => {
             const ascents = route.ascents || [];
             const avgRating = ascents.length > 0
               ? ascents.reduce((sum, a) => sum + (a.rating || 0), 0) / ascents.filter(a => a.rating).length || route.rating || 0
@@ -368,11 +407,8 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
             const wallName = wall?.name || 'Unknown wall';
 
             return (
-              <motion.div
+              <div
                 key={route.id}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: index * 0.03 }}
                 className="group relative"
               >
                 {/* Feathered hover background */}
@@ -433,13 +469,11 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
                   </div>
 
                   {/* Actions */}
-                  <div className={cn(
-                    "flex items-center gap-2 transition-opacity duration-200",
-                    isExpanded ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-                  )}>
+                  <div className="flex items-center gap-1 rounded-xl border border-border/60 bg-card/70 p-1">
                     <button
                       onClick={(e) => handleToggleLike(route, e)}
                       aria-label="Like route"
+                      title="Like route"
                       className={cn(
                         "size-8 rounded-lg flex items-center justify-center transition-colors",
                         isLikedByUser(route.id, userId || 'local-user')
@@ -463,6 +497,7 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
                         onLogClimb(route);
                       }}
                       aria-label="Log climb"
+                      title="Log climb"
                       className={cn(
                         "size-8 rounded-lg flex items-center justify-center transition-colors",
                         hasUserClimbed(route.id, userId || 'local-user')
@@ -477,6 +512,7 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
                     <button
                       onClick={(e) => handleShareRoute(route, e)}
                       aria-label="Share route"
+                      title="Share route"
                       className="size-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -486,8 +522,9 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
                     <button
                       onClick={(e) => toggleCardFlip(route.id, e)}
                       aria-label="View info"
+                      title={isExpanded ? "Hide route details" : "Show route details"}
                       className={cn(
-                        "size-8 rounded-lg flex items-center justify-center transition-colors",
+                        "h-8 rounded-lg px-2 flex items-center justify-center gap-1.5 text-xs font-semibold transition-colors",
                         isExpanded
                           ? "text-primary bg-primary/10"
                           : "text-muted-foreground hover:text-primary"
@@ -496,6 +533,7 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
                       </svg>
+                      <span>Details</span>
                     </button>
                     {canEditRoute(route) && (
                       <button
@@ -504,6 +542,7 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
                           onEditRoute(route);
                         }}
                         aria-label="Edit route"
+                        title="Edit route"
                         className="size-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-blue-500 transition-colors"
                       >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -518,6 +557,7 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
                           onDeleteRoute(route);
                         }}
                         aria-label="Delete route"
+                        title="Delete route"
                         className="size-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors"
                       >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -603,7 +643,7 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
                     </motion.div>
                   )}
                 </AnimatePresence>
-              </motion.div>
+              </div>
             );
           })}
         </div>

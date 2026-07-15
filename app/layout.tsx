@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono, Manrope, Newsreader } from "next/font/google";
 import "./globals.css";
 import { BottomNav } from "@/components/shared/BottomNav";
 import { LiquidTransition } from "@/components/shared/LiquidTransition";
@@ -8,8 +8,13 @@ import { Providers } from "@/components/providers/Providers";
 import { Analytics } from "@vercel/analytics/next";
 import Script from "next/script";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const manrope = Manrope({
+  variable: "--font-manrope",
+  subsets: ["latin"],
+});
+
+const newsreader = Newsreader({
+  variable: "--font-newsreader",
   subsets: ["latin"],
 });
 
@@ -23,7 +28,7 @@ export const metadata: Metadata = {
   description: "Document and share your climbing routes",
   manifest: "/manifest.json",
   icons: {
-    icon: "/icon.png",
+    icon: "/icons/icon-192.png",
     apple: "/apple-touch-icon.png",
   },
 };
@@ -31,8 +36,6 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#f7f3ea" },
@@ -48,7 +51,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${manrope.variable} ${newsreader.variable} ${geistMono.variable} antialiased`}
       >
         <Providers>
           {children}
@@ -58,9 +61,9 @@ export default function RootLayout({
           <Analytics />
           <Script id="sw-register" strategy="afterInteractive">{`
             if ('serviceWorker' in navigator) {
-              const version = '${process.env.NEXT_PUBLIC_APP_VERSION || '1'}';
+              const version = '${process.env.NEXT_PUBLIC_APP_VERSION || 'dev'}';
               window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js?v=' + version).catch(() => {});
+                navigator.serviceWorker.register('/sw.js?v=' + encodeURIComponent(version)).catch(() => {});
               });
             }
           `}</Script>

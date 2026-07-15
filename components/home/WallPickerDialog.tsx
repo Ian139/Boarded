@@ -10,7 +10,7 @@ import { useWallsStore, DEFAULT_WALL } from '@/lib/stores/walls-store';
 import { useRoutesStore } from '@/lib/stores/routes-store';
 import { useUserStore } from '@/lib/stores/user-store';
 import { createClient } from '@/lib/supabase/client';
-import { compressImage } from '@/lib/utils/image';
+import { compressImageWithDimensions } from '@/lib/utils/image';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { Wall } from '@/lib/types';
@@ -49,27 +49,45 @@ export function WallPickerDialog({ open, onOpenChange }: WallPickerDialogProps) 
   const revokePreviewUrl = (url: string | null) => {
     if (url) URL.revokeObjectURL(url);
   };
+  const fileToDataUrl = (file: Blob) => new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Unable to read image'));
+    reader.onerror = () => reject(reader.error || new Error('Unable to read image'));
+    reader.readAsDataURL(file);
+  });
 
   const uploadWallImage = async (file: File, wallId: string) => {
     const supabase = createClient();
-    const compressed = await compressImage(file, {
+    const compressed = await compressImageWithDimensions(file, {
       maxWidth: 1920,
       maxHeight: 1920,
       quality: 0.82,
       mimeType: 'image/jpeg',
     });
 
-    const filePath = `${wallId}/${Date.now()}.jpg`;
+    if (!userId) {
+      return {
+        imageUrl: await fileToDataUrl(compressed.blob),
+        width: compressed.width,
+        height: compressed.height,
+      };
+    }
+
+    const filePath = `${userId}/${wallId}/${Date.now()}.jpg`;
     const { error } = await supabase.storage
       .from('walls')
-      .upload(filePath, compressed, { contentType: 'image/jpeg' });
+      .upload(filePath, compressed.blob, { contentType: 'image/jpeg' });
 
     if (error) {
       throw new Error(error.message);
     }
 
     const { data } = supabase.storage.from('walls').getPublicUrl(filePath);
-    return data.publicUrl;
+    return {
+      imageUrl: data.publicUrl,
+      width: compressed.width,
+      height: compressed.height,
+    };
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -88,21 +106,25 @@ export function WallPickerDialog({ open, onOpenChange }: WallPickerDialogProps) 
 
     try {
       const wallId = crypto.randomUUID();
-      const imageUrl = await uploadWallImage(wallImageFile, wallId);
+      const uploadedWallImage = await uploadWallImage(wallImageFile, wallId);
 
       const newWall: Wall = {
         id: wallId,
         user_id: userId || 'local-user',
         name: wallName.trim(),
-        image_url: imageUrl,
-        image_width: 1920,
-        image_height: 1080,
+        image_url: uploadedWallImage.imageUrl,
+        image_width: uploadedWallImage.width,
+        image_height: uploadedWallImage.height,
         is_public: false,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
 
-      addWall(newWall);
+      const addSucceeded = await addWall(newWall);
+      if (!addSucceeded) {
+        throw new Error('Unable to save wall');
+      }
+
       setSelectedWall(newWall);
       setShowAddWall(false);
       onOpenChange(false);
@@ -133,13 +155,23 @@ export function WallPickerDialog({ open, onOpenChange }: WallPickerDialogProps) 
     setIsUpdatingPhoto(true);
 
     try {
-      const imageUrl = await uploadWallImage(newWallImageFile, wallToUpdatePhoto.id);
-      await updateWall(wallToUpdatePhoto.id, {
-        image_url: imageUrl,
+      const uploadedWallImage = await uploadWallImage(newWallImageFile, wallToUpdatePhoto.id);
+      const updateSucceeded = await updateWall(wallToUpdatePhoto.id, {
+        image_url: uploadedWallImage.imageUrl,
+        image_width: uploadedWallImage.width,
+        image_height: uploadedWallImage.height,
       });
+      if (!updateSucceeded) {
+        throw new Error('Unable to save wall photo');
+      }
 
       if (selectedWall?.id === wallToUpdatePhoto.id) {
-        setSelectedWall({ ...wallToUpdatePhoto, image_url: imageUrl });
+        setSelectedWall({
+          ...wallToUpdatePhoto,
+          image_url: uploadedWallImage.imageUrl,
+          image_width: uploadedWallImage.width,
+          image_height: uploadedWallImage.height,
+        });
       }
 
       setWallToUpdatePhoto(null);
@@ -418,16 +450,15 @@ export function WallPickerDialog({ open, onOpenChange }: WallPickerDialogProps) 
             </Button>
             <Button
               variant="destructive"
-              onClick={() => {
-                if (wallToDelete) {
-                  if (selectedWall?.id === wallToDelete.id) {
-                    const defaultWall = walls.find(w => w.id === 'default-wall');
-                    if (defaultWall) setSelectedWall(defaultWall);
-                  }
-                  deleteWall(wallToDelete.id);
-                  toast.success('Wall deleted');
-                  setWallToDelete(null);
+              onClick={async () => {
+                if (!wallToDelete) return;
+                const deleteSucceeded = await deleteWall(wallToDelete.id);
+                if (!deleteSucceeded) {
+                  toast.error('Unable to delete wall');
+                  return;
                 }
+                toast.success('Wall deleted');
+                setWallToDelete(null);
               }}
             >
               Delete

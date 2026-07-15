@@ -134,9 +134,9 @@ export default function ProfilePage() {
   if (!isClient) return null;
 
   return (
-    <div className="min-h-dvh bg-background pb-28">
+    <div className="app-shell min-h-dvh pb-28">
       {/* Header */}
-      <header className="px-6 pt-6 pb-6">
+      <header className="page-header px-6 pt-5 pb-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link
@@ -163,7 +163,7 @@ export default function ProfilePage() {
         </div>
       </header>
 
-      <main className="px-6 space-y-8">
+      <main className="page-frame px-6 py-8 space-y-8">
         {/* User Info */}
         <section className="flex items-center gap-4">
           <div className="size-16 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden border border-border/60">

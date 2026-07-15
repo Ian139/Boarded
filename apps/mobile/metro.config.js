@@ -7,7 +7,7 @@ const originalResolveFilename = Module._resolveFilename;
 const mobileNodeModules = path.resolve(__dirname, 'node_modules');
 
 // Ensure child processes (NativeWind CLI) resolve mobile deps
-process.env.NODE_PATH = mobileNodeModules + (process.env.NODE_PATH ? `:${process.env.NODE_PATH}` : '');
+process.env.NODE_PATH = [mobileNodeModules, process.env.NODE_PATH].filter(Boolean).join(path.delimiter);
 Module._initPaths();
 const resolvePatchPath = path.resolve(__dirname, 'nativewind-resolve.js');
 if (!process.env.NODE_OPTIONS || !process.env.NODE_OPTIONS.includes(resolvePatchPath)) {
@@ -50,7 +50,6 @@ const escRoot = monorepoRoot.replace(/[/\\]/g, '[/\\\\]');
 config.resolver.blockList = [
   /\.next\/.*/,
   /\.git\/.*/,
-  new RegExp(`${escRoot}[/\\\\]node_modules[/\\\\]react[/\\\\](?!native)`),
   new RegExp(`${escRoot}[/\\\\]node_modules[/\\\\]tailwindcss[/\\\\]`),
 ];
 

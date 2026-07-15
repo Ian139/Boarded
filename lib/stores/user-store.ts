@@ -3,11 +3,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { createClient } from '@/lib/supabase/client';
+import { useRoutesStore } from '@/lib/stores/routes-store';
+import { useWallsStore } from '@/lib/stores/walls-store';
 import type { Profile } from '@/lib/types';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
-// Moderator emails - these users can delete any route/wall
-const MODERATOR_EMAILS = ['ian139@example.com', 'ian139'];
 
 interface User {
   id: string;
@@ -29,8 +29,7 @@ interface UserState {
   userId: string;
   displayName: string;
 
-  // Actions
-  signup: (email: string, password: string, displayName?: string) => Promise<{ success: boolean; error?: string }>;
+  signup: (email: string, password: string, displayName?: string) => Promise<{ success: boolean; requiresConfirmation?: boolean; error?: string }>;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   setDisplayName: (name: string) => void;
@@ -44,11 +43,8 @@ function mapSupabaseUser(supabaseUser: SupabaseUser): User {
   const email = supabaseUser.email || '';
   const displayName = supabaseUser.user_metadata?.display_name || email.split('@')[0] || 'User';
 
-  // Check if user is a moderator
-  const isModerator = MODERATOR_EMAILS.some(
-    modEmail => email.toLowerCase() === modEmail.toLowerCase() ||
-                displayName.toLowerCase() === modEmail.toLowerCase()
-  );
+  const appMetadata = supabaseUser.app_metadata as { role?: string; is_moderator?: boolean } | undefined;
+  const isModerator = appMetadata?.role === 'moderator' || appMetadata?.is_moderator === true;
 
   return {
     id: supabaseUser.id,
@@ -72,15 +68,52 @@ function buildUsername(displayName: string, email: string, userId: string) {
 }
 
 let removeAuthListener: (() => void) | null = null;
+let routeReconciliation = Promise.resolve();
 
 function authenticatedState(user: User) {
   return {
     user,
+    profile: null,
     isAuthenticated: true,
     isModerator: user.isModerator,
     userId: user.id,
     displayName: user.displayName,
   };
+}
+
+function signedOutState() {
+  return {
+    user: null,
+    profile: null,
+    isAuthenticated: false,
+    isModerator: false,
+    userId: '',
+    displayName: 'Guest',
+  };
+}
+
+function reconcileRoutesForAuthChange(currentUserId?: string): Promise<void> {
+  const routesStore = useRoutesStore.getState();
+  const wallsStore = useWallsStore.getState();
+  routesStore.clearRemoteRoutes(currentUserId);
+  wallsStore.clearRemoteWalls();
+  const run = async () => {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if ((user?.id || undefined) !== currentUserId) return;
+
+    try {
+      await routesStore.syncLocalRoutes();
+    } catch {
+      // Fetch still reconciles the visible remote routes after a sync failure.
+    }
+    await Promise.all([routesStore.fetchRoutes(), wallsStore.fetchWalls()]);
+  };
+
+  routeReconciliation = routeReconciliation
+    .catch(() => undefined)
+    .then(run);
+  return routeReconciliation;
 }
 
 export const useUserStore = create<UserState>()(
@@ -93,7 +126,6 @@ export const useUserStore = create<UserState>()(
       isModerator: false,
       userId: '',
       displayName: 'Guest',
-
       initializeAuth: async () => {
         const supabase = createClient();
 
@@ -104,8 +136,10 @@ export const useUserStore = create<UserState>()(
             const user = mapSupabaseUser(session.user);
             set({ ...authenticatedState(user), isLoading: false });
             await get().syncProfile();
+            await reconcileRoutesForAuthChange(user.id);
           } else {
-            set({ isLoading: false });
+            set({ ...signedOutState(), isLoading: false });
+            await reconcileRoutesForAuthChange();
           }
 
           if (!removeAuthListener) {
@@ -114,15 +148,10 @@ export const useUserStore = create<UserState>()(
                 const user = mapSupabaseUser(nextSession.user);
                 set(authenticatedState(user));
                 void get().syncProfile();
+                void reconcileRoutesForAuthChange(user.id);
               } else {
-                set({
-                  user: null,
-                  profile: null,
-                  isAuthenticated: false,
-                  isModerator: false,
-                  userId: '',
-                  displayName: 'Guest',
-                });
+                set(signedOutState());
+                void reconcileRoutesForAuthChange();
               }
             });
             removeAuthListener = () => subscription.unsubscribe();
@@ -161,11 +190,19 @@ export const useUserStore = create<UserState>()(
             return { success: false, error: error.message };
           }
 
-          if (data.user) {
+          if (data.user && data.session) {
             const user = mapSupabaseUser(data.user);
             set(authenticatedState(user));
             await get().syncProfile();
+            await reconcileRoutesForAuthChange(user.id);
             return { success: true };
+          }
+
+          if (data.user && !data.session) {
+            // With email confirmation enabled Supabase returns a user but no
+            // session. Do not treat that response as an authenticated login.
+            set(signedOutState());
+            return { success: true, requiresConfirmation: true };
           }
 
           return { success: false, error: 'Signup failed' };
@@ -191,6 +228,7 @@ export const useUserStore = create<UserState>()(
             const user = mapSupabaseUser(data.user);
             set(authenticatedState(user));
             await get().syncProfile();
+            await reconcileRoutesForAuthChange(user.id);
             return { success: true };
           }
 
@@ -201,6 +239,8 @@ export const useUserStore = create<UserState>()(
       },
 
       logout: async () => {
+        useRoutesStore.getState().clearRemoteRoutes();
+        useWallsStore.getState().clearRemoteWalls();
         const supabase = createClient();
 
         try {
@@ -217,6 +257,7 @@ export const useUserStore = create<UserState>()(
           userId: '',
           displayName: 'Guest',
         });
+        await reconcileRoutesForAuthChange();
       },
 
       setDisplayName: async (name: string) => {
@@ -248,18 +289,25 @@ export const useUserStore = create<UserState>()(
 
       syncProfile: async () => {
         const supabase = createClient();
-        const state = get();
-        const currentUser = state.user;
-        if (!currentUser) {
-          set({ profile: null });
-          return;
-        }
 
         try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.user) {
+            set(signedOutState());
+            return;
+          }
+
+          let currentUser = get().user;
+          if (!currentUser || currentUser.id !== session.user.id) {
+            const authenticatedUser = mapSupabaseUser(session.user);
+            set(authenticatedState(authenticatedUser));
+            currentUser = authenticatedUser;
+          }
+          const profileUserId = currentUser.id;
           const { data, error } = await supabase
             .from('profiles')
             .select('*')
-            .eq('id', currentUser.id)
+            .eq('id', profileUserId)
             .single();
 
           if (error && error.code !== 'PGRST116') {
@@ -267,6 +315,7 @@ export const useUserStore = create<UserState>()(
             return;
           }
 
+          if (get().user?.id !== profileUserId) return;
           if (data) {
             set({ profile: data as Profile });
             return;
@@ -291,6 +340,7 @@ export const useUserStore = create<UserState>()(
             return;
           }
 
+          if (get().user?.id !== profileUserId) return;
           set({ profile: created as Profile });
         } catch (error) {
           console.error('Profile sync error:', error);
@@ -315,6 +365,7 @@ export const useUserStore = create<UserState>()(
             return;
           }
 
+          if (get().user?.id !== state.user.id) return;
           set({ profile: data as Profile });
         } catch (error) {
           console.error('Failed to update profile:', error);
@@ -338,6 +389,7 @@ export const useUserStore = create<UserState>()(
             return null;
           }
 
+          if (get().user?.id !== state.user.id) return null;
           const { data } = supabase.storage.from('avatars').getPublicUrl(path);
           const publicUrl = data.publicUrl;
           await get().updateProfile({ avatar_url: publicUrl });

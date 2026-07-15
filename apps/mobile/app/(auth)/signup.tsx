@@ -1,104 +1,80 @@
-import { useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView } from 'react-native';
-import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, Image, Text, TextInput, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { AppScreen, Button, Field, InlineNotice, TopBar } from '../../components/ui';
+import { spacing, typography, useTheme } from '../../lib/theme';
 import { useUserStore } from '../../lib/stores/user-store';
-import { colors } from '../../lib/theme';
+import appIcon from '../../assets/icon.png';
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function SignupScreen() {
-  const [email, setEmail] = useState('');
+  const params = useLocalSearchParams<{ email?: string }>();
+  const { colors } = useTheme();
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState(typeof params.email === 'string' ? params.email : '');
   const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
+  const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const signup = useUserStore((s) => s.signup);
+  const [busy, setBusy] = useState(false);
+  const [confirmationSent, setConfirmationSent] = useState(false);
+  const nameRef = useRef<TextInput>(null);
+  const emailRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
+  const confirmRef = useRef<TextInput>(null);
+  const signup = useUserStore((state) => state.signup);
+  const authenticated = useUserStore((state) => state.isAuthenticated);
+  const authLoading = useUserStore((state) => state.isLoading);
 
-  const handleSignup = async () => {
+  useEffect(() => {
+    if (!authLoading && authenticated) router.replace('/(tabs)');
+  }, [authLoading, authenticated]);
+
+  const fail = (message: string, ref: React.RefObject<TextInput | null>) => {
+    setError(message);
+    ref.current?.focus();
+    AccessibilityInfo.announceForAccessibility(message);
+  };
+
+  const submit = async () => {
+    if (busy || confirmationSent) return;
+    const cleanName = name.trim();
+    const cleanEmail = email.trim();
+    if (!cleanName) return fail('Enter your display name.', nameRef);
+    if (!EMAIL.test(cleanEmail)) return fail('Enter a valid email address.', emailRef);
+    if (password.length < 6) return fail('Password must be at least 6 characters.', passwordRef);
+    if (password !== confirm) return fail('Passwords do not match.', confirmRef);
     setError('');
-    setIsLoading(true);
-    const result = await signup(email.trim(), password, displayName.trim() || undefined);
-    setIsLoading(false);
-    if (result.success) {
-      router.replace('/(tabs)');
+    setBusy(true);
+    const result = await signup(cleanEmail, password, cleanName);
+    setBusy(false);
+    if (result.success && result.requiresConfirmation) {
+      setConfirmationSent(true);
+      AccessibilityInfo.announceForAccessibility('Account created. Check your email to confirm before signing in.');
+    } else if (result.success) {
+      AccessibilityInfo.announceForAccessibility('Account created.');
     } else {
-      setError(result.error || 'Signup failed');
+      fail(result.error || 'We could not create your account. Try again.', emailRef);
     }
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
-        <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
-          <Pressable
-            style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: colors.card }}
-            onPress={() => router.back()}
-          >
-            <Text style={{ color: colors.muted, fontSize: 18 }}>‹</Text>
-          </Pressable>
+    <AppScreen scroll keyboard contentStyle={{ paddingHorizontal: spacing[5], paddingBottom: spacing[8] }}>
+      <TopBar title="Sign up" onBack={() => router.canGoBack() ? router.back() : router.replace('/(tabs)')} />
+      <View style={{ width: '100%', maxWidth: 400, alignSelf: 'center', gap: spacing[5], paddingTop: spacing[4] }}>
+        <View style={{ alignItems: 'center', gap: spacing[2] }}>
+          <Image source={appIcon} style={{ width: 64, height: 64, borderRadius: 16 }} accessibilityLabel="ClimbSet app icon" alt="ClimbSet app icon" />
+          <Text accessibilityRole="header" style={{ fontSize: typography.display.fontSize, lineHeight: typography.display.lineHeight, fontWeight: '700', color: colors.text }}>Create your account</Text>
+          <Text style={{ color: colors.textMuted }}>Set routes and share beta</Text>
         </View>
-
-        <View style={{ paddingHorizontal: 24, paddingTop: 24 }}>
-          <View style={{ alignItems: 'center', marginBottom: 24 }}>
-            <View style={{ width: 56, height: 56, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: `${colors.secondary}1a` }}>
-              <Text className="text-2xl">🧗</Text>
-            </View>
-            <Text style={{ fontSize: 24, fontWeight: '600', color: colors.text, marginTop: 16 }}>Create your account</Text>
-            <Text style={{ fontSize: 13, color: colors.muted, marginTop: 4 }}>Set routes and share beta</Text>
-          </View>
-
-          <View style={{ borderRadius: 16, backgroundColor: colors.card, paddingHorizontal: 16, paddingVertical: 20 }}>
-            <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Display Name</Text>
-            <TextInput
-              style={{ backgroundColor: colors.background, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, color: colors.text, marginBottom: 16 }}
-              placeholder="Your name (optional)"
-              placeholderTextColor={colors.muted}
-              value={displayName}
-              onChangeText={setDisplayName}
-            />
-
-            <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Email</Text>
-            <TextInput
-              style={{ backgroundColor: colors.background, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, color: colors.text, marginBottom: 16 }}
-              placeholder="you@example.com"
-              placeholderTextColor={colors.muted}
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-            />
-
-            <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Password</Text>
-            <TextInput
-              style={{ backgroundColor: colors.background, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, color: colors.text }}
-              placeholder="At least 6 characters"
-              placeholderTextColor={colors.muted}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-
-            {error ? (
-              <Text style={{ fontSize: 13, color: colors.destructive, marginTop: 12 }}>{error}</Text>
-            ) : null}
-
-            <Pressable
-              style={{ backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginTop: 20, opacity: isLoading ? 0.7 : 1 }}
-              onPress={handleSignup}
-              disabled={isLoading}
-            >
-              <Text style={{ color: colors.card, fontWeight: '600', fontSize: 16 }}>
-                {isLoading ? 'Creating account...' : 'Create Account'}
-              </Text>
-            </Pressable>
-          </View>
-
-          <Pressable onPress={() => router.push('/(auth)/login')} style={{ marginTop: 20 }}>
-            <Text style={{ textAlign: 'center', fontSize: 13, color: colors.muted }}>
-              Already have an account? <Text style={{ color: colors.primary, fontWeight: '600' }}>Log In</Text>
-            </Text>
-          </Pressable>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+        {confirmationSent ? <InlineNotice tone="success" message="Account created. Check your email to confirm before signing in, then log in." /> : error ? <InlineNotice tone="error" message={error} /> : null}
+        <Field ref={nameRef} label="Display name" required value={name} onChangeText={setName} editable={!busy && !confirmationSent} textContentType="name" autoComplete="name" returnKeyType="next" onSubmitEditing={() => emailRef.current?.focus()} placeholder="Your name" />
+        <Field ref={emailRef} label="Email" required value={email} onChangeText={setEmail} editable={!busy && !confirmationSent} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" textContentType="emailAddress" autoComplete="email" returnKeyType="next" onSubmitEditing={() => passwordRef.current?.focus()} placeholder="you@example.com" />
+        <Field ref={passwordRef} label="Password" required helper="At least 6 characters" value={password} onChangeText={setPassword} editable={!busy && !confirmationSent} secureTextEntry secureToggle textContentType="newPassword" autoComplete="new-password" returnKeyType="next" onSubmitEditing={() => confirmRef.current?.focus()} placeholder="Create a password" />
+        <Field ref={confirmRef} label="Confirm password" required value={confirm} onChangeText={setConfirm} editable={!busy && !confirmationSent} secureTextEntry secureToggle textContentType="newPassword" autoComplete="new-password" returnKeyType="done" onSubmitEditing={submit} placeholder="Repeat your password" />
+        <Button label={confirmationSent ? 'Confirmation email sent' : 'Create Account'} loading={busy} onPress={submit} disabled={busy || confirmationSent} />
+        <Button label="Already have an account? Log in" variant="ghost" onPress={() => router.push({ pathname: '/(auth)/login', params: { email: email.trim() } })} disabled={busy} />
+      </View>
+    </AppScreen>
   );
 }

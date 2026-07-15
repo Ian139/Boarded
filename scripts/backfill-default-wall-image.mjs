@@ -20,6 +20,20 @@ loadEnvFile('.env.local');
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const legacySupabaseOrigins = new Set(
+  String(process.env.LEGACY_SUPABASE_URL || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map((value) => {
+      try {
+        return new URL(value).origin;
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean)
+);
 
 if (!supabaseUrl || !serviceKey) {
   console.error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env.local');
@@ -34,11 +48,35 @@ const localWallPath = path.join('public', 'walls', 'default-wall.jpg');
 const storageBucket = 'walls';
 const storagePath = 'default-wall/wall.jpg';
 
+const storageObjectMarker = '/storage/v1/object/public/';
+
 const isMissingRemoteUrl = (value) => {
   if (value == null) return true;
-  const trimmed = String(value).trim();
-  return trimmed.length === 0 || trimmed.startsWith('/');
+  return !/^https?:\/\/[^/]+/i.test(String(value).trim());
 };
+
+const referencesSameStorageObject = (value, canonicalUrl) => {
+  try {
+    const source = new URL(String(value));
+    const canonical = new URL(String(canonicalUrl));
+    const sourcePath = source.pathname.split(storageObjectMarker)[1];
+    const canonicalPath = canonical.pathname.split(storageObjectMarker)[1];
+    const isTrustedOrigin = source.origin === canonical.origin ||
+      source.origin === new URL(supabaseUrl).origin ||
+      legacySupabaseOrigins.has(source.origin);
+    return Boolean(
+      isTrustedOrigin &&
+      sourcePath &&
+      canonicalPath &&
+      decodeURIComponent(sourcePath) === decodeURIComponent(canonicalPath)
+    );
+  } catch {
+    return false;
+  }
+};
+
+const needsRewrite = (value, canonicalUrl) =>
+  isMissingRemoteUrl(value) || referencesSameStorageObject(value, canonicalUrl);
 
 async function ensureBucket() {
   const { error } = await supabase.storage.getBucket(storageBucket);
@@ -83,8 +121,7 @@ async function run() {
 
   if (fetchError) throw fetchError;
 
-  const routesToUpdate = (routes ?? []).filter((route) => isMissingRemoteUrl(route.wall_image_url));
-
+  const routesToUpdate = (routes ?? []).filter((route) => needsRewrite(route.wall_image_url, publicUrl));
   let updated = 0;
   for (const route of routesToUpdate) {
     const { error: updateError } = await supabase

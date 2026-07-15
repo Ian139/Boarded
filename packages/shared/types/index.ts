@@ -47,6 +47,8 @@ export interface Route {
   user_name?: string; // Setter's display name
   wall_id: string;
   wall_image_url?: string; // Snapshot of wall image at route creation (for history)
+  wall_image_width?: number;
+  wall_image_height?: number;
   name: string;
   description?: string;
   grade_v?: string; // V-scale (V0, V1, V2, etc.)

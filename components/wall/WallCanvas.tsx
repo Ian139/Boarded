@@ -8,6 +8,8 @@ import { pixelToPercentage } from '@/lib/utils/holds';
 
 interface WallCanvasProps {
   wallImageUrl: string;
+  wallImageWidth?: number;
+  wallImageHeight?: number;
   holds: Hold[];
   showSequence: boolean;
   onAddHold: (x: number, y: number) => void;
@@ -17,12 +19,16 @@ interface WallCanvasProps {
 
 export function WallCanvas({
   wallImageUrl,
+  wallImageWidth,
+  wallImageHeight,
   holds,
   showSequence,
   onAddHold,
   onRemoveHold,
   onTap,
 }: WallCanvasProps) {
+  const imageWidth = wallImageWidth && wallImageWidth > 0 ? wallImageWidth : 1920;
+  const imageHeight = wallImageHeight && wallImageHeight > 0 ? wallImageHeight : 1080;
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -168,8 +174,8 @@ export function WallCanvas({
         <Image
           src={wallImageUrl}
           alt="Climbing wall"
-          width={1920}
-          height={1080}
+          width={imageWidth}
+          height={imageHeight}
           className="max-w-full max-h-[calc(100dvh-12rem)] w-auto h-auto select-none"
           priority
           draggable={false}

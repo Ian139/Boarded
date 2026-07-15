@@ -39,14 +39,16 @@ export default function TabLayout() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.muted,
         tabBarStyle: {
-          backgroundColor: 'transparent',
+          backgroundColor: colors.surface,
           borderTopWidth: 1,
           borderTopColor: colors.border,
+          minHeight: 64,
           paddingTop: 6,
           paddingBottom: 8,
           shadowOpacity: 0,
           elevation: 0,
         },
+        tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
         tabBarBackground: () => (
           <View style={{ flex: 1, backgroundColor: colors.background }} />
         ),
@@ -66,6 +68,8 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Routes',
+          tabBarAccessibilityLabel: 'Routes',
+          tabBarButtonTestID: 'routes-tab',
           tabBarIcon: ({ color }) => <TabIcon icon="routes" color={color} />,
         }}
       />
@@ -74,6 +78,8 @@ export default function TabLayout() {
         options={{
           title: 'Editor',
           headerShown: false,
+          tabBarAccessibilityLabel: 'Editor',
+          tabBarButtonTestID: 'editor-tab',
           tabBarIcon: ({ color }) => <TabIcon icon="editor" color={color} />,
         }}
       />
@@ -81,6 +87,8 @@ export default function TabLayout() {
         name="profile"
         options={{
           title: 'Profile',
+          tabBarAccessibilityLabel: 'Profile',
+          tabBarButtonTestID: 'profile-tab',
           tabBarIcon: ({ color }) => <TabIcon icon="profile" color={color} />,
         }}
       />

@@ -156,3 +156,9 @@ CREATE TRIGGER update_routes_updated_at
   BEFORE UPDATE ON routes
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
+
+-- Supabase API roles need table privileges; RLS below controls row access.
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT SELECT ON TABLE walls, routes, ascents TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE walls, routes, ascents TO authenticated;
+GRANT ALL ON TABLE walls, routes, ascents TO service_role;
