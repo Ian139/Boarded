@@ -21,4 +21,4 @@ Set the Supabase variables from `.env.local.example` before using cloud-backed d
 
 ## Release
 
-Current release: `0.1.1`
+Current release: `0.1.2`

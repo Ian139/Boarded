@@ -1,2 +1,2 @@
-/supabase/ export-ignore
-/scripts/ export-ignore
+/supabase/** export-ignore
+/scripts/** export-ignore
