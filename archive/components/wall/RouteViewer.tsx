@@ -15,12 +15,15 @@ interface RouteViewerProps {
   setterName?: string;
   routeId?: string;
   comments?: Comment[];
+  fitToContent?: boolean;
 }
 
-export function RouteViewer({ wallImageUrl, wallImageWidth, wallImageHeight, holds, routeName, grade, setterName, routeId, comments = [] }: RouteViewerProps) {
+export function RouteViewer({ wallImageUrl, wallImageWidth, wallImageHeight, holds, routeName, grade, setterName, routeId, comments = [], fitToContent = false }: RouteViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0, left: 0, top: 0 });
+  const [displaySize, setDisplaySize] = useState<{ width: number; height: number } | null>(null);
+  const [naturalSize, setNaturalSize] = useState({ width: wallImageWidth || 1920, height: wallImageHeight || 1080 });
 
   const updateDimensions = useCallback(() => {
     if (!containerRef.current || !imageRef.current) return;
@@ -60,6 +63,37 @@ export function RouteViewer({ wallImageUrl, wallImageWidth, wallImageHeight, hol
       }
     };
   }, [updateDimensions]);
+  useEffect(() => {
+    if (!fitToContent) return;
+    const aspect = naturalSize.width / naturalSize.height;
+
+    const fit = () => {
+      const maxW = Math.min(window.innerWidth * 0.95, naturalSize.width);
+      const availableHeight = Math.max(1, window.innerHeight * 0.95 - (routeId ? 56 : 0));
+      const maxH = Math.min(availableHeight, naturalSize.height);
+      let width = maxW;
+      let height = width / aspect;
+      if (height > maxH) {
+        height = maxH;
+        width = height * aspect;
+      }
+      setDisplaySize({ width: Math.round(width), height: Math.round(height) });
+    };
+
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, [fitToContent, naturalSize, routeId]);
+
+  const handleImageLoad = useCallback(() => {
+    const img = imageRef.current;
+    if (img) {
+      setNaturalSize({ width: img.naturalWidth, height: img.naturalHeight });
+    }
+    updateDimensions();
+  }, [updateDimensions]);
+
+
 
   // Get hold type label
   const getHoldLabel = (type: Hold['type']) => {
@@ -71,13 +105,14 @@ export function RouteViewer({ wallImageUrl, wallImageWidth, wallImageHeight, hol
   };
 
   return (
-    <div className="relative w-full h-full flex flex-col">
+    <div className={fitToContent ? 'relative inline-flex flex-col items-center w-auto h-auto' : 'relative w-full h-full flex flex-col'}>
       {/* Main content area */}
-      <div className="flex-1 relative flex items-center justify-center overflow-hidden">
+      <div className={fitToContent ? 'relative flex items-center justify-center overflow-hidden' : 'flex-1 relative flex items-center justify-center overflow-hidden'}>
         {/* Wall image with holds */}
         <div
           ref={containerRef}
-          className="relative w-full h-full flex items-center justify-center"
+          className="relative flex items-center justify-center"
+          style={fitToContent && displaySize ? { width: displaySize.width, height: displaySize.height } : { width: '100%', height: '100%' }}
         >
           <Image
             src={wallImageUrl}
@@ -91,7 +126,7 @@ export function RouteViewer({ wallImageUrl, wallImageWidth, wallImageHeight, hol
             ref={(el) => {
               imageRef.current = el;
             }}
-            onLoad={updateDimensions}
+            onLoad={handleImageLoad}
           />
 
           {/* Render holds */}
@@ -171,7 +206,7 @@ export function RouteViewer({ wallImageUrl, wallImageWidth, wallImageHeight, hol
 
       {/* Comments Section - slides up from bottom */}
       {routeId && (
-        <div className="shrink-0 bg-background border-t border-border/50">
+        <div className="w-full shrink-0 bg-background border-t border-border/50">
           <CommentsSection routeId={routeId} comments={comments} />
         </div>
       )}

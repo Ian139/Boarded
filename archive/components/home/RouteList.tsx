@@ -170,7 +170,7 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
 
                 {/* Route Info */}
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-medium text-foreground truncate">{route.name}</h3>
+                  <h3 className="text-[1.0625rem] leading-tight font-semibold text-foreground truncate">{route.name}</h3>
                   <div className="flex items-center gap-3 mt-0.5 text-sm text-muted-foreground">
                     <span className="truncate">{route.user_name || 'Anonymous'}</span>
                     <span className="truncate text-xs">{wallName}</span>
@@ -443,7 +443,7 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
 
                   {/* Route Info */}
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-foreground group-hover:text-primary transition-colors">
+                    <h3 className="text-[1.0625rem] leading-tight font-semibold text-foreground group-hover:text-primary transition-colors">
                       {route.name}
                     </h3>
                     <div className="flex items-center gap-4 mt-0.5 text-sm text-muted-foreground">

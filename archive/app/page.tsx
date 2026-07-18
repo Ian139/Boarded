@@ -223,7 +223,7 @@ export default function Home() {
                 height={24}
                 className="rounded-md"
               />
-              <h1 className="text-xl font-bold tracking-tight">climbset</h1>
+              <h1 className="text-xl font-bold tracking-[-0.02em]">climbset</h1>
             </div>
 
             {/* Wall Selector - Desktop inline dropdown */}
@@ -276,7 +276,7 @@ export default function Home() {
                 height={22}
                 className="rounded-md"
               />
-              <h1 className="text-xl font-bold tracking-tight">climbset</h1>
+              <h1 className="text-xl font-bold tracking-[-0.02em]">climbset</h1>
             </div>
 
             {/* Wall Selector - Mobile inline */}

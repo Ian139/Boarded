@@ -14,7 +14,7 @@ export function RouteViewerDialog({ route, onOpenChange, wallImageUrl }: RouteVi
   return (
     <Dialog open={!!route} onOpenChange={() => onOpenChange(false)}>
       <DialogContent
-        className="max-w-3xl w-dvw h-dvh md:w-auto md:h-[85vh] p-0 overflow-hidden border-0 bg-black/60 backdrop-blur-sm rounded-none md:rounded-2xl shadow-2xl ring-1 ring-white/10"
+        className="w-fit h-auto max-w-[95vw] sm:max-w-[95vw] max-h-[95vh] min-w-[50vw] gap-0 p-0 overflow-y-auto overflow-x-hidden border-0 bg-black/60 backdrop-blur-sm rounded-none md:rounded-2xl shadow-2xl ring-1 ring-white/10"
         showCloseButton={false}
         aria-describedby={undefined}
       >
@@ -43,6 +43,7 @@ export function RouteViewerDialog({ route, onOpenChange, wallImageUrl }: RouteVi
             setterName={route.user_name}
             routeId={route.id}
             comments={route.comments || []}
+            fitToContent
           />
         )}
       </DialogContent>
