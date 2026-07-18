@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   description: "Document and share your climbing routes",
   manifest: "/manifest.json",
   icons: {
-    icon: "/icons/icon-192.png",
+    icon: "/icon.png",
     apple: "/apple-touch-icon.png",
   },
 };

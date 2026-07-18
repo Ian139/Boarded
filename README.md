@@ -1,3 +1,5 @@
+![Boarded logo](BoardedLogo.png)
+
 # Boarded
 
 Boarded is a climbing route-setting app for managing walls, routes, holds, and climbing activity.

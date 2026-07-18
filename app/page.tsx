@@ -218,7 +218,7 @@ export default function Home() {
             <div className="flex items-center gap-2">
               <Image
                 src="/icon.png"
-                alt="ClimbSet icon"
+                alt="Boarded logo"
                 width={24}
                 height={24}
                 className="rounded-md"
@@ -271,7 +271,7 @@ export default function Home() {
             <div className="flex items-center gap-2">
               <Image
                 src="/icon.png"
-                alt="ClimbSet icon"
+                alt="Boarded logo"
                 width={22}
                 height={22}
                 className="rounded-md"
