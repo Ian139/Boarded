@@ -15,8 +15,8 @@ npm install
 npm run dev
 ```
 
-Set the Supabase variables from `.env.local.example` before using cloud-backed data. See `SCHEMA.md` for the database model.
+Set the Supabase variables from `.env.local.example` before using cloud-backed data.
 
 ## Release
 
-Current release: `0.1.0`
+Current release: `0.1.1`
