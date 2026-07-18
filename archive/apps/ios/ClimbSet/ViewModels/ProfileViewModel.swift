@@ -170,7 +170,7 @@ final class ProfileViewModel: ObservableObject {
                     points: 0,
                     sendsCount: 0,
                     highestGrade: nil,
-                    highestGradeValue: -1
+                    highestGradeValue: Int.min
                 )
                 builder.points += points
                 builder.sendsCount += 1
@@ -204,31 +204,16 @@ final class ProfileViewModel: ObservableObject {
     }
 
     private func highestGrade(from ascents: [Ascent], routes: [Route]) -> String? {
-        let ascentGrades = ascents.compactMap { $0.gradeV }
-        let routeGrades = routes.compactMap { $0.gradeV }
-        let grades = ascentGrades + routeGrades
-        return grades.sorted(by: gradeValue).last
-    }
-
-    private func gradeValue(_ value: String, _ other: String) -> Bool {
-        gradeNumber(value) < gradeNumber(other)
-    }
-
-    private func gradeNumber(_ value: String) -> Int {
-        let cleaned = value.uppercased().replacingOccurrences(of: "V", with: "")
-        return Int(cleaned) ?? 0
+        let grades = ascents.compactMap(\.gradeV) + routes.compactMap(\.gradeV)
+        return grades.max { gradeValue($0) < gradeValue($1) }
     }
 
     private func gradeValue(_ value: String?) -> Int {
-        guard let value else { return -1 }
-        return gradeNumber(value)
+        VGradeOption.value(for: value) ?? -1
     }
 
     private func gradePoints(_ value: String?) -> Int {
-        guard let value else { return 0 }
-        let cleaned = value.uppercased().replacingOccurrences(of: "V", with: "")
-        guard let grade = Int(cleaned) else { return 0 }
-        return grade + 1
+        max(0, gradeValue(value) + 1)
     }
 
     private func parseDate(_ value: String) -> Date {
@@ -289,7 +274,7 @@ private struct ProfileRouteWithoutComments: Codable {
     let wallId: String
     let name: String
     let description: String?
-    let gradeV: String?
+    let gradeV: FlexibleGrade?
     let gradeFont: String?
     let holds: [Hold]
     let isPublic: Bool
@@ -327,7 +312,7 @@ private struct ProfileRouteWithoutComments: Codable {
             wallId: wallId,
             name: name,
             description: description,
-            gradeV: gradeV,
+            gradeV: gradeV?.value,
             gradeFont: gradeFont,
             holds: holds,
             isPublic: isPublic,

@@ -1,10 +1,30 @@
 import SwiftUI
 
 struct RoutesView: View {
+    @Binding var shareRequest: NativeShareRequest?
     @EnvironmentObject var viewModel: RoutesViewModel
     @EnvironmentObject var session: AppSession
     @StateObject private var wallsViewModel = WallsViewModel()
     @State private var selectedRoute: Route?
+    @State private var sharedRouteError: String?
+
+    init(shareRequest: Binding<NativeShareRequest?> = .constant(nil)) {
+        _shareRequest = shareRequest
+    }
+
+    private struct ShareTaskIdentity: Equatable {
+        let requestID: UUID?
+        let userID: UUID?
+        let isSessionLoading: Bool
+    }
+
+    private var shareTaskIdentity: ShareTaskIdentity {
+        ShareTaskIdentity(
+            requestID: shareRequest?.id,
+            userID: session.userId,
+            isSessionLoading: session.isLoading
+        )
+    }
 
     var body: some View {
         ZStack {
@@ -16,14 +36,73 @@ struct RoutesView: View {
                 content
             }
         }
-        .task {
-            if viewModel.routes.isEmpty {
-                await viewModel.load()
+        .task(id: session.userId) {
+            selectedRoute = nil
+            viewModel.resetForSessionChange()
+            if session.userId == nil {
+                wallsViewModel.walls = []
+                wallsViewModel.selectedWallId = nil
             }
+            await viewModel.load(userId: session.userId)
             await wallsViewModel.load(userId: session.userId)
         }
         .sheet(item: $selectedRoute) { route in
-            RouteDetailView(route: route)
+            RouteDetailView(
+                route: route,
+                onRouteChanged: { updatedRoute in
+                    reconcileRouteChange(updatedRoute)
+                },
+                onRouteDeleted: { routeId in
+                    reconcileRouteDeletion(routeId)
+                }
+            )
+        }
+        .task(id: shareTaskIdentity) {
+            guard let request = shareRequest, !session.isLoading else { return }
+            await openSharedRoute(token: request.token)
+            if !Task.isCancelled, shareRequest?.id == request.id {
+                shareRequest = nil
+            }
+        }
+        .alert("Unable to open shared route", isPresented: Binding(
+            get: { sharedRouteError != nil },
+            set: { if !$0 { sharedRouteError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(sharedRouteError ?? "The shared route could not be loaded.")
+        }
+    }
+    private func openSharedRoute(token: String) async {
+        sharedRouteError = nil
+        do {
+            let sharedRoute = try await viewModel.fetchSharedRoute(token: token)
+            guard !Task.isCancelled else { return }
+            if let index = viewModel.routes.firstIndex(where: { $0.id == sharedRoute.id }) {
+                viewModel.routes[index] = sharedRoute
+            } else {
+                viewModel.routes.insert(sharedRoute, at: 0)
+            }
+            selectedRoute = sharedRoute
+        } catch {
+            guard !Task.isCancelled else { return }
+            sharedRouteError = error.localizedDescription
+        }
+    }
+
+    private func reconcileRouteChange(_ updatedRoute: Route) {
+        if let index = viewModel.routes.firstIndex(where: { $0.id == updatedRoute.id }) {
+            viewModel.routes[index] = updatedRoute
+        } else {
+            viewModel.routes.insert(updatedRoute, at: 0)
+        }
+        selectedRoute = updatedRoute
+    }
+
+    private func reconcileRouteDeletion(_ routeId: String) {
+        viewModel.routes.removeAll { $0.id == routeId }
+        if selectedRoute?.id == routeId {
+            selectedRoute = nil
         }
     }
 

@@ -16,10 +16,10 @@ enum AppColor {
 }
 
 enum AppTypography {
-    static let title = Font.system(size: 22, weight: .semibold, design: .rounded)
-    static let headline = Font.system(size: 16, weight: .semibold, design: .rounded)
-    static let body = Font.system(size: 14, weight: .regular, design: .rounded)
-    static let label = Font.system(size: 12, weight: .medium, design: .rounded)
+    static let title = Font.system(.title2, design: .rounded).weight(.semibold)
+    static let headline = Font.system(.headline, design: .rounded).weight(.semibold)
+    static let body = Font.system(.subheadline, design: .rounded)
+    static let label = Font.system(.footnote, design: .rounded).weight(.medium)
 }
 
 enum AppLayout {

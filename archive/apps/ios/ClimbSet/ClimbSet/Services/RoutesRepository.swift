@@ -1,9 +1,12 @@
 import Foundation
 
 protocol RoutesRepository {
-    func fetchRoutes() async throws -> [Route]
+    func fetchRoutes(userId: UUID?) async throws -> [Route]
+    func fetchRouteByShareToken(_ token: String) async throws -> Route
     func createRoute(_ draft: RouteDraft) async throws -> Route
-    func updateRoute(id: String, patch: RoutePatch) async throws
+    func updateRoute(id: String, patch: RoutePatch) async throws -> Route
+    func enableSharing(id: String, shareToken: String) async throws -> Route
+    func deleteRoute(id: String) async throws
 }
 
 struct RouteDraft {
@@ -20,6 +23,7 @@ struct RouteDraft {
 }
 
 struct RoutePatch {
+    /// Nil fields are omitted from the update; nullable values, including `gradeV`, cannot currently be cleared.
     let wallId: String?
     let wallImageUrl: String?
     let name: String?
@@ -28,8 +32,18 @@ struct RoutePatch {
 }
 
 struct MockRoutesRepository: RoutesRepository {
-    func fetchRoutes() async throws -> [Route] {
-        return [
+    private final class Storage {
+        var routes: [Route]
+
+        init(routes: [Route]) {
+            self.routes = routes
+        }
+    }
+
+    private let storage: Storage
+
+    init() {
+        storage = Storage(routes: [
             Route(
                 id: UUID().uuidString,
                 userId: "local",
@@ -39,10 +53,10 @@ struct MockRoutesRepository: RoutesRepository {
                 gradeV: "V4",
                 gradeFont: nil,
                 holds: [
-                    Hold(id: UUID().uuidString, x: 18, y: 72, type: .start, color: HoldType.start.colorHex, sequence: 1, size: .medium, notes: nil),
-                    Hold(id: UUID().uuidString, x: 34, y: 54, type: .hand, color: HoldType.hand.colorHex, sequence: 2, size: .medium, notes: nil),
-                    Hold(id: UUID().uuidString, x: 61, y: 44, type: .foot, color: HoldType.foot.colorHex, sequence: nil, size: .small, notes: nil),
-                    Hold(id: UUID().uuidString, x: 77, y: 22, type: .finish, color: HoldType.finish.colorHex, sequence: 3, size: .large, notes: nil)
+                    Hold(id: UUID().uuidString, x: 18, y: 72, type: .start, color: HoldType.start.colorHex, size: .medium, notes: nil),
+                    Hold(id: UUID().uuidString, x: 34, y: 54, type: .hand, color: HoldType.hand.colorHex, size: .medium, notes: nil),
+                    Hold(id: UUID().uuidString, x: 61, y: 44, type: .foot, color: HoldType.foot.colorHex, size: .small, notes: nil),
+                    Hold(id: UUID().uuidString, x: 77, y: 22, type: .finish, color: HoldType.finish.colorHex, size: .large, notes: nil)
                 ],
                 isPublic: true,
                 viewCount: 32,
@@ -65,10 +79,10 @@ struct MockRoutesRepository: RoutesRepository {
                 gradeV: "V6",
                 gradeFont: nil,
                 holds: [
-                    Hold(id: UUID().uuidString, x: 12, y: 60, type: .start, color: HoldType.start.colorHex, sequence: nil, size: .medium, notes: nil),
-                    Hold(id: UUID().uuidString, x: 48, y: 58, type: .hand, color: HoldType.hand.colorHex, sequence: nil, size: .medium, notes: nil),
-                    Hold(id: UUID().uuidString, x: 69, y: 52, type: .hand, color: HoldType.hand.colorHex, sequence: nil, size: .medium, notes: nil),
-                    Hold(id: UUID().uuidString, x: 86, y: 27, type: .finish, color: HoldType.finish.colorHex, sequence: nil, size: .large, notes: nil)
+                    Hold(id: UUID().uuidString, x: 12, y: 60, type: .start, color: HoldType.start.colorHex, size: .medium, notes: nil),
+                    Hold(id: UUID().uuidString, x: 48, y: 58, type: .hand, color: HoldType.hand.colorHex, size: .medium, notes: nil),
+                    Hold(id: UUID().uuidString, x: 69, y: 52, type: .hand, color: HoldType.hand.colorHex, size: .medium, notes: nil),
+                    Hold(id: UUID().uuidString, x: 86, y: 27, type: .finish, color: HoldType.finish.colorHex, size: .large, notes: nil)
                 ],
                 isPublic: true,
                 viewCount: 18,
@@ -82,19 +96,109 @@ struct MockRoutesRepository: RoutesRepository {
                 ascents: [],
                 comments: []
             )
-        ]
+        ])
+    }
+
+    func fetchRoutes(userId: UUID?) async throws -> [Route] {
+        storage.routes
+    }
+    func fetchRouteByShareToken(_ token: String) async throws -> Route {
+        guard isValidShareToken(token) else {
+            throw RoutesRepositoryError.invalidShareToken
+        }
+        guard let route = storage.routes.first(where: {
+            $0.shareToken == token && $0.isPublic
+        }) else {
+            throw RoutesRepositoryError.notFound
+        }
+        return route
     }
 
     func createRoute(_ draft: RouteDraft) async throws -> Route {
-        buildRoute(
+        let route = buildRoute(
             id: UUID().uuidString,
             draft: draft,
             shareToken: generateShareToken(),
             timestamp: isoTimestamp()
         )
+        storage.routes.append(route)
+        return route
     }
 
-    func updateRoute(id: String, patch: RoutePatch) async throws {}
+    func updateRoute(id: String, patch: RoutePatch) async throws -> Route {
+        guard let index = storage.routes.firstIndex(where: { $0.id == id }) else {
+            throw RoutesRepositoryError.notFound
+        }
+
+        let current = storage.routes[index]
+        let updatedRoute = Route(
+            id: current.id,
+            userId: current.userId,
+            wallId: patch.wallId ?? current.wallId,
+            name: patch.name ?? current.name,
+            description: current.description,
+            gradeV: patch.gradeV ?? current.gradeV,
+            gradeFont: current.gradeFont,
+            holds: patch.holds ?? current.holds,
+            isPublic: current.isPublic,
+            viewCount: current.viewCount,
+            shareToken: current.shareToken,
+            createdAt: current.createdAt,
+            updatedAt: isoTimestamp(),
+            userName: current.userName,
+            wallImageUrl: patch.wallImageUrl ?? current.wallImageUrl,
+            likeCount: current.likeCount,
+            isLiked: current.isLiked,
+            ascents: current.ascents,
+            comments: current.comments
+        )
+        storage.routes[index] = updatedRoute
+        return updatedRoute
+    }
+    func enableSharing(id: String, shareToken: String) async throws -> Route {
+        guard isValidShareToken(shareToken) else {
+            throw RoutesRepositoryError.invalidShareToken
+        }
+        guard let index = storage.routes.firstIndex(where: { $0.id == id }) else {
+            throw RoutesRepositoryError.notFound
+        }
+        let current = storage.routes[index]
+        let authoritativeToken = current.shareToken ?? shareToken
+        guard isValidShareToken(authoritativeToken) else {
+            throw RoutesRepositoryError.invalidShareToken
+        }
+        let updatedRoute = Route(
+            id: current.id,
+            userId: current.userId,
+            wallId: current.wallId,
+            name: current.name,
+            description: current.description,
+            gradeV: current.gradeV,
+            gradeFont: current.gradeFont,
+            holds: current.holds,
+            isPublic: true,
+            viewCount: current.viewCount,
+            shareToken: authoritativeToken,
+            createdAt: current.createdAt,
+            updatedAt: isoTimestamp(),
+            userName: current.userName,
+            wallImageUrl: current.wallImageUrl,
+            likeCount: current.likeCount,
+            isLiked: current.isLiked,
+            ascents: current.ascents,
+            comments: current.comments
+        )
+        storage.routes[index] = updatedRoute
+        return updatedRoute
+    }
+
+
+    func deleteRoute(id: String) async throws {
+        guard let index = storage.routes.firstIndex(where: { $0.id == id }) else {
+            throw RoutesRepositoryError.notFound
+        }
+        storage.routes.remove(at: index)
+    }
 }
 
 #if canImport(Supabase)
@@ -105,9 +209,10 @@ struct SupabaseRoutesRepository: RoutesRepository {
         SupabaseConfig.current != nil
     }
 
-    func fetchRoutes() async throws -> [Route] {
+    func fetchRoutes(userId: UUID?) async throws -> [Route] {
         guard let client = SupabaseClientProvider.client else { return [] }
-        let response = try await fetchRoutesWithFallback(client: client)
+        let currentUserId = userId?.uuidString ?? ""
+        let response = try await fetchRoutesWithFallback(client: client, currentUserId: currentUserId)
         if response.isEmpty {
             return response
         }
@@ -120,7 +225,6 @@ struct SupabaseRoutesRepository: RoutesRepository {
             .execute()
             .value
 
-        let currentUserId = (try? await client.auth.session.user.id.uuidString) ?? ""
         var likesByRoute: [String: [String]] = [:]
         likes.forEach { like in
             likesByRoute[like.routeId, default: []].append(like.userId)
@@ -165,6 +269,70 @@ struct SupabaseRoutesRepository: RoutesRepository {
         return enriched
     }
 
+    func fetchRouteByShareToken(_ token: String) async throws -> Route {
+        guard isValidShareToken(token) else {
+            throw RoutesRepositoryError.invalidShareToken
+        }
+        guard let client = SupabaseClientProvider.client else {
+            throw RoutesRepositoryError.unavailable
+        }
+
+        let routes: [Route]
+        do {
+            routes = try await client.database
+                .from("routes")
+                .select("*, ascents(*), comments(*)")
+                .eq("share_token", value: token)
+                .eq("is_public", value: true)
+                .limit(1)
+                .execute()
+                .value
+        } catch {
+            let fallbackRoutes: [RouteWithoutComments] = try await client.database
+                .from("routes")
+                .select("*, ascents(*)")
+                .eq("share_token", value: token)
+                .eq("is_public", value: true)
+                .limit(1)
+                .execute()
+                .value
+            routes = fallbackRoutes.map { $0.asRoute() }
+        }
+
+        guard let route = routes.first else {
+            throw RoutesRepositoryError.notFound
+        }
+
+        let currentUserId = (try? await client.auth.session.user.id.uuidString) ?? ""
+        let likes: [RouteLikeFull] = (try? await client.database
+            .from("route_likes")
+            .select("route_id, user_id")
+            .eq("route_id", value: route.id)
+            .execute()
+            .value) ?? []
+        return Route(
+            id: route.id,
+            userId: route.userId,
+            wallId: route.wallId,
+            name: route.name,
+            description: route.description,
+            gradeV: route.gradeV,
+            gradeFont: route.gradeFont,
+            holds: route.holds,
+            isPublic: route.isPublic,
+            viewCount: route.viewCount,
+            shareToken: route.shareToken,
+            createdAt: route.createdAt,
+            updatedAt: route.updatedAt,
+            userName: route.userName,
+            wallImageUrl: route.wallImageUrl,
+            likeCount: likes.count,
+            isLiked: !currentUserId.isEmpty && likes.contains { $0.userId == currentUserId },
+            ascents: route.ascents,
+            comments: route.comments
+        )
+    }
+
     func createRoute(_ draft: RouteDraft) async throws -> Route {
         guard let client = SupabaseClientProvider.client else {
             throw RoutesRepositoryError.unavailable
@@ -204,19 +372,125 @@ struct SupabaseRoutesRepository: RoutesRepository {
         )
     }
 
-    func updateRoute(id: String, patch: RoutePatch) async throws {
+    func updateRoute(id: String, patch: RoutePatch) async throws -> Route {
         guard let client = SupabaseClientProvider.client else {
             throw RoutesRepositoryError.unavailable
         }
 
         let payload = patchPayload(from: patch)
-        guard !payload.isEmpty else { return }
-
-        _ = try await client.database
+        let updatedRoutes: [Route] = try await client.database
             .from("routes")
             .update(payload)
             .eq("id", value: id)
+            .select("*, ascents(*), comments(*)")
             .execute()
+            .value
+
+        guard let updatedRoute = updatedRoutes.first else {
+            throw RoutesRepositoryError.notFound
+        }
+        return updatedRoute
+    }
+
+    func enableSharing(id: String, shareToken: String) async throws -> Route {
+        guard isValidShareToken(shareToken) else {
+            throw RoutesRepositoryError.invalidShareToken
+        }
+        guard let client = SupabaseClientProvider.client else {
+            throw RoutesRepositoryError.unavailable
+        }
+
+        let publishPayload: [String: AnyEncodable] = [
+            "is_public": AnyEncodable(true),
+            "share_token": AnyEncodable(shareToken),
+            "updated_at": AnyEncodable(isoTimestamp())
+        ]
+        let conditionalRoutes: [Route] = try await client.database
+            .from("routes")
+            .update(publishPayload)
+            .eq("id", value: id)
+            .is("share_token", value: nil)
+            .select("*, ascents(*), comments(*)")
+            .execute()
+            .value
+        if let route = conditionalRoutes.first {
+            guard let token = route.shareToken, isValidShareToken(token) else {
+                throw RoutesRepositoryError.invalidShareToken
+            }
+            return route
+        }
+
+        let currentRoutes: [Route] = try await client.database
+            .from("routes")
+            .select("*, ascents(*), comments(*)")
+            .eq("id", value: id)
+            .execute()
+            .value
+        guard let currentRoute = currentRoutes.first else {
+            throw RoutesRepositoryError.notFound
+        }
+        guard let authoritativeToken = currentRoute.shareToken,
+              isValidShareToken(authoritativeToken) else {
+            throw RoutesRepositoryError.invalidShareToken
+        }
+
+        let existingTokenPayload: [String: AnyEncodable] = [
+            "is_public": AnyEncodable(true),
+            "share_token": AnyEncodable(authoritativeToken),
+            "updated_at": AnyEncodable(isoTimestamp())
+        ]
+        let publishedRoutes: [Route] = try await client.database
+            .from("routes")
+            .update(existingTokenPayload)
+            .eq("id", value: id)
+            .eq("share_token", value: authoritativeToken)
+            .select("*, ascents(*), comments(*)")
+            .execute()
+            .value
+        if let route = publishedRoutes.first {
+            guard let token = route.shareToken, isValidShareToken(token) else {
+                throw RoutesRepositoryError.invalidShareToken
+            }
+            return route
+        }
+
+        let latestRoutes: [Route] = try await client.database
+            .from("routes")
+            .select("*, ascents(*), comments(*)")
+            .eq("id", value: id)
+            .execute()
+            .value
+        guard let latestRoute = latestRoutes.first else {
+            throw RoutesRepositoryError.sharingConflict
+        }
+        guard let latestToken = latestRoute.shareToken else {
+            throw RoutesRepositoryError.sharingConflict
+        }
+        guard isValidShareToken(latestToken) else {
+            throw RoutesRepositoryError.invalidShareToken
+        }
+        guard latestRoute.isPublic else {
+            throw RoutesRepositoryError.sharingConflict
+        }
+        return latestRoute
+    }
+
+    func deleteRoute(id: String) async throws {
+        guard let client = SupabaseClientProvider.client else {
+            throw RoutesRepositoryError.unavailable
+        }
+
+        let deletedRoutes: [RouteIdentifierRecord] = try await client.database
+            .from("routes")
+            .delete()
+            .eq("id", value: id)
+            .select("id")
+            .execute()
+            .value
+
+        guard !deletedRoutes.isEmpty else {
+            throw RoutesRepositoryError.notFound
+        }
     }
 
     private func fetchWallImages(client: SupabaseClient, wallIds: [String], currentUserId: String) async throws -> [String: String] {
@@ -241,12 +515,13 @@ struct SupabaseRoutesRepository: RoutesRepository {
         })
     }
 
-    private func fetchRoutesWithFallback(client: SupabaseClient) async throws -> [Route] {
+    private func fetchRoutesWithFallback(client: SupabaseClient, currentUserId: String) async throws -> [Route] {
+        let visibility = currentUserId.isEmpty ? "is_public.eq.true" : "is_public.eq.true,user_id.eq.\(currentUserId)"
         do {
             return try await client.database
                 .from("routes")
                 .select("*, ascents(*), comments(*)")
-                .eq("is_public", value: true)
+                .or(visibility)
                 .order("created_at", ascending: false)
                 .execute()
                 .value
@@ -255,7 +530,7 @@ struct SupabaseRoutesRepository: RoutesRepository {
                 let routes: [RouteWithoutComments] = try await client.database
                     .from("routes")
                     .select("*, ascents(*)")
-                    .eq("is_public", value: true)
+                    .or(visibility)
                     .order("created_at", ascending: false)
                     .execute()
                     .value
@@ -264,7 +539,7 @@ struct SupabaseRoutesRepository: RoutesRepository {
                 let routes: [RoutePlainRecord] = try await client.database
                     .from("routes")
                     .select("*")
-                    .eq("is_public", value: true)
+                    .or(visibility)
                     .order("created_at", ascending: false)
                     .execute()
                     .value
@@ -312,7 +587,7 @@ private struct RouteWithoutComments: Codable {
     let wallId: String
     let name: String
     let description: String?
-    let gradeV: String?
+    let gradeV: FlexibleGrade?
     let gradeFont: String?
     let holds: [Hold]
     let isPublic: Bool
@@ -350,7 +625,7 @@ private struct RouteWithoutComments: Codable {
             wallId: wallId,
             name: name,
             description: description,
-            gradeV: gradeV,
+            gradeV: gradeV?.value,
             gradeFont: gradeFont,
             holds: holds,
             isPublic: isPublic,
@@ -374,7 +649,7 @@ private struct RoutePlainRecord: Codable {
     let wallId: String
     let name: String
     let description: String?
-    let gradeV: String?
+    let gradeV: FlexibleGrade?
     let gradeFont: String?
     let holds: [Hold]
     let isPublic: Bool
@@ -410,7 +685,7 @@ private struct RoutePlainRecord: Codable {
             wallId: wallId,
             name: name,
             description: description,
-            gradeV: gradeV,
+            gradeV: gradeV?.value,
             gradeFont: gradeFont,
             holds: holds,
             isPublic: isPublic,
@@ -428,14 +703,39 @@ private struct RoutePlainRecord: Codable {
     }
 }
 
+private struct RouteIdentifierRecord: Codable {
+    let id: String
+}
+
 private enum RoutesRepositoryError: LocalizedError {
     case unavailable
+    case notFound
+    case sharingConflict
+    case invalidShareToken
 
     var errorDescription: String? {
         switch self {
         case .unavailable:
             return "Supabase is not configured for route saves."
+        case .notFound:
+            return "Route not found."
+        case .sharingConflict:
+            return "Sharing changed before the link could be published. Retry Share."
+        case .invalidShareToken:
+            return "The share token is invalid."
         }
+    }
+}
+
+func isValidShareToken(_ token: String) -> Bool {
+    let bytes = token.utf8
+    guard !bytes.isEmpty, bytes.count <= 128 else { return false }
+    return bytes.allSatisfy { byte in
+        (byte >= 48 && byte <= 57)
+            || (byte >= 65 && byte <= 90)
+            || (byte >= 97 && byte <= 122)
+            || byte == 45
+            || byte == 95
     }
 }
 

@@ -9,6 +9,7 @@ struct WallPickerView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var viewModel: WallsViewModel
     var onSelect: ((Wall) -> Void)? = nil
+    var canSaveWallEdit: ((Wall, String, Data?) -> Bool)? = nil
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var editingWall: Wall? = nil
     @State private var editName = ""
@@ -55,7 +56,8 @@ struct WallPickerView: View {
                                         editImageUrl = wall.imageUrl ?? ""
                                         editImageData = nil
                                         editingWall = wall
-                                    }.tint(AppColor.primary)
+                                    }
+                                    .tint(AppColor.primary)
 
                                     Button(role: .destructive) {
                                         Task { await viewModel.deleteWall(id: wall.id, userId: session.userId) }
@@ -109,27 +111,37 @@ struct WallPickerView: View {
                 }
             }
             .sheet(item: $editingWall) { wall in
-                EditWallSheet(
-                    name: $editName,
-                    imageUrl: $editImageUrl,
-                    imageData: $editImageData,
-                    photoItem: $editPhotoItem,
-                    onSave: {
-                        Task {
-                            await viewModel.updateWall(
-                                id: wall.id,
-                                name: editName,
-                                imageUrl: editImageUrl,
-                                imageData: editImageData,
-                                userId: session.userId
-                            )
-                            editingWall = nil
-                        }
-                    },
-                    onCancel: { editingWall = nil }
-                )
+                editWallSheet(for: wall)
             }
         }
+    }
+
+    @ViewBuilder
+    private func editWallSheet(for wall: Wall) -> some View {
+        EditWallSheet(
+            name: $editName,
+            imageUrl: $editImageUrl,
+            imageData: $editImageData,
+            photoItem: $editPhotoItem,
+            canSave: { canSaveEdit(for: wall) },
+            onSave: {
+                Task {
+                    await viewModel.updateWall(
+                        id: wall.id,
+                        name: editName,
+                        imageUrl: editImageUrl,
+                        imageData: editImageData,
+                        userId: session.userId
+                    )
+                    editingWall = nil
+                }
+            },
+            onCancel: { editingWall = nil }
+        )
+    }
+
+    private func canSaveEdit(for wall: Wall) -> Bool {
+        canSaveWallEdit?(wall, editImageUrl, editImageData) ?? true
     }
 
     private func wallThumbnail(urlString: String?) -> some View {
@@ -173,6 +185,7 @@ private struct EditWallSheet: View {
     @Binding var imageUrl: String
     @Binding var imageData: Data?
     @Binding var photoItem: PhotosPickerItem?
+    let canSave: () -> Bool
     let onSave: () -> Void
     let onCancel: () -> Void
 
@@ -212,6 +225,11 @@ private struct EditWallSheet: View {
                             .cornerRadius(AppLayout.cornerRadius)
                     }
                     #endif
+                    if !canSave() {
+                        Text("Clear the current route holds before replacing this wall image.")
+                            .font(AppTypography.label)
+                            .foregroundColor(AppColor.destructive)
+                    }
                     Spacer()
                 }
                 .padding(AppLayout.horizontalPadding)
@@ -223,6 +241,7 @@ private struct EditWallSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save", action: onSave)
+                        .disabled(!canSave())
                 }
             }
             .onChange(of: photoItem) { _, newValue in

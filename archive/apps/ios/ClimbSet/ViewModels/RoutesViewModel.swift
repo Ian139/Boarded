@@ -12,22 +12,40 @@ final class RoutesViewModel: ObservableObject {
     @Published var selectedWallFilterId: String? = nil
 
     private let repository: RoutesRepository
+    private var loadGeneration = 0
+
+    func resetForSessionChange() {
+        loadGeneration += 1
+        routes = []
+        errorMessage = nil
+    }
 
     init(repository: RoutesRepository) {
         self.repository = repository
     }
 
-    func load() async {
+    func load(userId: UUID?) async {
+        loadGeneration += 1
+        let generation = loadGeneration
         isLoading = true
         errorMessage = nil
-        defer { isLoading = false }
+        defer {
+            if generation == loadGeneration {
+                isLoading = false
+            }
+        }
         do {
-            let data = try await repository.fetchRoutes()
+            let data = try await repository.fetchRoutes(userId: userId)
+            guard generation == loadGeneration else { return }
             routes = data
         } catch {
+            guard generation == loadGeneration else { return }
             routes = []
             errorMessage = error.localizedDescription
         }
+    }
+    func fetchSharedRoute(token: String) async throws -> Route {
+        try await repository.fetchRouteByShareToken(token)
     }
 
     func createRoute(
@@ -45,7 +63,7 @@ final class RoutesViewModel: ObservableObject {
             wallImageUrl: wall.imageUrl,
             name: name.trimmingCharacters(in: .whitespacesAndNewlines),
             description: nil,
-            gradeV: gradeV?.trimmingCharacters(in: .whitespacesAndNewlines),
+            gradeV: gradeV,
             gradeFont: nil,
             holds: holds,
             isPublic: true
@@ -64,32 +82,51 @@ final class RoutesViewModel: ObservableObject {
             gradeV: nil,
             holds: nil
         )
-        try await repository.updateRoute(id: routeId, patch: patch)
-
-        guard let index = routes.firstIndex(where: { $0.id == routeId }) else { return }
-        let current = routes[index]
-        routes[index] = Route(
-            id: current.id,
-            userId: current.userId,
-            wallId: wall.id,
-            name: current.name,
-            description: current.description,
-            gradeV: current.gradeV,
-            gradeFont: current.gradeFont,
-            holds: current.holds,
-            isPublic: current.isPublic,
-            viewCount: current.viewCount,
-            shareToken: current.shareToken,
-            createdAt: current.createdAt,
-            updatedAt: iso8601Now(),
-            userName: current.userName,
-            wallImageUrl: wall.imageUrl,
-            likeCount: current.likeCount,
-            isLiked: current.isLiked,
-            ascents: current.ascents,
-            comments: current.comments
-        )
+        let updatedRoute = try await repository.updateRoute(id: routeId, patch: patch)
+        _ = replaceRoute(updatedRoute)
     }
+
+    func updateRoute(routeId: String, patch: RoutePatch) async throws -> Route {
+        let updatedRoute = try await repository.updateRoute(id: routeId, patch: patch)
+        return replaceRoute(updatedRoute)
+    }
+
+    func deleteRoute(routeId: String) async throws {
+        try await repository.deleteRoute(id: routeId)
+        routes.removeAll { $0.id == routeId }
+    }
+
+    private func replaceRoute(_ updatedRoute: Route) -> Route {
+        guard let index = routes.firstIndex(where: { $0.id == updatedRoute.id }) else {
+            return updatedRoute
+        }
+
+        let current = routes[index]
+        let reconciledRoute = Route(
+            id: updatedRoute.id,
+            userId: updatedRoute.userId,
+            wallId: updatedRoute.wallId,
+            name: updatedRoute.name,
+            description: updatedRoute.description,
+            gradeV: updatedRoute.gradeV,
+            gradeFont: updatedRoute.gradeFont,
+            holds: updatedRoute.holds,
+            isPublic: updatedRoute.isPublic,
+            viewCount: updatedRoute.viewCount,
+            shareToken: updatedRoute.shareToken,
+            createdAt: updatedRoute.createdAt,
+            updatedAt: updatedRoute.updatedAt,
+            userName: updatedRoute.userName,
+            wallImageUrl: updatedRoute.wallImageUrl,
+            likeCount: updatedRoute.likeCount ?? current.likeCount,
+            isLiked: updatedRoute.isLiked ?? current.isLiked,
+            ascents: updatedRoute.ascents,
+            comments: updatedRoute.comments
+        )
+        routes[index] = reconciledRoute
+        return reconciledRoute
+    }
+
 
     var filteredRoutes: [Route] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -129,11 +166,6 @@ final class RoutesViewModel: ObservableObject {
     }
 }
 
-private func iso8601Now() -> String {
-    let formatter = ISO8601DateFormatter()
-    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    return formatter.string(from: Date())
-}
 
 enum SortOption: String, CaseIterable, Identifiable {
     case newest = "Newest"

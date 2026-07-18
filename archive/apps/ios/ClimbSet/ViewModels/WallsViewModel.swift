@@ -15,14 +15,22 @@ final class WallsViewModel: ObservableObject {
     @Published var newWallName = ""
     @Published var newWallImageUrl = ""
     @Published var newWallImageData: Data? = nil
+    @Published var wallImageRevision = 0
 
     private let selectionKey = "climbset.selectedWallId"
+    private var loadGeneration = 0
 
     func load(userId: UUID?) async {
         guard let client = SupabaseClientProvider.client else { return }
+        loadGeneration += 1
+        let generation = loadGeneration
         isLoading = true
         errorMessage = nil
-        defer { isLoading = false }
+        defer {
+            if generation == loadGeneration {
+                isLoading = false
+            }
+        }
 
         do {
             var query = client.database
@@ -39,6 +47,8 @@ final class WallsViewModel: ObservableObject {
                 .order("created_at", ascending: false)
                 .execute()
                 .value
+            guard generation == loadGeneration else { return }
+
             walls = response
 
             let storedId = UserDefaults.standard.string(forKey: selectionKey)
@@ -52,6 +62,7 @@ final class WallsViewModel: ObservableObject {
                 UserDefaults.standard.removeObject(forKey: selectionKey)
             }
         } catch {
+            guard generation == loadGeneration else { return }
             errorMessage = error.localizedDescription
         }
     }
@@ -59,6 +70,15 @@ final class WallsViewModel: ObservableObject {
     func selectWall(id: String) {
         selectedWallId = id
         UserDefaults.standard.set(id, forKey: selectionKey)
+    }
+
+    func restoreWallSelection(id: String?) {
+        selectedWallId = id
+        if let id {
+            UserDefaults.standard.set(id, forKey: selectionKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: selectionKey)
+        }
     }
 
     func addWall(userId: UUID?) async {
@@ -106,8 +126,14 @@ final class WallsViewModel: ObservableObject {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { return }
 
+        let originalImageUrl = walls.first(where: { $0.id == id })?.imageUrl
+        let requestedImageUrl = imageUrl?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let imageChanged = imageData != nil
+            || normalizedRemoteImageURLString(originalImageUrl)
+                != normalizedRemoteImageURLString(requestedImageUrl)
+
         do {
-            var updatedImageUrl = imageUrl?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            var updatedImageUrl = requestedImageUrl
             let imageDimensions = dimensions(from: imageData)
             if let data = imageData {
                 updatedImageUrl = try await uploadWallImage(data: data, wallId: id)
@@ -121,6 +147,9 @@ final class WallsViewModel: ObservableObject {
             if let imageDimensions {
                 payload["image_width"] = AnyEncodable(imageDimensions.width)
                 payload["image_height"] = AnyEncodable(imageDimensions.height)
+            } else if imageChanged {
+                payload["image_width"] = AnyEncodable(nil as Int?)
+                payload["image_height"] = AnyEncodable(nil as Int?)
             }
 
             _ = try await client.database
@@ -129,6 +158,10 @@ final class WallsViewModel: ObservableObject {
                 .eq("id", value: id)
                 .execute()
             await load(userId: userId)
+            if imageChanged {
+                wallImageRevision += 1
+                NotificationCenter.default.post(name: .wallImageDidChange, object: id)
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -143,20 +176,25 @@ final class WallsViewModel: ObservableObject {
                 .eq("id", value: id)
                 .execute()
 
-            let files = try await client.storage
-                .from("walls")
-                .list(path: id)
-            let paths = files.map { "\(id)/\($0.name)" }
-            if !paths.isEmpty {
-                _ = try await client.storage
+            var cleanupErrorMessage: String?
+            do {
+                let files = try await client.storage
                     .from("walls")
-                    .remove(paths: paths)
+                    .list(path: id)
+                let paths = files.map { "\(id)/\($0.name)" }
+                if !paths.isEmpty {
+                    _ = try await client.storage
+                        .from("walls")
+                        .remove(paths: paths)
+                }
+            } catch {
+                cleanupErrorMessage = error.localizedDescription
             }
 
-            if selectedWallId == id {
-                selectedWallId = nil
-            }
             await load(userId: userId)
+            if let cleanupErrorMessage, errorMessage == nil {
+                errorMessage = "Wall deleted, but image cleanup failed: \(cleanupErrorMessage)"
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -164,11 +202,23 @@ final class WallsViewModel: ObservableObject {
 
     private func uploadWallImage(data: Data, wallId: String) async throws -> String {
         guard let client = SupabaseClientProvider.client else { return "" }
-        let path = "\(wallId)/wall.jpg"
+        let path = "\(wallId)/\(UUID().uuidString).jpg"
         let options = FileOptions(cacheControl: "3600", contentType: "image/jpeg", upsert: true)
+        #if canImport(UIKit)
+        guard let image = UIImage(data: data),
+              let uploadData = image.jpegData(compressionQuality: 0.92) else {
+            throw NSError(
+                domain: "ClimbSet.WallsViewModel",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "The selected wall image could not be read."]
+            )
+        }
+        #else
+        let uploadData = data
+        #endif
         _ = try await client.storage
             .from("walls")
-            .upload(path, data: data, options: options)
+            .upload(path, data: uploadData, options: options)
         let url = try client.storage
             .from("walls")
             .getPublicURL(path: path)
@@ -183,6 +233,10 @@ final class WallsViewModel: ObservableObject {
         return nil
         #endif
     }
+}
+
+extension Notification.Name {
+    static let wallImageDidChange = Notification.Name("ClimbSet.wallImageDidChange")
 }
 
 struct AnyEncodable: Encodable {

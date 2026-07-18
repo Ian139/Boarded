@@ -17,7 +17,11 @@ final class AppSession: ObservableObject {
         ?? "Climber"
     }
 
+    private var sessionGeneration = 0
+
     func load() async {
+        sessionGeneration += 1
+        let generation = sessionGeneration
         guard let client = SupabaseClientProvider.client else {
             userId = nil
             userEmail = nil
@@ -25,13 +29,19 @@ final class AppSession: ObservableObject {
             return
         }
         isLoading = true
-        defer { isLoading = false }
+        defer {
+            if generation == sessionGeneration {
+                isLoading = false
+            }
+        }
         do {
             let session = try await client.auth.session
+            guard generation == sessionGeneration else { return }
             userId = session.user.id
             userEmail = session.user.email
-            await fetchProfile(userId: session.user.id)
+            await fetchProfile(userId: session.user.id, generation: generation)
         } catch {
+            guard generation == sessionGeneration else { return }
             userId = nil
             userEmail = nil
             profile = nil
@@ -40,45 +50,68 @@ final class AppSession: ObservableObject {
 
     func signIn(email: String, password: String) async {
         guard let client = SupabaseClientProvider.client else { return }
+        sessionGeneration += 1
+        let generation = sessionGeneration
         isLoading = true
         errorMessage = nil
-        defer { isLoading = false }
+        defer {
+            if generation == sessionGeneration {
+                isLoading = false
+            }
+        }
         do {
             _ = try await client.auth.signIn(email: email, password: password)
+            guard generation == sessionGeneration else { return }
             await load()
         } catch {
+            guard generation == sessionGeneration else { return }
             errorMessage = error.localizedDescription
         }
     }
 
     func signUp(email: String, password: String) async {
         guard let client = SupabaseClientProvider.client else { return }
+        sessionGeneration += 1
+        let generation = sessionGeneration
         isLoading = true
         errorMessage = nil
-        defer { isLoading = false }
+        defer {
+            if generation == sessionGeneration {
+                isLoading = false
+            }
+        }
         do {
             _ = try await client.auth.signUp(email: email, password: password)
+            guard generation == sessionGeneration else { return }
             await load()
         } catch {
+            guard generation == sessionGeneration else { return }
             errorMessage = error.localizedDescription
         }
     }
 
     func signOut() async {
         guard let client = SupabaseClientProvider.client else { return }
+        sessionGeneration += 1
+        let generation = sessionGeneration
+        userId = nil
+        userEmail = nil
+        profile = nil
         isLoading = true
-        defer { isLoading = false }
+        defer {
+            if generation == sessionGeneration {
+                isLoading = false
+            }
+        }
         do {
             try await client.auth.signOut()
-            userId = nil
-            userEmail = nil
-            profile = nil
         } catch {
+            guard generation == sessionGeneration else { return }
             errorMessage = error.localizedDescription
         }
     }
 
-    private func fetchProfile(userId: UUID) async {
+    private func fetchProfile(userId: UUID, generation: Int? = nil) async {
         guard let client = SupabaseClientProvider.client else { return }
         do {
             let profiles: [Profile] = try await client.database
@@ -88,8 +121,16 @@ final class AppSession: ObservableObject {
                 .limit(1)
                 .execute()
                 .value
+            guard generation == nil || generation == sessionGeneration,
+                  self.userId == userId else {
+                return
+            }
             profile = profiles.first
         } catch {
+            guard generation == nil || generation == sessionGeneration,
+                  self.userId == userId else {
+                return
+            }
             profile = nil
         }
     }
