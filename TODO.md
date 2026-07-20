@@ -10,6 +10,10 @@
 - [x] Complete native Profile tab
 - [x] Integrate lanes and resolve conflicts
 
+## Product UX
+
+- [ ] Replace route filter and sort chips with mobile-friendly dropdowns or equivalent compact controls
+
 ## Verification
 
 - [x] Verify web dependency graph
