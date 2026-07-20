@@ -15,7 +15,7 @@
 - [x] Verify web dependency graph
 - [x] Verify native unit contracts
 - [x] Verify native build and metadata
-- [x] Verify full simulator interaction matrix
+- [ ] Verify full simulator interaction matrix (blocked: XCTest press/drag synthesis does not move the hold marker, and the automation host lacks macOS Accessibility permission for real-pointer fallback)
 - [x] Verify final repository consistency
 
 ## Checkpoint
