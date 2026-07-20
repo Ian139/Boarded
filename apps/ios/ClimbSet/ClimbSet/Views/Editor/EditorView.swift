@@ -64,7 +64,7 @@ struct EditorView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.colorScheme) private var colorScheme
-    @StateObject private var wallsViewModel = WallsViewModel()
+    @StateObject private var wallsViewModel: WallsViewModel
     @State private var holds: [Hold] = []
     @State private var editorMode: EditorMode = .pan
     @State private var routeName = ""
@@ -111,15 +111,21 @@ struct EditorView: View {
     }
 
     init() {
-        self.init(routeToEdit: nil, onRouteUpdated: { _ in })
+        self.init(
+            routeToEdit: nil,
+            onRouteUpdated: { _ in },
+            wallsRepository: AppServices.wallsRepository
+        )
     }
 
     init(
         routeToEdit: Route?,
-        onRouteUpdated: @escaping (Route) -> Void
+        onRouteUpdated: @escaping (Route) -> Void,
+        wallsRepository: any WallsRepository = AppServices.wallsRepository
     ) {
         self.routeToEdit = routeToEdit
         self.onRouteUpdated = onRouteUpdated
+        _wallsViewModel = StateObject(wrappedValue: WallsViewModel(repository: wallsRepository))
         _holds = State(initialValue: routeToEdit?.holds ?? [])
         _routeName = State(initialValue: routeToEdit?.name ?? "")
         _routeGrade = State(initialValue: routeToEdit?.gradeV)
@@ -468,7 +474,18 @@ struct EditorView: View {
 
     @ViewBuilder
     private func wallImage(in rect: CGRect) -> some View {
-        if let url = selectedWallImageURL {
+        #if DEBUG
+        let isFixtureImage = isFixtureWallImage(for: selectedWall?.id)
+        #else
+        let isFixtureImage = false
+        #endif
+        if isFixtureImage {
+            Image("DefaultWall")
+                .resizable()
+                .scaledToFit()
+                .frame(width: rect.width, height: rect.height)
+                .onAppear { wallImageState = .ready }
+        } else if let url = selectedWallImageURL {
             let requestID = imageReloadID
             AsyncImage(url: url) { phase in
                 switch phase {
@@ -781,8 +798,9 @@ struct EditorView: View {
         )
         .zIndex(isSelected ? 1000 : Double(index + 2))
         .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier("Editor hold \(index + 1)")
         .accessibilityLabel(markerAccessibilityLabel(for: hold, isSelected: isSelected))
-        .accessibilityValue("\(Int(holdRadiusValue(hold).rounded())) image points")
+        .accessibilityValue("\(Int(hold.x.rounded())) percent x, \(Int(hold.y.rounded())) percent y, \(Int(holdRadiusValue(hold).rounded())) image points")
         .accessibilityHint("Double-tap to edit. Drag to move. Hold, then drag to resize.")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityHidden(!wallIsUsable)
@@ -1267,7 +1285,14 @@ struct EditorView: View {
             wallImageState = .none
             return
         }
-        if wallImageURL(for: id) == nil {
+        #if DEBUG
+        let isFixtureImage = isFixtureWallImage(for: id)
+        #else
+        let isFixtureImage = false
+        #endif
+        if isFixtureImage {
+            wallImageState = .ready
+        } else if wallImageURL(for: id) == nil {
             updateWallImageState(.failed, requestID: imageReloadID)
         } else {
             wallImageState = .loading
@@ -1456,6 +1481,16 @@ struct EditorView: View {
             return false
         }
     }
+#if DEBUG
+    private func isFixtureWallImage(for id: String?) -> Bool {
+        guard AppLaunchConfiguration.isUITestFixture,
+              let id,
+              let wall = wallsViewModel.walls.first(where: { $0.id == id }) else {
+            return false
+        }
+        return wall.imageUrl == "fixture://default-wall"
+    }
+#endif
 
 
     private func markerAccessibilityLabel(for hold: Hold, isSelected: Bool) -> String {

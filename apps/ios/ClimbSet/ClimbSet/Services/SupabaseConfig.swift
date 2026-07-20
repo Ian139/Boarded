@@ -4,6 +4,16 @@ import Foundation
 import Supabase
 #endif
 
+enum AppLaunchConfiguration {
+    #if DEBUG
+    static var isUITestFixture: Bool {
+        ProcessInfo.processInfo.arguments.contains("--climbset-ui-fixture")
+    }
+    #else
+    static let isUITestFixture = false
+    #endif
+}
+
 enum SupabaseConfig {
     static var current: (url: URL, anonKey: String)? {
         guard

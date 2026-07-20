@@ -12,7 +12,7 @@ struct RouteDetailView: View {
     @EnvironmentObject var session: AppSession
     @EnvironmentObject var routesViewModel: RoutesViewModel
     @StateObject private var commentsViewModel: CommentsViewModel
-    @StateObject private var wallsViewModel = WallsViewModel()
+    @StateObject private var wallsViewModel: WallsViewModel
     @State private var isLiked = false
     @State private var likeCount: Int = 0
     @State private var likeError: String? = nil
@@ -37,12 +37,21 @@ struct RouteDetailView: View {
     init(
         route: Route,
         onRouteChanged: @escaping (Route) -> Void,
-        onRouteDeleted: @escaping (String) -> Void
+        onRouteDeleted: @escaping (String) -> Void,
+        wallsRepository: any WallsRepository = AppServices.wallsRepository
     ) {
         self.route = route
         self.onRouteChanged = onRouteChanged
         self.onRouteDeleted = onRouteDeleted
-        _commentsViewModel = StateObject(wrappedValue: CommentsViewModel(routeId: route.id))
+        let commentsClient = AppLaunchConfiguration.isUITestFixture
+            ? nil
+            : SupabaseClientProvider.client
+        _commentsViewModel = StateObject(
+            wrappedValue: CommentsViewModel(routeId: route.id, client: commentsClient)
+        )
+        _wallsViewModel = StateObject(
+            wrappedValue: WallsViewModel(repository: wallsRepository)
+        )
         _wallImageUrl = State(initialValue: route.normalizedWallImageUrl)
         _ascents = State(initialValue: route.ascents)
     }
@@ -239,7 +248,9 @@ struct RouteDetailView: View {
             ) {
                 actionButton(
                     title: isLiking ? "Liking..." : (isLiked ? "Liked" : "Like"),
-                    isDisabled: isLiking || session.userId == nil
+                    isDisabled: isLiking
+                        || session.userId == nil
+                        || AppLaunchConfiguration.isUITestFixture
                 ) {
                     Task { await toggleLike() }
                 }
@@ -249,7 +260,9 @@ struct RouteDetailView: View {
                 }
                 actionButton(
                     title: isLoggingSend ? "Logging..." : "Log Send",
-                    isDisabled: isLoggingSend || session.userId == nil
+                    isDisabled: isLoggingSend
+                        || session.userId == nil
+                        || AppLaunchConfiguration.isUITestFixture
                 ) {
                     logSendError = nil
                     Task { await logSend() }
@@ -536,6 +549,7 @@ struct RouteDetailView: View {
     }
 
     private func toggleLike() async {
+        guard !AppLaunchConfiguration.isUITestFixture else { return }
         guard !isLiking else { return }
         guard let client = SupabaseClientProvider.client, let userId = session.userId else {
             likeError = "Sign in to like routes."
@@ -740,6 +754,7 @@ struct RouteDetailView: View {
         return deepLink
     }
     private func logSend() async {
+        guard !AppLaunchConfiguration.isUITestFixture else { return }
         guard !isLoggingSend else { return }
         guard let client = SupabaseClientProvider.client else {
             logSendError = "Supabase is not configured for sends."

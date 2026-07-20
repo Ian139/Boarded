@@ -10,6 +10,12 @@ final class AppSession: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String? = nil
 
+    private let fixture: Bool
+
+    init(fixture: Bool = false) {
+        self.fixture = fixture
+    }
+
     var displayName: String {
         profile?.fullName
         ?? profile?.username
@@ -20,6 +26,22 @@ final class AppSession: ObservableObject {
     private var sessionGeneration = 0
 
     func load() async {
+        #if DEBUG
+        if fixture {
+            userId = UUID(uuidString: "11111111-1111-4111-8111-111111111111")
+            userEmail = "fixture@climbset.test"
+            profile = Profile(
+                id: "11111111-1111-4111-8111-111111111111",
+                username: "fixture",
+                fullName: "Fixture Climber",
+                avatarUrl: nil,
+                bio: "Deterministic simulator account",
+                createdAt: "2026-01-01T00:00:00Z"
+            )
+            isLoading = false
+            return
+        }
+        #endif
         sessionGeneration += 1
         let generation = sessionGeneration
         guard let client = SupabaseClientProvider.client else {
@@ -49,6 +71,12 @@ final class AppSession: ObservableObject {
     }
 
     func signIn(email: String, password: String) async {
+        #if DEBUG
+        if fixture {
+            await load()
+            return
+        }
+        #endif
         guard let client = SupabaseClientProvider.client else { return }
         sessionGeneration += 1
         let generation = sessionGeneration
@@ -70,6 +98,12 @@ final class AppSession: ObservableObject {
     }
 
     func signUp(email: String, password: String) async {
+        #if DEBUG
+        if fixture {
+            await load()
+            return
+        }
+        #endif
         guard let client = SupabaseClientProvider.client else { return }
         sessionGeneration += 1
         let generation = sessionGeneration
@@ -91,6 +125,17 @@ final class AppSession: ObservableObject {
     }
 
     func signOut() async {
+        #if DEBUG
+        if fixture {
+            sessionGeneration += 1
+            userId = nil
+            userEmail = nil
+            profile = nil
+            errorMessage = nil
+            isLoading = false
+            return
+        }
+        #endif
         guard let client = SupabaseClientProvider.client else { return }
         sessionGeneration += 1
         let generation = sessionGeneration
@@ -136,6 +181,19 @@ final class AppSession: ObservableObject {
     }
 
     func updateProfile(fullName: String?, username: String?, bio: String?) async {
+        #if DEBUG
+        if fixture, let userId {
+            profile = Profile(
+                id: userId.uuidString,
+                username: username?.trimmingCharacters(in: .whitespacesAndNewlines),
+                fullName: fullName?.trimmingCharacters(in: .whitespacesAndNewlines),
+                avatarUrl: profile?.avatarUrl,
+                bio: bio?.trimmingCharacters(in: .whitespacesAndNewlines),
+                createdAt: profile?.createdAt
+            )
+            return
+        }
+        #endif
         guard let client = SupabaseClientProvider.client, let userId else { return }
         isLoading = true
         errorMessage = nil

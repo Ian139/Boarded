@@ -4,14 +4,14 @@ struct ProfileView: View {
     @EnvironmentObject var session: AppSession
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var viewModel: ProfileViewModel
-    @StateObject private var routeDetailsViewModel = RoutesViewModel(repository: SupabaseRoutesRepository())
+    @StateObject private var routeDetailsViewModel = RoutesViewModel(repository: AppServices.routesRepository)
     @State private var selectedRoute: Route?
     @State private var isEditPresented = false
     @State private var editFullName = ""
     @State private var editUsername = ""
     @State private var editBio = ""
 
-    init(repository: any ProfileRepository = SupabaseProfileRepository()) {
+    init(repository: any ProfileRepository = AppServices.profileRepository) {
         _viewModel = StateObject(wrappedValue: ProfileViewModel(repository: repository))
     }
 

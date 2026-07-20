@@ -49,6 +49,9 @@ struct WallPickerView: View {
                                     }
                                 }
                             }
+                            .accessibilityValue(
+                                viewModel.selectedWallId == wall.id ? "Selected" : "Not selected"
+                            )
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 if wall.userId == session.userId?.uuidString {
                                     Button("Edit") {
@@ -195,6 +198,7 @@ private struct EditWallSheet: View {
                 AppColor.background.ignoresSafeArea()
                 VStack(spacing: 12) {
                     TextField("Wall name", text: $name)
+                        .accessibilityIdentifier("Edit wall name")
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
                         .background(AppColor.surface)

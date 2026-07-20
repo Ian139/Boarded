@@ -8,12 +8,18 @@
       <BuildActionEntry buildForTesting="YES" buildForRunning="NO" buildForProfiling="NO" buildForArchiving="NO" buildForAnalyzing="YES">
         <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="3CDD091B2F5A200100535751" BuildableName="ClimbSetTests.xctest" BlueprintName="ClimbSetTests" ReferencedContainer="container:ClimbSet.xcodeproj"/>
       </BuildActionEntry>
+      <BuildActionEntry buildForTesting="YES" buildForRunning="NO" buildForProfiling="NO" buildForArchiving="NO" buildForAnalyzing="YES">
+        <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="AA1100152F5B000100535751" BuildableName="ClimbSetUITests.xctest" BlueprintName="ClimbSetUITests" ReferencedContainer="container:ClimbSet.xcodeproj"/>
+      </BuildActionEntry>
     </BuildActionEntries>
   </BuildAction>
   <TestAction buildConfiguration="Debug" shouldUseLaunchSchemeArgsEnv="YES">
     <Testables>
       <TestableReference skipped="NO">
         <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="3CDD091B2F5A200100535751" BuildableName="ClimbSetTests.xctest" BlueprintName="ClimbSetTests" ReferencedContainer="container:ClimbSet.xcodeproj"/>
+      </TestableReference>
+      <TestableReference skipped="NO">
+        <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="AA1100152F5B000100535751" BuildableName="ClimbSetUITests.xctest" BlueprintName="ClimbSetUITests" ReferencedContainer="container:ClimbSet.xcodeproj"/>
       </TestableReference>
     </Testables>
   </TestAction>

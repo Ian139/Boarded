@@ -11,13 +11,15 @@ final class CommentsViewModel: ObservableObject {
     @Published var isBeta = false
 
     private let routeId: String
+    private let client: SupabaseClient?
 
-    init(routeId: String) {
+    init(routeId: String, client: SupabaseClient? = SupabaseClientProvider.client) {
         self.routeId = routeId
+        self.client = client
     }
 
     func load() async {
-        guard let client = SupabaseClientProvider.client else { return }
+        guard let client else { return }
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
@@ -54,7 +56,7 @@ final class CommentsViewModel: ObservableObject {
     }
 
     func postComment(userId: UUID?, userName: String) async {
-        guard let client = SupabaseClientProvider.client else { return }
+        guard let client else { return }
         let trimmed = newComment.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         do {
@@ -79,7 +81,7 @@ final class CommentsViewModel: ObservableObject {
     }
 
     func deleteComment(id: String) async {
-        guard let client = SupabaseClientProvider.client else { return }
+        guard let client else { return }
         do {
             _ = try await client.database
                 .from("comments")

@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct RootView: View {
-    @StateObject private var session = AppSession()
+    @StateObject private var session = AppSession(fixture: AppLaunchConfiguration.isUITestFixture)
     @StateObject private var routesViewModel = RoutesViewModel(repository: AppServices.routesRepository)
     @State private var shareRequest: NativeShareRequest?
     @State private var selectedTab = 0

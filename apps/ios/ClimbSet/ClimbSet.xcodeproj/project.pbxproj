@@ -41,10 +41,19 @@
 		3CDD09172F5A200100535751 /* HoldRadiusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD09162F5A200100535751 /* HoldRadiusTests.swift */; };
 		3CDD09012F5A0E6D00535751 /* WallsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD09002F5A0E6D00535751 /* WallsViewModel.swift */; };
 		3CDD09042F5A0F8E00535751 /* WallPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD09022F5A0F8E00535751 /* WallPickerView.swift */; };
+		AA1100012F5B000100535751 /* WallsRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1100022F5B000100535751 /* WallsRepository.swift */; };
+		AA1100102F5B000100535751 /* ClimbSetUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1100112F5B000100535751 /* ClimbSetUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
 		3CDD09212F5A200100535751 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 3CDD081B2F59F69800535751 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 3CDD08222F59F69800535751;
+			remoteInfo = ClimbSet;
+		};
+		AA1100192F5B000100535751 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 3CDD081B2F59F69800535751 /* Project object */;
 			proxyType = 1;
@@ -83,7 +92,10 @@
 		3CDD08F92F5A0A0300535751 /* ProfileViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileViewModel.swift; sourceTree = "<group>"; };
 		3CDD08FA2F5A0A0300535751 /* RoutesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutesViewModel.swift; sourceTree = "<group>"; };
 		3CDD09002F5A0E6D00535751 /* WallsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallsViewModel.swift; sourceTree = "<group>"; };
+		AA1100022F5B000100535751 /* WallsRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallsRepository.swift; sourceTree = "<group>"; };
 		3CDD09022F5A0F8E00535751 /* WallPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallPickerView.swift; sourceTree = "<group>"; };
+		AA1100112F5B000100535751 /* ClimbSetUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClimbSetUITests.swift; sourceTree = "<group>"; };
+		AA1100122F5B000100535751 /* ClimbSetUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ClimbSetUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -110,6 +122,7 @@
 				3CDD08942F59FD5E00535751 /* ClimbSetApp.swift */,
 				3CDD08992F59FD6900535751 /* RootView.swift */,
 				3CDD09182F5A200100535751 /* ClimbSetTests */,
+				AA1100132F5B000100535751 /* ClimbSetUITests */,
 				3CDD08EC2F5A072900535751 /* Views */,
 				3CDD08902F59FBD700535751 /* Theme.swift */,
 				3CDD08912F59FBD700535751 /* Utilities */,
@@ -126,6 +139,7 @@
 			children = (
 				3CDD08232F59F69900535751 /* ClimbSet.app */,
 				3CDD09192F5A200100535751 /* ClimbSetTests.xctest */,
+				AA1100122F5B000100535751 /* ClimbSetUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -145,6 +159,7 @@
 			isa = PBXGroup;
 			children = (
 				3CDD08762F59FBB600535751 /* RoutesRepository.swift */,
+				AA1100022F5B000100535751 /* WallsRepository.swift */,
 				3CDD09102F5A200100535751 /* ProfileRepository.swift */,
 				3CDD08C82F5A064A00535751 /* SupabaseConfig.swift */,
 			);
@@ -255,6 +270,14 @@
 			path = Walls;
 			sourceTree = "<group>";
 		};
+		AA1100132F5B000100535751 /* ClimbSetUITests */ = {
+			isa = PBXGroup;
+			children = (
+				AA1100112F5B000100535751 /* ClimbSetUITests.swift */,
+			);
+			path = ClimbSetUITests;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -299,6 +322,22 @@
 			productReference = 3CDD09192F5A200100535751 /* ClimbSetTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		AA1100152F5B000100535751 /* ClimbSetUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA1100162F5B000100535751 /* Build configuration list for PBXNativeTarget "ClimbSetUITests" */;
+			buildPhases = (
+				AA1100142F5B000100535751 /* ClimbSetUITests Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AA11001A2F5B000100535751 /* ClimbSet in Targets */,
+			);
+			name = ClimbSetUITests;
+			productName = ClimbSetUITests;
+			productReference = AA1100122F5B000100535751 /* ClimbSetUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -313,6 +352,10 @@
 						CreatedOnToolsVersion = 26.2;
 					};
 					3CDD091B2F5A200100535751 = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = 3CDD08222F59F69800535751;
+					};
+					AA1100152F5B000100535751 = {
 						CreatedOnToolsVersion = 26.2;
 						TestTargetID = 3CDD08222F59F69800535751;
 					};
@@ -337,6 +380,7 @@
 			targets = (
 				3CDD08222F59F69800535751 /* ClimbSet */,
 				3CDD091B2F5A200100535751 /* ClimbSetTests */,
+				AA1100152F5B000100535751 /* ClimbSetUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -381,6 +425,7 @@
 				3CDD08F42F5A072900535751 /* FilterChip.swift in Sources */,
 				3CDD08F52F5A072900535751 /* EmptyStateView.swift in Sources */,
 				3CDD08F62F5A072900535751 /* EditorView.swift in Sources */,
+				AA1100012F5B000100535751 /* WallsRepository.swift in Sources */,
 				3CDD08C92F5A064A00535751 /* SupabaseConfig.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -394,6 +439,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AA1100142F5B000100535751 /* ClimbSetUITests Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA1100102F5B000100535751 /* ClimbSetUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -401,6 +454,11 @@
 			isa = PBXTargetDependency;
 			target = 3CDD08222F59F69800535751 /* ClimbSet */;
 			targetProxy = 3CDD09212F5A200100535751 /* PBXContainerItemProxy */;
+		};
+		AA11001A2F5B000100535751 /* ClimbSet in Targets */ = {
+			isa = PBXTargetDependency;
+			target = 3CDD08222F59F69800535751 /* ClimbSet */;
+			targetProxy = AA1100192F5B000100535751 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -624,6 +682,34 @@
 			};
 			name = Release;
 		};
+		AA1100172F5B000100535751 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = UQ6DWXPFFY;
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ian.ClimbSetUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = ClimbSet;
+			};
+			name = Debug;
+		};
+		AA1100182F5B000100535751 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = UQ6DWXPFFY;
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ian.ClimbSetUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = ClimbSet;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -650,6 +736,15 @@
 			buildConfigurations = (
 				3CDD082F2F59F69A00535751 /* Debug */,
 				3CDD08302F59F69A00535751 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA1100162F5B000100535751 /* Build configuration list for PBXNativeTarget "ClimbSetUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA1100172F5B000100535751 /* Debug */,
+				AA1100182F5B000100535751 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

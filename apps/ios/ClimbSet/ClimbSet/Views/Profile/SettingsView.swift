@@ -3,8 +3,8 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var session: AppSession
     @AppStorage("appearanceMode") private var appearanceModeRaw = AppAppearanceMode.system.rawValue
-    @StateObject private var metrics = ProfileViewModel()
-    @StateObject private var wallsViewModel = WallsViewModel()
+    @StateObject private var metrics = ProfileViewModel(repository: AppServices.profileRepository)
+    @StateObject private var wallsViewModel = WallsViewModel(repository: AppServices.wallsRepository)
     @State private var isWallPickerPresented = false
 
     private var appearanceMode: AppAppearanceMode {

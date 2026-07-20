@@ -42,7 +42,7 @@ struct MockRoutesRepository: RoutesRepository {
 
     private let storage: Storage
 
-    init() {
+    init(fixture: Bool = false) {
         storage = Storage(routes: [
             Route(
                 id: UUID().uuidString,
@@ -97,6 +97,46 @@ struct MockRoutesRepository: RoutesRepository {
                 comments: []
             )
         ])
+        if fixture {
+            storage.routes = storage.routes.enumerated().map { index, route in
+                Self.fixtureRoute(route, index: index)
+            }
+        }
+    }
+
+    private static func fixtureRoute(_ route: Route, index: Int) -> Route {
+        Route(
+            id: index == 0 ? "11111111-1111-4111-8111-111111111111" : "22222222-2222-4222-8222-222222222222",
+            userId: "11111111-1111-4111-8111-111111111111",
+            wallId: index == 0 ? "wall-1" : "wall-2",
+            name: route.name,
+            description: route.description,
+            gradeV: route.gradeV,
+            gradeFont: route.gradeFont,
+            holds: route.holds.enumerated().map { holdIndex, hold in
+                Hold(
+                    id: "\(index + 1)-\(holdIndex + 1)",
+                    x: hold.x,
+                    y: hold.y,
+                    type: hold.type,
+                    color: hold.color,
+                    size: hold.size,
+                    radius: hold.radius,
+                    notes: hold.notes
+                )
+            },
+            isPublic: true,
+            viewCount: route.viewCount,
+            shareToken: index == 0 ? "fixture-granite" : "fixture-mossy",
+            createdAt: index == 0 ? "2026-01-01T00:00:00Z" : "2026-01-02T00:00:00Z",
+            updatedAt: index == 0 ? "2026-01-01T00:00:00Z" : "2026-01-02T00:00:00Z",
+            userName: index == 0 ? "Fixture Climber" : route.userName,
+            wallImageUrl: "fixture://default-wall",
+            likeCount: route.likeCount,
+            isLiked: route.isLiked,
+            ascents: route.ascents,
+            comments: route.comments
+        )
     }
 
     func fetchRoutes(userId: UUID?) async throws -> [Route] {
@@ -551,7 +591,12 @@ struct SupabaseRoutesRepository: RoutesRepository {
 #endif
 
 enum AppServices {
-    static let routesRepository: RoutesRepository = {
+    static let routesRepository: any RoutesRepository = {
+        #if DEBUG
+        if AppLaunchConfiguration.isUITestFixture {
+            return MockRoutesRepository(fixture: true)
+        }
+        #endif
         #if canImport(Supabase)
         if SupabaseRoutesRepository.isConfigured() {
             return SupabaseRoutesRepository()
@@ -559,8 +604,34 @@ enum AppServices {
         #endif
         return MockRoutesRepository()
     }()
-}
 
+    static let profileRepository: any ProfileRepository = {
+        #if DEBUG
+        if AppLaunchConfiguration.isUITestFixture {
+            return MockProfileRepository(
+                profile: Profile(
+                    id: "11111111-1111-4111-8111-111111111111",
+                    username: "fixture",
+                    fullName: "Fixture Climber",
+                    avatarUrl: nil,
+                    bio: "Deterministic simulator account",
+                    createdAt: "2026-01-01T00:00:00Z"
+                ),
+                metrics: ProfileMetrics(routesCount: 2, likesCount: 20)
+            )
+        }
+        #endif
+        return SupabaseProfileRepository()
+    }()
+    static let wallsRepository: any WallsRepository = {
+        #if DEBUG
+        if AppLaunchConfiguration.isUITestFixture {
+            return MockWallsRepository()
+        }
+        #endif
+        return SupabaseWallsRepository()
+    }()
+}
 struct RouteLikeFull: Codable {
     let routeId: String
     let userId: String

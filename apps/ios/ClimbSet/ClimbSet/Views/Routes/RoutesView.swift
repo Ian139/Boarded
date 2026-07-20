@@ -6,12 +6,16 @@ struct RoutesView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject var viewModel: RoutesViewModel
     @EnvironmentObject var session: AppSession
-    @StateObject private var wallsViewModel = WallsViewModel()
+    @StateObject private var wallsViewModel: WallsViewModel
     @State private var selectedRoute: Route?
     @State private var sharedRouteError: String?
 
-    init(shareRequest: Binding<NativeShareRequest?> = .constant(nil)) {
+    init(
+        shareRequest: Binding<NativeShareRequest?> = .constant(nil),
+        wallsRepository: any WallsRepository = AppServices.wallsRepository
+    ) {
         _shareRequest = shareRequest
+        _wallsViewModel = StateObject(wrappedValue: WallsViewModel(repository: wallsRepository))
     }
 
     private struct ShareTaskIdentity: Equatable {
