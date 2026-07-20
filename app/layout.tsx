@@ -20,7 +20,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ClimbSet - Digital Route Setter",
+  title: "Boarded - Digital Route Setter",
   description: "Document and share your climbing routes",
   manifest: "/manifest.json",
   icons: {

@@ -89,7 +89,7 @@ struct MockRoutesRepository: RoutesRepository {
                 shareToken: nil,
                 createdAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(-86000)),
                 updatedAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(-86000)),
-                userName: "ClimbSet",
+                userName: "Boarded",
                 wallImageUrl: nil,
                 likeCount: 8,
                 isLiked: false,

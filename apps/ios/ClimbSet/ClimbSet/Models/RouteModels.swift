@@ -2,12 +2,35 @@ import Foundation
 
 struct Hold: Codable, Identifiable, Hashable {
     let id: String
-    let x: Double
-    let y: Double
+    var x: Double
+    var y: Double
     var type: HoldType
     var color: String
     var size: HoldSize
+    /// An optional image-space radius. Older routes only have a discrete `size`.
+    /// Keeping this optional preserves decoding and rendering for existing JSON.
+    var radius: Double?
     let notes: String?
+
+    init(
+        id: String,
+        x: Double,
+        y: Double,
+        type: HoldType,
+        color: String,
+        size: HoldSize,
+        radius: Double? = nil,
+        notes: String?
+    ) {
+        self.id = id
+        self.x = x
+        self.y = y
+        self.type = type
+        self.color = color
+        self.size = size
+        self.radius = radius
+        self.notes = notes
+    }
 }
 
 enum HoldType: String, Codable, CaseIterable {

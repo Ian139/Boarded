@@ -1,6 +1,6 @@
 {
-  "name": "ClimbSet",
-  "short_name": "ClimbSet",
+  "name": "Boarded",
+  "short_name": "Boarded",
   "description": "Set, save, and share climbing routes.",
   "start_url": "/",
   "display": "standalone",

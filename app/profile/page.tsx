@@ -367,7 +367,7 @@ export default function ProfilePage() {
 
         {/* App Info */}
         <section className="pt-4 pb-4 text-center">
-          <p className="text-xs text-muted-foreground">ClimbSet v2.1.9</p>
+          <p className="text-xs text-muted-foreground">Boarded v0.1.2</p>
         </section>
       </main>
     </div>

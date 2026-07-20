@@ -13,7 +13,6 @@ node_modules
 /out/
 /build
 /dist/
-apps/mobile/dist/
 next-env.d.ts
 
 # Environment variables (IMPORTANT - contains secrets)
@@ -70,14 +69,6 @@ climbing-app-next/
 # Local Supabase
 .supabase/
 
-# Expo
-.expo/
-ios/
-android/
-*.jks
-*.p8
-*.p12
-*.mobileprovision
 !.env.example
 
 # Allow Swift app under apps/ios
@@ -87,3 +78,7 @@ apps/ios/**/.git/
 apps/ios/**/.DS_Store
 apps/ios/**/xcuserdata/
 apps/ios/**/*.xcuserstate
+
+# Python
+__pycache__/
+*.pyc

@@ -10,18 +10,38 @@ final class RoutesViewModel: ObservableObject {
     @Published var searchText = ""
     @Published var selectedSort: SortOption = .newest
     @Published var selectedWallFilterId: String? = nil
-
+    @Published var isAllWallsSelected = false
+    @Published var selectedGradeFilter = "all"
     private let repository: RoutesRepository
     private var loadGeneration = 0
 
+    init(repository: RoutesRepository) {
+        self.repository = repository
+    }
     func resetForSessionChange() {
         loadGeneration += 1
         routes = []
         errorMessage = nil
+        searchText = ""
+        selectedSort = .newest
+        selectedWallFilterId = nil
+        isAllWallsSelected = false
+        selectedGradeFilter = "all"
     }
 
-    init(repository: RoutesRepository) {
-        self.repository = repository
+    func clearFilters() {
+        searchText = ""
+        selectedGradeFilter = "all"
+    }
+
+    func selectAllWalls() {
+        selectedWallFilterId = nil
+        isAllWallsSelected = true
+    }
+
+    func selectWall(id: String) {
+        selectedWallFilterId = id
+        isAllWallsSelected = false
     }
 
     func load(userId: UUID?) async {
@@ -38,9 +58,10 @@ final class RoutesViewModel: ObservableObject {
             let data = try await repository.fetchRoutes(userId: userId)
             guard generation == loadGeneration else { return }
             routes = data
+        } catch is CancellationError {
+            return
         } catch {
             guard generation == loadGeneration else { return }
-            routes = []
             errorMessage = error.localizedDescription
         }
     }
@@ -126,51 +147,142 @@ final class RoutesViewModel: ObservableObject {
         routes[index] = reconciledRoute
         return reconciledRoute
     }
+    var availableGrades: [String] {
+        let scopedRoutes: [Route]
+        if isAllWallsSelected {
+            scopedRoutes = routes
+        } else if let selectedWallFilterId {
+            scopedRoutes = routes.filter { $0.wallId == selectedWallFilterId }
+        } else {
+            scopedRoutes = []
+        }
+        return Array(Set(scopedRoutes.compactMap(\.gradeV)))
+            .sorted { gradeNumber($0) < gradeNumber($1) }
+    }
 
+    var hasFilters: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || selectedGradeFilter != "all"
+    }
 
     var filteredRoutes: [Route] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let wallFiltered = routes.filter { route in
-            guard let selectedWallFilterId else { return true }
-            return route.wallId == selectedWallFilterId
+        let wallFiltered: [Route]
+        if isAllWallsSelected {
+            wallFiltered = routes
+        } else if let selectedWallFilterId {
+            wallFiltered = routes.filter { $0.wallId == selectedWallFilterId }
+        } else {
+            wallFiltered = []
         }
-        let base = query.isEmpty ? wallFiltered : wallFiltered.filter {
-            $0.name.lowercased().contains(query)
-                || ($0.userName ?? "").lowercased().contains(query)
-                || ($0.gradeV ?? "").lowercased().contains(query)
+        let base = wallFiltered.filter { route in
+            let matchesSearch = query.isEmpty
+                || route.name.lowercased().contains(query)
+                || (route.userName ?? "").lowercased().contains(query)
+                || (route.gradeV ?? "").lowercased().contains(query)
+            let matchesGrade = selectedGradeFilter == "all" || route.gradeV == selectedGradeFilter
+            return matchesSearch && matchesGrade
         }
-        return base.sorted { a, b in
+
+        return base.sorted { lhs, rhs in
             switch selectedSort {
             case .newest:
-                return parseDate(a.createdAt) > parseDate(b.createdAt)
+                return parseDate(lhs.createdAt) > parseDate(rhs.createdAt)
+            case .oldest:
+                return parseDate(lhs.createdAt) < parseDate(rhs.createdAt)
+            case .name:
+                return lhs.name.localizedCompare(rhs.name) == .orderedAscending
+            case .gradeAscending:
+                return gradeNumber(displayGrade(for: lhs)) < gradeNumber(displayGrade(for: rhs))
+            case .gradeDescending:
+                return gradeNumber(displayGrade(for: lhs)) > gradeNumber(displayGrade(for: rhs))
+            case .rating:
+                return averageRating(for: lhs) > averageRating(for: rhs)
             case .mostLiked:
-                return (a.likeCount ?? 0) > (b.likeCount ?? 0)
+                return (lhs.likeCount ?? 0) > (rhs.likeCount ?? 0)
             case .mostClimbed:
-                return a.ascents.count > b.ascents.count
+                return lhs.ascents.count > rhs.ascents.count
+            case .mostViewed:
+                return lhs.viewCount > rhs.viewCount
             }
         }
     }
 
     private func parseDate(_ value: String) -> Date {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: value) {
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = fractional.date(from: value) {
             return date
         }
-        let fallback = ISO8601DateFormatter()
-        fallback.formatOptions = [.withInternetDateTime]
-        if let date = fallback.date(from: value) {
-            return date
+        let standard = ISO8601DateFormatter()
+        standard.formatOptions = [.withInternetDateTime]
+        return standard.date(from: value) ?? .distantPast
+    }
+
+    private func gradeNumber(_ grade: String?) -> Double {
+        guard let grade else { return -1 }
+        guard let option = VGradeOption.all.first(where: {
+            $0.label.caseInsensitiveCompare(grade) == .orderedSame
+        }) else {
+            return -1
         }
-        return Date()
+        return Double(option.value)
+    }
+
+    private func displayGrade(for route: Route) -> String? {
+        let setterGrade = gradeNumber(route.gradeV)
+        let userGrades = route.ascents.compactMap { ascent -> Double? in
+            guard let grade = ascent.gradeV else { return nil }
+            let value = gradeNumber(grade)
+            return value >= 0 ? value : nil
+        }
+
+        guard setterGrade >= 0 || !userGrades.isEmpty else { return nil }
+        guard !userGrades.isEmpty else { return route.gradeV }
+
+        let average = userGrades.reduce(0, +) / Double(userGrades.count)
+        let combined = setterGrade >= 0 ? (setterGrade * 0.5) + (average * 0.5) : average
+        return VGradeOption.label(for: Int(combined.rounded()))
+    }
+
+    private func averageRating(for route: Route) -> Double {
+        let ratings = route.ascents.compactMap { ascent -> Int? in
+            guard let rating = ascent.rating, rating != 0 else { return nil }
+            return rating
+        }
+        guard !ratings.isEmpty else { return 0 }
+        return Double(ratings.reduce(0, +)) / Double(ratings.count)
     }
 }
 
-
 enum SortOption: String, CaseIterable, Identifiable {
-    case newest = "Newest"
-    case mostLiked = "Most Liked"
-    case mostClimbed = "Most Climbed"
+    case newest
+    case oldest
+    case name
+    case gradeAscending = "grade-asc"
+    case gradeDescending = "grade-desc"
+    case rating
+    case mostLiked = "most-liked"
+    case mostClimbed = "most-climbed"
+    case mostViewed = "most-viewed"
 
     var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .newest: return "Sort: Newest"
+        case .oldest: return "Sort: Oldest"
+        case .name: return "Sort: Name"
+        case .gradeAscending: return "Sort: Easiest"
+        case .gradeDescending: return "Sort: Hardest"
+        case .rating: return "Sort: Top Rated"
+        case .mostLiked: return "Sort: Most Liked"
+        case .mostClimbed: return "Sort: Most Climbed"
+        case .mostViewed: return "Sort: Most Viewed"
+        }
+    }
+
+    var chipLabel: String {
+        String(label.dropFirst("Sort: ".count))
+    }
 }

@@ -16,6 +16,8 @@
 		3CDD08C72F5A00C800535751 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 3CDD08C62F5A00C800535751 /* Supabase */; };
 		3CDD08C92F5A064A00535751 /* SupabaseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD08C82F5A064A00535751 /* SupabaseConfig.swift */; };
 		3CDD08CB2F5A067100535751 /* ProfileModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD08CA2F5A067100535751 /* ProfileModels.swift */; };
+		3CDD09112F5A200100535751 /* ProfileRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD09102F5A200100535751 /* ProfileRepository.swift */; };
+		3CDD09132F5A200100535751 /* ProfileStatistics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD09122F5A200100535751 /* ProfileStatistics.swift */; };
 		3CDD08D12F5A06EE00535751 /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = 3CDD08D02F5A06EE00535751 /* Auth */; };
 		3CDD08D32F5A06EE00535751 /* Functions in Frameworks */ = {isa = PBXBuildFile; productRef = 3CDD08D22F5A06EE00535751 /* Functions */; };
 		3CDD08D52F5A06EE00535751 /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = 3CDD08D42F5A06EE00535751 /* PostgREST */; };
@@ -35,9 +37,21 @@
 		3CDD08FD2F5A0A0300535751 /* CommentsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD08F82F5A0A0300535751 /* CommentsViewModel.swift */; };
 		3CDD08FE2F5A0A0300535751 /* ProfileViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD08F92F5A0A0300535751 /* ProfileViewModel.swift */; };
 		3CDD08FF2F5A0A0300535751 /* AppSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD08F72F5A0A0300535751 /* AppSession.swift */; };
+		3CDD09152F5A200100535751 /* ProfileStatisticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD09142F5A200100535751 /* ProfileStatisticsTests.swift */; };
+		3CDD09172F5A200100535751 /* HoldRadiusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD09162F5A200100535751 /* HoldRadiusTests.swift */; };
 		3CDD09012F5A0E6D00535751 /* WallsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD09002F5A0E6D00535751 /* WallsViewModel.swift */; };
 		3CDD09042F5A0F8E00535751 /* WallPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD09022F5A0F8E00535751 /* WallPickerView.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		3CDD09212F5A200100535751 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 3CDD081B2F59F69800535751 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 3CDD08222F59F69800535751;
+			remoteInfo = ClimbSet;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		3CDD08232F59F69900535751 /* ClimbSet.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClimbSet.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -47,6 +61,8 @@
 		3CDD08932F59FD5E00535751 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = ClimbSet/Assets.xcassets; sourceTree = "<group>"; };
 		3CDD08942F59FD5E00535751 /* ClimbSetApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ClimbSetApp.swift; path = ClimbSet/ClimbSetApp.swift; sourceTree = "<group>"; };
 		3CDD08992F59FD6900535751 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RootView.swift; path = ClimbSet/RootView.swift; sourceTree = "<group>"; };
+		3CDD09102F5A200100535751 /* ProfileRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileRepository.swift; sourceTree = "<group>"; };
+		3CDD09122F5A200100535751 /* ProfileStatistics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileStatistics.swift; sourceTree = "<group>"; };
 		3CDD08C82F5A064A00535751 /* SupabaseConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseConfig.swift; sourceTree = "<group>"; };
 		3CDD08CA2F5A067100535751 /* ProfileModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileModels.swift; sourceTree = "<group>"; };
 		3CDD08DD2F5A072900535751 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
@@ -59,6 +75,9 @@
 		3CDD08E82F5A072900535751 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
 		3CDD08E92F5A072900535751 /* FilterChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterChip.swift; sourceTree = "<group>"; };
 		3CDD08EA2F5A072900535751 /* SearchField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchField.swift; sourceTree = "<group>"; };
+		3CDD09142F5A200100535751 /* ProfileStatisticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileStatisticsTests.swift; sourceTree = "<group>"; };
+		3CDD09162F5A200100535751 /* HoldRadiusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoldRadiusTests.swift; sourceTree = "<group>"; };
+		3CDD09192F5A200100535751 /* ClimbSetTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ClimbSetTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3CDD08F72F5A0A0300535751 /* AppSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSession.swift; sourceTree = "<group>"; };
 		3CDD08F82F5A0A0300535751 /* CommentsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommentsViewModel.swift; sourceTree = "<group>"; };
 		3CDD08F92F5A0A0300535751 /* ProfileViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileViewModel.swift; sourceTree = "<group>"; };
@@ -90,6 +109,7 @@
 				3CDD08932F59FD5E00535751 /* Assets.xcassets */,
 				3CDD08942F59FD5E00535751 /* ClimbSetApp.swift */,
 				3CDD08992F59FD6900535751 /* RootView.swift */,
+				3CDD09182F5A200100535751 /* ClimbSetTests */,
 				3CDD08EC2F5A072900535751 /* Views */,
 				3CDD08902F59FBD700535751 /* Theme.swift */,
 				3CDD08912F59FBD700535751 /* Utilities */,
@@ -105,6 +125,7 @@
 			isa = PBXGroup;
 			children = (
 				3CDD08232F59F69900535751 /* ClimbSet.app */,
+				3CDD09192F5A200100535751 /* ClimbSetTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -113,6 +134,7 @@
 			isa = PBXGroup;
 			children = (
 				3CDD08CA2F5A067100535751 /* ProfileModels.swift */,
+				3CDD09122F5A200100535751 /* ProfileStatistics.swift */,
 				3CDD08742F59FBB600535751 /* RouteModels.swift */,
 			);
 			name = Models;
@@ -123,6 +145,7 @@
 			isa = PBXGroup;
 			children = (
 				3CDD08762F59FBB600535751 /* RoutesRepository.swift */,
+				3CDD09102F5A200100535751 /* ProfileRepository.swift */,
 				3CDD08C82F5A064A00535751 /* SupabaseConfig.swift */,
 			);
 			name = Services;
@@ -215,6 +238,15 @@
 			path = ViewModels;
 			sourceTree = "<group>";
 		};
+		3CDD09182F5A200100535751 /* ClimbSetTests */ = {
+			isa = PBXGroup;
+			children = (
+				3CDD09142F5A200100535751 /* ProfileStatisticsTests.swift */,
+				3CDD09162F5A200100535751 /* HoldRadiusTests.swift */,
+			);
+			path = ClimbSetTests;
+			sourceTree = "<group>";
+		};
 		3CDD09032F5A0F8E00535751 /* Walls */ = {
 			isa = PBXGroup;
 			children = (
@@ -251,6 +283,22 @@
 			productReference = 3CDD08232F59F69900535751 /* ClimbSet.app */;
 			productType = "com.apple.product-type.application";
 		};
+		3CDD091B2F5A200100535751 /* ClimbSetTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3CDD091F2F5A200100535751 /* Build configuration list for PBXNativeTarget "ClimbSetTests" */;
+			buildPhases = (
+				3CDD091A2F5A200100535751 /* ClimbSetTests Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				3CDD09202F5A200100535751 /* ClimbSet in Targets */,
+			);
+			name = ClimbSetTests;
+			productName = ClimbSetTests;
+			productReference = 3CDD09192F5A200100535751 /* ClimbSetTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -263,6 +311,10 @@
 				TargetAttributes = {
 					3CDD08222F59F69800535751 = {
 						CreatedOnToolsVersion = 26.2;
+					};
+					3CDD091B2F5A200100535751 = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = 3CDD08222F59F69800535751;
 					};
 				};
 			};
@@ -284,6 +336,7 @@
 			projectRoot = "";
 			targets = (
 				3CDD08222F59F69800535751 /* ClimbSet */,
+				3CDD091B2F5A200100535751 /* ClimbSetTests */,
 			);
 		};
 /* End PBXProject section */
@@ -305,6 +358,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				3CDD08882F59FBB600535751 /* RouteModels.swift in Sources */,
+				3CDD09132F5A200100535751 /* ProfileStatistics.swift in Sources */,
+				3CDD09112F5A200100535751 /* ProfileRepository.swift in Sources */,
 				3CDD08892F59FBB600535751 /* RoutesRepository.swift in Sources */,
 				3CDD089A2F59FD6900535751 /* RootView.swift in Sources */,
 				3CDD08922F59FBD700535751 /* Theme.swift in Sources */,
@@ -330,7 +385,24 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		3CDD091A2F5A200100535751 /* ClimbSetTests Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3CDD09152F5A200100535751 /* ProfileStatisticsTests.swift in Sources */,
+				3CDD09172F5A200100535751 /* HoldRadiusTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		3CDD09202F5A200100535751 /* ClimbSet in Targets */ = {
+			isa = PBXTargetDependency;
+			target = 3CDD08222F59F69800535751 /* ClimbSet */;
+			targetProxy = 3CDD09212F5A200100535751 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		3CDD082C2F59F69A00535751 /* Debug */ = {
@@ -386,7 +458,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -444,7 +516,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -463,6 +535,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = UQ6DWXPFFY;
 				ENABLE_PREVIEWS = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Boarded;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ClimbSet/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -474,7 +547,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ian.ClimbSet;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -496,6 +569,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = UQ6DWXPFFY;
 				ENABLE_PREVIEWS = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Boarded;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ClimbSet/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -507,7 +581,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ian.ClimbSet;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -520,9 +594,48 @@
 			};
 			name = Release;
 		};
+		3CDD091D2F5A200100535751 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = UQ6DWXPFFY;
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ian.ClimbSetTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ClimbSet.app/ClimbSet";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		3CDD091E2F5A200100535751 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = UQ6DWXPFFY;
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ian.ClimbSetTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ClimbSet.app/ClimbSet";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		3CDD091F2F5A200100535751 /* Build configuration list for PBXNativeTarget "ClimbSetTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3CDD091D2F5A200100535751 /* Debug */,
+				3CDD091E2F5A200100535751 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		3CDD081E2F59F69800535751 /* Build configuration list for PBXProject "ClimbSet" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

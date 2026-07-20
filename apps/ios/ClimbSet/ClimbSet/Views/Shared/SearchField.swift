@@ -1,34 +1,37 @@
 import SwiftUI
 
 struct SearchField: View {
+    @Environment(\.colorScheme) private var colorScheme
     @Binding var text: String
     let placeholder: String
 
     var body: some View {
+        let theme = BoardedTheme(colorScheme: colorScheme)
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
-                .foregroundColor(AppColor.muted)
+                .foregroundStyle(theme.secondaryText)
             TextField(placeholder, text: $text)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled(true)
                 .font(AppTypography.body)
-                .foregroundColor(AppColor.text)
+                .foregroundStyle(theme.primaryText)
             if !text.isEmpty {
                 Button {
                     text = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(AppColor.muted)
+                        .foregroundStyle(theme.secondaryText)
                 }
+                .accessibilityLabel("Clear search")
             }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(AppColor.surface)
-        .overlay(
-            RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                .stroke(AppColor.border, lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
+        .frame(minHeight: 44)
+        .background(theme.panelBackground)
+        .overlay {
+            RoundedRectangle(cornerRadius: theme.controlCornerRadius, style: .continuous)
+                .stroke(theme.border, lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: theme.controlCornerRadius, style: .continuous))
     }
 }

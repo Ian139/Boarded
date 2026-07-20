@@ -7,7 +7,6 @@ Boarded is a climbing route-setting app for managing walls, routes, holds, and c
 ## Apps
 
 - Web: Next.js app at the repository root
-- Mobile: Expo app in `apps/mobile/`
 - iOS: SwiftUI project in `apps/ios/`
 
 ## Web development

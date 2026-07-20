@@ -66,7 +66,7 @@ export function InstallPrompt() {
     <>
       {isVisible && (
         <div className="mb-3 rounded-xl border border-border/50 bg-card/80 px-4 py-2 text-sm text-foreground flex items-center justify-between gap-3">
-          <span>Install ClimbSet for a faster, app-like experience.</span>
+          <span>Install Boarded for a faster, app-like experience.</span>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={handleDismiss}>
               Not now

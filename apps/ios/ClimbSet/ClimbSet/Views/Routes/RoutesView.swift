@@ -2,6 +2,8 @@ import SwiftUI
 
 struct RoutesView: View {
     @Binding var shareRequest: NativeShareRequest?
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject var viewModel: RoutesViewModel
     @EnvironmentObject var session: AppSession
     @StateObject private var wallsViewModel = WallsViewModel()
@@ -25,17 +27,17 @@ struct RoutesView: View {
             isSessionLoading: session.isLoading
         )
     }
-
     var body: some View {
         ZStack {
-            AppColor.background.ignoresSafeArea()
+            Color.clear
 
             VStack(spacing: 0) {
                 header
-                Divider().background(AppColor.border)
+                Divider().background(BoardedTheme(colorScheme: colorScheme).border)
                 content
             }
         }
+        .boardedPageBackground()
         .task(id: session.userId) {
             selectedRoute = nil
             viewModel.resetForSessionChange()
@@ -45,6 +47,11 @@ struct RoutesView: View {
             }
             await viewModel.load(userId: session.userId)
             await wallsViewModel.load(userId: session.userId)
+            if !viewModel.isAllWallsSelected,
+               viewModel.selectedWallFilterId == nil,
+               let firstWall = wallsViewModel.walls.first {
+                viewModel.selectWall(id: firstWall.id)
+            }
         }
         .sheet(item: $selectedRoute) { route in
             RouteDetailView(
@@ -107,74 +114,174 @@ struct RoutesView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Routes")
-                    .font(AppTypography.title)
-                    .foregroundColor(AppColor.text)
-                Spacer()
-                Text("\(viewModel.filteredRoutes.count) routes")
-                    .font(AppTypography.label)
-                    .foregroundColor(AppColor.muted)
-            }
+        let theme = BoardedTheme(colorScheme: colorScheme)
+        return VStack(alignment: .leading, spacing: 12) {
+            BoardedSectionHeading(
+                title: "Routes",
+                subtitle: "\(viewModel.filteredRoutes.count) routes"
+            )
 
             SearchField(text: $viewModel.searchText, placeholder: "Search routes, setters...")
 
             wallFilter
+            sortSelector
+            gradeSelector
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(SortOption.allCases) { option in
-                        FilterChip(
-                            title: option.rawValue,
-                            isActive: viewModel.selectedSort == option
-                        )
-                        .onTapGesture { viewModel.selectedSort = option }
-                    }
+            if viewModel.hasFilters {
+                Button("Clear") {
+                    viewModel.clearFilters()
                 }
-                .padding(.vertical, 4)
+                .buttonStyle(BoardedButtonStyle(.secondary))
+                .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
-        .padding(.horizontal, AppLayout.horizontalPadding)
+        .boardedPanel(elevated: false)
+        .padding(.horizontal, theme.pagePadding)
         .padding(.top, 12)
         .padding(.bottom, 10)
         .frame(maxWidth: AppLayout.contentMaxWidth)
         .frame(maxWidth: .infinity)
     }
 
-    private var wallFilter: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                FilterChip(title: "All Walls", isActive: viewModel.selectedWallFilterId == nil)
-                    .onTapGesture {
-                        viewModel.selectedWallFilterId = nil
+    @ViewBuilder
+    private var sortSelector: some View {
+        if horizontalSizeClass == .compact {
+            Menu {
+                ForEach(SortOption.allCases) { option in
+                    Button {
+                        viewModel.selectedSort = option
+                    } label: {
+                        Label(option.label, systemImage: viewModel.selectedSort == option ? "checkmark" : "")
                     }
-
-                ForEach(wallsViewModel.walls) { wall in
-                    FilterChip(
-                        title: wall.name,
-                        isActive: viewModel.selectedWallFilterId == wall.id
-                    )
-                    .onTapGesture {
-                        viewModel.selectedWallFilterId = wall.id
+                }
+            } label: {
+                FilterChip(title: viewModel.selectedSort.label, isActive: true)
+            }
+            .accessibilityLabel("Sort routes")
+        } else {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(SortOption.allCases) { option in
+                        BoardedFilterControl(
+                            title: option.chipLabel,
+                            isSelected: viewModel.selectedSort == option
+                        ) {
+                            viewModel.selectedSort = option
+                        }
                     }
                 }
             }
-            .padding(.vertical, 2)
+        }
+    }
+
+    @ViewBuilder
+    private var gradeSelector: some View {
+        if horizontalSizeClass == .compact {
+            Menu {
+                Button("All Grades") {
+                    viewModel.selectedGradeFilter = "all"
+                }
+                ForEach(viewModel.availableGrades, id: \.self) { grade in
+                    Button(grade) {
+                        viewModel.selectedGradeFilter = grade
+                    }
+                }
+            } label: {
+                FilterChip(
+                    title: viewModel.selectedGradeFilter == "all" ? "All Grades" : viewModel.selectedGradeFilter,
+                    isActive: viewModel.selectedGradeFilter != "all"
+                )
+            }
+            .accessibilityLabel("Filter by grade")
+        } else {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    BoardedFilterControl(
+                        title: "All Grades",
+                        isSelected: viewModel.selectedGradeFilter == "all"
+                    ) {
+                        viewModel.selectedGradeFilter = "all"
+                    }
+                    ForEach(viewModel.availableGrades, id: \.self) { grade in
+                        BoardedFilterControl(
+                            title: grade,
+                            isSelected: viewModel.selectedGradeFilter == grade
+                        ) {
+                            viewModel.selectedGradeFilter = grade
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var wallFilter: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                BoardedFilterControl(title: "All Walls", isSelected: viewModel.isAllWallsSelected) {
+                    viewModel.selectAllWalls()
+                }
+
+                ForEach(wallsViewModel.walls) { wall in
+                    BoardedFilterControl(
+                        title: wall.name,
+                        isSelected: viewModel.selectedWallFilterId == wall.id && !viewModel.isAllWallsSelected
+                    ) {
+                        viewModel.selectWall(id: wall.id)
+                    }
+                }
+            }
         }
     }
 
     private var content: some View {
-        Group {
+        let theme = BoardedTheme(colorScheme: colorScheme)
+        return Group {
             if viewModel.isLoading {
-                ProgressView()
-                    .tint(AppColor.primary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                VStack(spacing: 12) {
+                    ProgressView()
+                        .tint(theme.primary)
+                    Text("Loading routes…")
+                        .font(AppTypography.label)
+                        .foregroundStyle(theme.secondaryText)
+                }
+                .boardedPanel(elevated: false)
+                .frame(maxWidth: AppLayout.contentMaxWidth)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(theme.pagePadding)
+            } else if let errorMessage = viewModel.errorMessage {
+                VStack(spacing: 12) {
+                    Text("Unable to load routes")
+                        .font(AppTypography.headline)
+                        .foregroundStyle(theme.primaryText)
+                    Text(errorMessage)
+                        .font(AppTypography.body)
+                        .foregroundStyle(theme.secondaryText)
+                        .multilineTextAlignment(.center)
+                    Button("Retry") {
+                        Task { await viewModel.load(userId: session.userId) }
+                    }
+                    .buttonStyle(BoardedButtonStyle(.secondary))
+                }
+                .boardedPanel(elevated: false)
+                .frame(maxWidth: AppLayout.contentMaxWidth)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(theme.pagePadding)
             } else if viewModel.filteredRoutes.isEmpty {
-                EmptyStateView(
-                    title: "No routes yet",
-                    subtitle: "Create your first route to get started."
-                )
+                VStack(spacing: 12) {
+                    EmptyStateView(
+                        title: viewModel.hasFilters ? "No routes found" : "No routes yet",
+                        subtitle: viewModel.hasFilters
+                            ? "Try changing your search or filters."
+                            : "Create your first route to get started."
+                    )
+                    if viewModel.hasFilters {
+                        Button("Clear filters") {
+                            viewModel.clearFilters()
+                        }
+                        .buttonStyle(BoardedButtonStyle(.secondary))
+                    }
+                }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
@@ -185,18 +292,12 @@ struct RoutesView: View {
                                 .onTapGesture {
                                     selectedRoute = route
                                 }
-                                .padding(12)
-                                .background(AppColor.surface)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                                        .stroke(AppColor.border.opacity(0.7), lineWidth: 1)
-                                )
-                                .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
+                                .boardedPanel()
                                 .frame(maxWidth: AppLayout.contentMaxWidth)
                                 .frame(maxWidth: .infinity)
                         }
                     }
-                    .padding(.horizontal, AppLayout.horizontalPadding)
+                    .padding(.horizontal, theme.pagePadding)
                     .padding(.vertical, 12)
                     .safeAreaPadding(.bottom, 12)
                 }

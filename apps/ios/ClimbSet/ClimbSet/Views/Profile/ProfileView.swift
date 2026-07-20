@@ -2,139 +2,57 @@ import SwiftUI
 
 struct ProfileView: View {
     @EnvironmentObject var session: AppSession
-    @StateObject private var viewModel = ProfileViewModel()
+    @Environment(\.colorScheme) private var colorScheme
+    @StateObject private var viewModel: ProfileViewModel
+    @StateObject private var routeDetailsViewModel = RoutesViewModel(repository: SupabaseRoutesRepository())
+    @State private var selectedRoute: Route?
     @State private var isEditPresented = false
     @State private var editFullName = ""
     @State private var editUsername = ""
     @State private var editBio = ""
 
-    var body: some View {
-        ZStack {
-            AppColor.background.ignoresSafeArea()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    header
-                    statsGrid
-                    highlights
-                    previousClimbsSection
-                    leaderboardSection
-                    settingsRow
-                }
-                .padding(AppLayout.horizontalPadding)
-                .padding(.top, 0)
-                .padding(.bottom, 24)
-                .frame(maxWidth: AppLayout.contentMaxWidth)
-                .frame(maxWidth: .infinity)
-            }
-        }
-        .navigationTitle("Profile")
-        .navigationBarTitleDisplayMode(.inline)
-        .task {
-            await viewModel.load(userId: session.userId)
-        }
-        .onChange(of: session.userId) { _, newValue in
-            Task { await viewModel.load(userId: newValue) }
-        }
+    init(repository: any ProfileRepository = SupabaseProfileRepository()) {
+        _viewModel = StateObject(wrappedValue: ProfileViewModel(repository: repository))
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 14) {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [AppColor.primary.opacity(0.2), AppColor.secondary.opacity(0.2)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 68, height: 68)
-                    .overlay(
-                        Image(systemName: "figure.climbing")
-                            .font(.system(size: 29, weight: .semibold))
-                            .foregroundColor(AppColor.secondary)
-                    )
-                    .overlay(
-                        Circle()
-                            .stroke(AppColor.border.opacity(0.8), lineWidth: 1)
-                    )
+    private var theme: BoardedTheme { BoardedTheme(colorScheme: colorScheme) }
 
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(profileTitle)
-                        .font(AppTypography.headline)
-                        .foregroundColor(AppColor.text)
-                        .lineLimit(1)
-                    if let username = session.profile?.username, !username.isEmpty {
-                        Text("@\(username)")
-                            .font(AppTypography.label)
-                            .foregroundColor(AppColor.primary)
-                            .lineLimit(1)
-                    }
-                    if let bio = session.profile?.bio, !bio.isEmpty {
-                        Text(bio)
-                            .font(AppTypography.body)
-                            .foregroundColor(AppColor.muted)
-                            .lineLimit(2)
-                            .padding(.top, 2)
-                    } else if let email = session.userEmail, !email.isEmpty {
-                        Text(email)
-                            .font(AppTypography.label)
-                            .foregroundColor(AppColor.muted)
-                            .lineLimit(1)
-                    } else {
-                        Text("Sign in to sync routes, comments, and profile details.")
-                            .font(AppTypography.body)
-                            .foregroundColor(AppColor.muted)
-                            .lineLimit(2)
-                    }
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                header
+                if let errorMessage = viewModel.errorMessage {
+                    errorPanel(errorMessage)
+                } else {
+                    pointsPanel
+                    leaderboardSection
+                    highlightsSection
+                    historySection
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                Spacer()
+                settingsRow
             }
-
-            if session.userId == nil {
-                NavigationLink {
-                    SettingsView()
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "person.badge.key")
-                        Text("Open Login Settings")
-                    }
-                        .font(AppTypography.label)
-                        .foregroundColor(AppColor.primary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 11)
-                        .background(AppColor.primary.opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
-                }
-            } else {
-                Button {
-                    editFullName = session.profile?.fullName ?? ""
-                    editUsername = session.profile?.username ?? ""
-                    editBio = session.profile?.bio ?? ""
-                    isEditPresented = true
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "square.and.pencil")
-                        Text("Edit Profile")
-                    }
-                        .font(AppTypography.label)
-                        .foregroundColor(AppColor.primary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 11)
-                        .background(AppColor.primary.opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
-                }
-            }
+            .padding(theme.pagePadding)
+            .frame(maxWidth: AppLayout.contentMaxWidth)
+            .frame(maxWidth: .infinity)
         }
-        .padding(14)
-        .background(AppColor.surface)
-        .overlay(
-            RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                .stroke(AppColor.border.opacity(0.75), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
+        .boardedPageBackground()
+        .navigationTitle("Profile")
+        .navigationBarTitleDisplayMode(.inline)
+        .task(id: session.userId) {
+            await viewModel.load(userID: session.userId)
+        }
+        .refreshable {
+            await viewModel.load(userID: session.userId)
+        }
+        .sheet(item: $selectedRoute) { route in
+            RouteDetailView(
+                route: route,
+                onRouteChanged: { _ in },
+                onRouteDeleted: { _ in }
+            )
+            .environmentObject(session)
+            .environmentObject(routeDetailsViewModel)
+        }
         .sheet(isPresented: $isEditPresented) {
             EditProfileSheet(
                 fullName: $editFullName,
@@ -142,11 +60,8 @@ struct ProfileView: View {
                 bio: $editBio,
                 onSave: {
                     Task {
-                        await session.updateProfile(
-                            fullName: editFullName,
-                            username: editUsername,
-                            bio: editBio
-                        )
+                        await session.updateProfile(fullName: editFullName, username: editUsername, bio: editBio)
+                        viewModel.syncProfileFromSession(currentUserID: session.userId, profile: session.profile)
                         isEditPresented = false
                     }
                 },
@@ -155,268 +70,202 @@ struct ProfileView: View {
         }
     }
 
-    private var profileTitle: String {
-        session.profile?.fullName
-        ?? session.profile?.username
-        ?? session.userEmail
-        ?? "Guest Climber"
-    }
-
-    private var statsGrid: some View {
-        HStack(spacing: 10) {
-            statCard(title: "Routes", value: "\(viewModel.routesCount)", icon: "point.3.connected.trianglepath.dotted")
-            statCard(title: "Sends", value: "\(viewModel.sendsCount)", icon: "checkmark.circle")
-            statCard(title: "Likes", value: "\(viewModel.likesCount)", icon: "heart")
-        }
-    }
-
-    private var highlights: some View {
-        HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(AppColor.primary.opacity(0.12))
-                .frame(width: 42, height: 42)
-                .overlay(
-                    Image(systemName: "chart.bar.xaxis")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(AppColor.primary)
-                )
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Highlights")
-                    .font(AppTypography.headline)
-                    .foregroundColor(AppColor.text)
-                Text(viewModel.highestGrade != nil ? "Highest grade: \(viewModel.highestGrade!)" : "No climbs logged yet")
-                    .font(AppTypography.label)
-                    .foregroundColor(AppColor.muted)
+    private var header: some View {
+        HStack(alignment: .top, spacing: 14) {
+            Circle()
+                .fill(theme.primary.opacity(0.14))
+                .frame(width: 64, height: 64)
+                .overlay(Image(systemName: "figure.climbing").font(.title2).foregroundStyle(theme.primary))
+            VStack(alignment: .leading, spacing: 5) {
+                Text(viewModel.profile?.displayName ?? (viewModel.selectedUserID == session.userId ? session.profile?.displayName : nil) ?? session.userEmail ?? "Guest Climber")
+                    .font(AppTypography.title)
+                    .foregroundStyle(theme.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let username = viewModel.profile?.username ?? (viewModel.selectedUserID == session.userId ? session.profile?.username : nil), !username.isEmpty {
+                    Text("@\(username)").font(AppTypography.label).foregroundStyle(theme.primary)
+                }
+                Text(viewModel.profile?.bio ?? (viewModel.selectedUserID == session.userId ? session.profile?.bio : nil) ?? (session.userId == nil ? "Sign in to track your climbs." : "Your climbing profile"))
+                    .font(AppTypography.body)
+                    .foregroundStyle(theme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer()
+            Spacer(minLength: 0)
+            if session.userId != nil {
+                Button {
+                    editFullName = session.profile?.fullName ?? ""
+                    editUsername = session.profile?.username ?? ""
+                    editBio = session.profile?.bio ?? ""
+                    isEditPresented = true
+                } label: {
+                    Image(systemName: "square.and.pencil")
+                        .accessibilityLabel("Edit profile")
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(theme.primary)
+            }
         }
-        .padding(12)
-        .background(AppColor.surface)
-        .overlay(
-            RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                .stroke(AppColor.border.opacity(0.75), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
+        .boardedPanel()
     }
 
-    private var settingsRow: some View {
-        NavigationLink {
-            SettingsView()
-        } label: {
-            HStack(spacing: 12) {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(AppColor.secondary.opacity(0.12))
-                    .frame(width: 42, height: 42)
-                    .overlay(
-                        Image(systemName: "gearshape")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(AppColor.secondary)
-                    )
-
+    private var pointsPanel: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Settings")
-                        .font(AppTypography.headline)
-                        .foregroundColor(AppColor.text)
-                    Text("Account, data, and appearance")
-                        .font(AppTypography.label)
-                        .foregroundColor(AppColor.muted)
+                    Text("Profile stats").font(AppTypography.headline).foregroundStyle(theme.primaryText)
+                    Text("Points are not defined by the web profile").font(AppTypography.caption).foregroundStyle(theme.secondaryText)
                 }
                 Spacer()
-                Image(systemName: "chevron.right")
-                    .foregroundColor(AppColor.muted)
-            }
-            .padding(12)
-            .background(AppColor.surface)
-            .overlay(
-                RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                    .stroke(AppColor.border.opacity(0.75), lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
-        }
-    }
-
-    private var previousClimbsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            sectionHeader(title: "Previous Climbs", subtitle: session.userId == nil ? "Log in to track sends" : "Your recent sends")
-
-            if session.userId == nil {
-                compactEmptyRow(icon: "person.badge.key", text: "Log in from Settings to see your climbing history.")
-            } else if viewModel.previousClimbs.isEmpty {
-                compactEmptyRow(icon: "checkmark.circle", text: "No sends logged yet.")
-            } else {
-                ForEach(viewModel.previousClimbs) { climb in
-                    HStack(spacing: 12) {
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(climb.flashed ? AppColor.accent.opacity(0.16) : AppColor.secondary.opacity(0.14))
-                            .frame(width: 38, height: 38)
-                            .overlay(
-                                Image(systemName: climb.flashed ? "bolt.fill" : "checkmark")
-                                    .font(.system(size: 15, weight: .bold))
-                                    .foregroundColor(climb.flashed ? AppColor.accent : AppColor.secondary)
-                            )
-
-                        VStack(alignment: .leading, spacing: 3) {
-                            HStack(spacing: 6) {
-                                Text(climb.routeName)
-                                    .font(AppTypography.body)
-                                    .foregroundColor(AppColor.text)
-                                    .lineLimit(1)
-                                if let grade = climb.grade, !grade.isEmpty {
-                                    Text(grade)
-                                        .font(AppTypography.label)
-                                        .foregroundColor(AppColor.primary)
-                                }
-                            }
-                            Text("\(climb.flashed ? "Flashed" : "Sent") • \(climb.wallName) • \(relativeTime(climb.createdAt))")
-                                .font(AppTypography.label)
-                                .foregroundColor(AppColor.muted)
-                                .lineLimit(1)
-                        }
-                        Spacer()
-                    }
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text(viewModel.points.map(String.init) ?? "—")
+                        .font(AppTypography.largeTitle)
+                        .foregroundStyle(theme.primaryText)
+                    Text("Points unavailable").font(AppTypography.caption).foregroundStyle(theme.secondaryText)
                 }
             }
+            HStack(spacing: 16) {
+                statValue(title: "Sends", value: "\(viewModel.sendsCount)")
+                statValue(title: "Flashes", value: "\(viewModel.flashedCount)")
+                statValue(title: "Highest", value: viewModel.highestGrade ?? "—")
+            }
         }
-        .profileCard()
+        .boardedPanel()
+    }
+
+    private func statValue(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(value).font(AppTypography.headline).foregroundStyle(theme.primaryText)
+            Text(title).font(AppTypography.caption).foregroundStyle(theme.secondaryText)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var leaderboardSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader(title: "Wall Leaderboard", subtitle: "Points = V grade + 1")
-
-            if viewModel.leaderboardWalls.isEmpty {
-                compactEmptyRow(icon: "rectangle.3.offgrid", text: "Add or select a wall to see rankings.")
+            BoardedSectionHeading(title: "Leaderboard", subtitle: "Name and account ID break ties when points are unavailable")
+            if viewModel.leaderboard.isEmpty {
+                emptyRow(icon: "trophy", text: "No public leaderboard data yet.")
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(viewModel.leaderboardWalls) { wall in
-                            FilterChip(
-                                title: wall.name,
-                                isActive: viewModel.selectedLeaderboardWallId == wall.id
-                            )
-                            .onTapGesture {
-                                viewModel.selectLeaderboardWall(id: wall.id)
-                            }
-                        }
-                    }
-                    .padding(.vertical, 2)
-                }
-
-                if viewModel.leaderboardEntries.isEmpty {
-                    compactEmptyRow(icon: "trophy", text: "No sends logged on this wall yet.")
-                } else {
-                    ForEach(Array(viewModel.leaderboardEntries.enumerated()), id: \.element.id) { index, entry in
+                ForEach(Array(viewModel.leaderboard.enumerated()), id: \.element.id) { index, entry in
+                    Button {
+                        guard let id = UUID(uuidString: entry.id) else { return }
+                        Task { await viewModel.selectAccount(userID: id) }
+                    } label: {
                         HStack(spacing: 12) {
-                            Text("\(index + 1)")
-                                .font(.system(size: 14, weight: .bold, design: .rounded))
-                                .foregroundColor(AppColor.primary)
-                                .frame(width: 28, height: 28)
-                                .background(AppColor.primary.opacity(0.1))
-                                .clipShape(Circle())
-
+                            Text("\(index + 1)").font(AppTypography.headline).foregroundStyle(theme.primary).frame(width: 28)
                             VStack(alignment: .leading, spacing: 3) {
-                                Text(entry.userName)
-                                    .font(AppTypography.body)
-                                    .foregroundColor(AppColor.text)
-                                    .lineLimit(1)
+                                Text(entry.displayName).font(AppTypography.body).foregroundStyle(theme.primaryText).lineLimit(1)
                                 Text("\(entry.sendsCount) sends • best \(entry.highestGrade ?? "—")")
-                                    .font(AppTypography.label)
-                                    .foregroundColor(AppColor.muted)
+                                    .font(AppTypography.caption).foregroundStyle(theme.secondaryText)
                             }
-
                             Spacer()
+                            Text(entry.points.map { "\($0) pts" } ?? "—")
+                                .font(AppTypography.headline).foregroundStyle(theme.primaryText)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            if let current = session.userId, viewModel.selectedUserID != current {
+                Button("My Profile") { Task { await viewModel.myProfile(currentUserID: current) } }
+                    .buttonStyle(BoardedButtonStyle(.secondary))
+            }
+        }
+        .boardedPanel()
+    }
 
-                            Text("\(entry.points) pts")
-                                .font(AppTypography.headline)
-                                .foregroundColor(AppColor.text)
+    private var highlightsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            BoardedSectionHeading(title: "Highlights", subtitle: "Your strongest and longest completed climbs")
+            HStack(spacing: 12) {
+                highlightCard(title: "Best Climb", climb: viewModel.highlights.bestClimb, icon: "star.fill")
+                highlightCard(title: "Longest Project", climb: viewModel.highlights.longestProject, icon: "flag.fill")
+            }
+        }
+    }
+
+    private var historySection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            BoardedSectionHeading(title: "Previous Climbs", subtitle: viewModel.selectedUserID == session.userId ? "Newest first" : "Selected climber")
+            if viewModel.isLoading && viewModel.previousClimbs.isEmpty {
+                ProgressView().frame(maxWidth: .infinity, alignment: .leading)
+            } else if viewModel.previousClimbs.isEmpty {
+                emptyRow(icon: "checkmark.circle", text: viewModel.selectedUserID == nil ? "Sign in to see climbing history." : "No public climbing history.")
+            } else {
+                ForEach(viewModel.previousClimbs) { climb in
+                    Button {
+                        if let route = climb.route { selectedRoute = route }
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: climb.flashed ? "bolt.fill" : "checkmark.circle.fill")
+                                .foregroundStyle(climb.flashed ? theme.accent : theme.secondary)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(climb.routeName).font(AppTypography.body).foregroundStyle(theme.primaryText).lineLimit(1)
+                                Text("\(climb.grade ?? "Unknown grade") • \(formattedDate(climb.completedAt))")
+                                    .font(AppTypography.caption).foregroundStyle(theme.secondaryText)
+                            }
+                            Spacer()
+                            if !climb.isAvailable {
+                                Text("Unavailable").font(AppTypography.caption).foregroundStyle(theme.secondaryText)
+                            } else {
+                                Image(systemName: "chevron.right").foregroundStyle(theme.secondaryText)
+                            }
                         }
                     }
+                    .buttonStyle(.plain)
+                    .disabled(!climb.isAvailable)
                 }
             }
         }
-        .profileCard()
+        .boardedPanel()
     }
 
-    private func statCard(title: String, value: String, icon: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(AppColor.primary)
-                .frame(width: 24, height: 24)
-                .background(AppColor.primary.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-
-            Text(value)
-                .font(.system(size: 22, weight: .bold, design: .rounded))
-                .foregroundColor(AppColor.text)
-            Text(title)
-                .font(AppTypography.label)
-                .foregroundColor(AppColor.muted)
+    private func highlightCard(title: String, climb: ProfileClimbHistoryItem?, icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Image(systemName: icon).foregroundStyle(theme.accent)
+            Text(title).font(AppTypography.caption).foregroundStyle(theme.secondaryText)
+            Text(climb?.routeName ?? "No data").font(AppTypography.headline).foregroundStyle(theme.primaryText).lineLimit(2)
+            if let climb { Text(climb.grade ?? "Unknown grade").font(AppTypography.caption).foregroundStyle(theme.primary) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(AppColor.surface)
-        .overlay(
-            RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                .stroke(AppColor.border.opacity(0.75), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
+        .background(theme.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: theme.controlCornerRadius))
     }
 
-    private func sectionHeader(title: String, subtitle: String) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(AppTypography.headline)
-                    .foregroundColor(AppColor.text)
-                Text(subtitle)
-                    .font(AppTypography.label)
-                    .foregroundColor(AppColor.muted)
+    private var settingsRow: some View {
+        NavigationLink { SettingsView() } label: {
+            HStack {
+                Image(systemName: "gearshape").foregroundStyle(theme.secondary)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Settings").font(AppTypography.headline).foregroundStyle(theme.primaryText)
+                    Text("Account, data, and appearance").font(AppTypography.caption).foregroundStyle(theme.secondaryText)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").foregroundStyle(theme.secondaryText)
             }
-            Spacer()
         }
+        .buttonStyle(.plain)
+        .boardedPanel()
     }
 
-    private func compactEmptyRow(icon: String, text: String) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: icon)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(AppColor.muted)
-                .frame(width: 28, height: 28)
-                .background(AppColor.border.opacity(0.45))
-                .clipShape(Circle())
-            Text(text)
-                .font(AppTypography.label)
-                .foregroundColor(AppColor.muted)
-            Spacer()
+    private func errorPanel(_ message: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Unable to load profile", systemImage: "exclamationmark.triangle")
+                .font(AppTypography.headline).foregroundStyle(theme.primaryText)
+            Text(message).font(AppTypography.body).foregroundStyle(theme.secondaryText)
+            Button("Retry") { Task { await viewModel.retry() } }
+                .buttonStyle(BoardedButtonStyle())
         }
+        .boardedPanel()
     }
 
-    private func relativeTime(_ value: String) -> String {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let fallback = ISO8601DateFormatter()
-        fallback.formatOptions = [.withInternetDateTime]
-        let date = formatter.date(from: value) ?? fallback.date(from: value) ?? Date()
-        let days = max(0, Int(Date().timeIntervalSince(date) / 86_400))
-        if days == 0 { return "today" }
-        if days == 1 { return "1d ago" }
-        if days < 7 { return "\(days)d ago" }
-        return "\(days / 7)w ago"
+    private func emptyRow(icon: String, text: String) -> some View {
+        Label(text, systemImage: icon).font(AppTypography.body).foregroundStyle(theme.secondaryText)
     }
-}
 
-private extension View {
-    func profileCard() -> some View {
-        self
-            .padding(12)
-            .background(AppColor.surface)
-            .overlay(
-                RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                    .stroke(AppColor.border.opacity(0.75), lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
+    private func formattedDate(_ date: Date?) -> String {
+        guard let date else { return "Date unavailable" }
+        return date.formatted(date: .abbreviated, time: .omitted)
     }
 }
 
@@ -429,140 +278,25 @@ private struct EditProfileSheet: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                AppColor.background.ignoresSafeArea()
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
-                        Text("Keep this light. Your name, handle, and bio show up wherever your climbs appear.")
-                            .font(AppTypography.body)
-                            .foregroundColor(AppColor.muted)
-                            .padding(.bottom, 2)
-
-                        ModernProfileField(
-                            title: "Name",
-                            icon: "person",
-                            placeholder: "Full name",
-                            text: $fullName
-                        )
-
-                        ModernProfileField(
-                            title: "Username",
-                            icon: "at",
-                            placeholder: "username",
-                            text: $username,
-                            autocapitalization: .never,
-                            autocorrectionDisabled: true
-                        )
-
-                        ModernProfileBioField(bio: $bio)
-                    }
-                    .padding(AppLayout.horizontalPadding)
-                    .padding(.top, 12)
-                    .padding(.bottom, 24)
-                    .frame(maxWidth: AppLayout.contentMaxWidth)
-                    .frame(maxWidth: .infinity)
-                }
+            Form {
+                TextField("Full name", text: $fullName)
+                TextField("Username", text: $username)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                Section("Bio") { TextEditor(text: $bio).frame(minHeight: 100) }
             }
             .navigationTitle("Edit Profile")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", action: onCancel)
-                        .foregroundColor(AppColor.muted)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save", action: onSave)
-                        .foregroundColor(AppColor.primary)
-                }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: onCancel) }
+                ToolbarItem(placement: .confirmationAction) { Button("Save", action: onSave) }
             }
         }
-    }
-}
-
-private struct ModernProfileField: View {
-    let title: String
-    let icon: String
-    let placeholder: String
-    @Binding var text: String
-    var autocapitalization: TextInputAutocapitalization = .words
-    var autocorrectionDisabled = false
-
-    var body: some View {
-        HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(AppColor.primary.opacity(0.1))
-                .frame(width: 40, height: 40)
-                .overlay(
-                    Image(systemName: icon)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(AppColor.primary)
-                )
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title.uppercased())
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .foregroundColor(AppColor.muted)
-                    .tracking(0.6)
-                TextField(placeholder, text: $text)
-                    .font(AppTypography.body)
-                    .foregroundColor(AppColor.text)
-                    .textInputAutocapitalization(autocapitalization)
-                    .autocorrectionDisabled(autocorrectionDisabled)
-            }
-        }
-        .padding(12)
-        .background(AppColor.surface)
-        .overlay(
-            RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                .stroke(AppColor.border.opacity(0.75), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
-    }
-}
-
-private struct ModernProfileBioField: View {
-    @Binding var bio: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: "text.alignleft")
-                    .foregroundColor(AppColor.primary)
-                Text("BIO")
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .foregroundColor(AppColor.muted)
-                    .tracking(0.6)
-            }
-
-            ZStack(alignment: .topLeading) {
-                if bio.isEmpty {
-                    Text("A quick note about your climbing style, projects, or favorite wall.")
-                        .font(AppTypography.body)
-                        .foregroundColor(AppColor.muted.opacity(0.75))
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 8)
-                }
-
-                TextEditor(text: $bio)
-                    .font(AppTypography.body)
-                    .foregroundColor(AppColor.text)
-                    .frame(minHeight: 108)
-                    .scrollContentBackground(.hidden)
-                    .padding(.horizontal, -4)
-            }
-        }
-        .padding(12)
-        .background(AppColor.surface)
-        .overlay(
-            RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                .stroke(AppColor.border.opacity(0.75), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
     }
 }
 
 struct ProfileView_Previews: PreviewProvider {
     static var previews: some View {
-        ProfileView()
+        ProfileView(repository: MockProfileRepository())
+            .environmentObject(AppSession())
     }
 }

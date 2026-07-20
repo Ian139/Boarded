@@ -281,7 +281,7 @@ export default function SettingsPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `climbset-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `boarded-backup-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success('Data exported!');
@@ -501,7 +501,7 @@ export default function SettingsPage() {
 
         {/* App Info */}
         <section className="pt-8 pb-4 text-center">
-          <p className="text-xs text-muted-foreground">ClimbSet v2.1.9</p>
+          <p className="text-xs text-muted-foreground">Boarded v0.1.2</p>
         </section>
       </main>
 

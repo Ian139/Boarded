@@ -46,5 +46,4 @@
     "node_modules",
     "apps"
   ],
-  "extends": "expo/tsconfig.base"
 }

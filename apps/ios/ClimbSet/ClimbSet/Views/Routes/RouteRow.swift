@@ -2,13 +2,17 @@ import SwiftUI
 import Foundation
 
 struct RouteRow: View {
+    @Environment(\.colorScheme) private var colorScheme
     let route: Route
 
+    private var theme: BoardedTheme {
+        BoardedTheme(colorScheme: colorScheme)
+    }
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
             Text(displayGrade)
                 .font(.system(size: 18, weight: .bold, design: .rounded))
-                .foregroundColor(route.gradeV == nil ? AppColor.muted : AppColor.primary)
+                .foregroundColor(route.gradeV == nil ? theme.secondaryText : theme.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
                 .frame(width: 42, alignment: .leading)
@@ -18,7 +22,7 @@ struct RouteRow: View {
             VStack(alignment: .leading, spacing: 5) {
                 Text(route.name)
                     .font(AppTypography.headline)
-                    .foregroundColor(AppColor.text)
+                    .foregroundColor(theme.primaryText)
                     .lineLimit(1)
                     .truncationMode(.tail)
 
@@ -31,18 +35,18 @@ struct RouteRow: View {
                         .fixedSize()
                 }
                 .font(AppTypography.label)
-                .foregroundColor(AppColor.muted)
+                .foregroundColor(theme.secondaryText)
 
                 HStack(spacing: 8) {
                     Text(metricsText)
                         .lineLimit(1)
                         .truncationMode(.tail)
                     Text(timeAgo)
-                        .foregroundColor(AppColor.muted.opacity(0.7))
+                        .foregroundColor(theme.secondaryText.opacity(0.7))
                         .fixedSize()
                 }
                 .font(AppTypography.label)
-                .foregroundColor(AppColor.muted)
+                .foregroundColor(theme.secondaryText)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .layoutPriority(1)
@@ -57,14 +61,14 @@ struct RouteRow: View {
     private var wallThumbnail: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 12)
-                .fill(AppColor.border.opacity(0.7))
+                .fill(theme.border.opacity(0.7))
 
             if let url = route.wallImageURL {
                 AsyncImage(url: url) { phase in
                     switch phase {
                     case .empty:
                         Rectangle()
-                            .fill(AppColor.surface)
+                            .fill(theme.panelBackground)
                     case .success(let image):
                         image
                             .resizable()
@@ -84,7 +88,7 @@ struct RouteRow: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(AppColor.border.opacity(0.65), lineWidth: 1)
+                .stroke(theme.border.opacity(0.65), lineWidth: 1)
         )
     }
 
@@ -101,14 +105,14 @@ struct RouteRow: View {
     private var actionGlyphs: some View {
         HStack(spacing: 4) {
             Image(systemName: (route.isLiked ?? false) ? "heart.fill" : "heart")
-                .foregroundColor((route.isLiked ?? false) ? AppColor.destructive : AppColor.muted)
+                .foregroundColor((route.isLiked ?? false) ? theme.destructive : theme.secondaryText)
                 .frame(width: 24, height: 32)
             Image(systemName: route.ascents.isEmpty ? "checkmark.circle" : "checkmark.circle.fill")
-                .foregroundColor(route.ascents.isEmpty ? AppColor.muted : AppColor.secondary)
+                .foregroundColor(route.ascents.isEmpty ? theme.secondaryText : theme.secondary)
                 .frame(width: 24, height: 32)
             Image(systemName: "chevron.right")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(AppColor.muted.opacity(0.55))
+                .foregroundColor(theme.secondaryText.opacity(0.55))
                 .frame(width: 18, height: 32)
         }
         .font(.system(size: 17, weight: .medium))

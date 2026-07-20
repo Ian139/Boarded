@@ -30,7 +30,7 @@ struct SettingsView: View {
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            await metrics.load(userId: session.userId)
+            await metrics.load(userID: session.userId)
             await wallsViewModel.load(userId: session.userId)
         }
     }
