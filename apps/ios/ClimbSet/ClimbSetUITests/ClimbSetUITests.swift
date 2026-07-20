@@ -22,6 +22,7 @@ final class ClimbSetUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Granite Drift"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["Sort routes"].exists)
         XCTAssertTrue(app.buttons["Filter by grade"].exists)
+        XCTAssertTrue(app.buttons["Filter by wall"].exists)
 
         app.staticTexts["Granite Drift"].tap()
         XCTAssertTrue(app.navigationBars["Route"].waitForExistence(timeout: 5))
@@ -29,9 +30,23 @@ final class ClimbSetUITests: XCTestCase {
         app.buttons["Close"].tap()
         XCTAssertTrue(app.staticTexts["Routes"].waitForExistence(timeout: 5))
 
+        let wallFilter = app.buttons["Filter by wall"]
+        XCTAssertEqual(wallFilter.value as? String, "Fixture Slab")
+        wallFilter.tap()
+        XCTAssertTrue(app.buttons["All Walls"].waitForExistence(timeout: 3))
+        app.buttons["All Walls"].tap()
+        XCTAssertEqual(wallFilter.value as? String, "All Walls")
+
+        let gradeFilter = app.buttons["Filter by grade"]
+        gradeFilter.tap()
+        XCTAssertTrue(app.buttons["V4"].waitForExistence(timeout: 3))
+        app.buttons["V4"].tap()
+        XCTAssertEqual(gradeFilter.value as? String, "V4")
+
         app.buttons["Sort routes"].tap()
         XCTAssertTrue(app.buttons["Sort: Name"].waitForExistence(timeout: 3))
         app.buttons["Sort: Name"].tap()
+        XCTAssertEqual(app.buttons["Sort routes"].value as? String, "Sort: Name")
     }
 
     func testFixtureTabsProfileSettingsAppearanceAndOrientation() throws {

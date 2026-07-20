@@ -127,9 +127,13 @@ struct RoutesView: View {
 
             SearchField(text: $viewModel.searchText, placeholder: "Search routes, setters...")
 
-            wallFilter
-            sortSelector
-            gradeSelector
+            if horizontalSizeClass == .compact {
+                compactSelectors
+            } else {
+                wallFilter
+                sortSelector
+                gradeSelector
+            }
 
             if viewModel.hasFilters {
                 Button("Clear") {
@@ -147,6 +151,44 @@ struct RoutesView: View {
         .frame(maxWidth: .infinity)
     }
 
+    private var compactSelectors: some View {
+        HStack(spacing: 8) {
+            wallFilter
+            gradeSelector
+            sortSelector
+        }
+    }
+
+    private func compactMenuLabel(title: String, selection: String, isActive: Bool) -> some View {
+        let theme = BoardedTheme(colorScheme: colorScheme)
+        return VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(AppTypography.caption)
+                .foregroundStyle(theme.secondaryText)
+                .lineLimit(1)
+
+            HStack(spacing: 4) {
+                Text(selection)
+                    .font(AppTypography.label)
+                    .foregroundStyle(isActive ? theme.primary : theme.primaryText)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.down")
+                    .font(AppTypography.caption)
+                    .foregroundStyle(theme.secondaryText)
+            }
+        }
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+        .background(isActive ? theme.primary.opacity(0.12) : theme.panelBackground)
+        .overlay {
+            RoundedRectangle(cornerRadius: theme.controlCornerRadius, style: .continuous)
+                .stroke(isActive ? theme.primary.opacity(0.4) : theme.border, lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: theme.controlCornerRadius, style: .continuous))
+    }
+
     @ViewBuilder
     private var sortSelector: some View {
         if horizontalSizeClass == .compact {
@@ -159,9 +201,15 @@ struct RoutesView: View {
                     }
                 }
             } label: {
-                FilterChip(title: viewModel.selectedSort.label, isActive: true)
+                compactMenuLabel(
+                    title: "Sort",
+                    selection: viewModel.selectedSort.chipLabel,
+                    isActive: true
+                )
             }
+            .frame(maxWidth: .infinity)
             .accessibilityLabel("Sort routes")
+            .accessibilityValue(viewModel.selectedSort.label)
         } else {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
@@ -191,12 +239,19 @@ struct RoutesView: View {
                     }
                 }
             } label: {
-                FilterChip(
-                    title: viewModel.selectedGradeFilter == "all" ? "All Grades" : viewModel.selectedGradeFilter,
+                compactMenuLabel(
+                    title: "Grade",
+                    selection: viewModel.selectedGradeFilter == "all"
+                        ? "All Grades"
+                        : viewModel.selectedGradeFilter,
                     isActive: viewModel.selectedGradeFilter != "all"
                 )
             }
+            .frame(maxWidth: .infinity)
             .accessibilityLabel("Filter by grade")
+            .accessibilityValue(
+                viewModel.selectedGradeFilter == "all" ? "All Grades" : viewModel.selectedGradeFilter
+            )
         } else {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
@@ -219,23 +274,54 @@ struct RoutesView: View {
         }
     }
 
+    @ViewBuilder
     private var wallFilter: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                BoardedFilterControl(title: "All Walls", isSelected: viewModel.isAllWallsSelected) {
+        if horizontalSizeClass == .compact {
+            Menu {
+                Button("All Walls") {
                     viewModel.selectAllWalls()
                 }
-
                 ForEach(wallsViewModel.walls) { wall in
-                    BoardedFilterControl(
-                        title: wall.name,
-                        isSelected: viewModel.selectedWallFilterId == wall.id && !viewModel.isAllWallsSelected
-                    ) {
+                    Button(wall.name) {
                         viewModel.selectWall(id: wall.id)
+                    }
+                }
+            } label: {
+                compactMenuLabel(
+                    title: "Wall",
+                    selection: selectedWallFilterName,
+                    isActive: !viewModel.isAllWallsSelected
+                )
+            }
+            .frame(maxWidth: .infinity)
+            .accessibilityLabel("Filter by wall")
+            .accessibilityValue(selectedWallFilterName)
+        } else {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    BoardedFilterControl(title: "All Walls", isSelected: viewModel.isAllWallsSelected) {
+                        viewModel.selectAllWalls()
+                    }
+
+                    ForEach(wallsViewModel.walls) { wall in
+                        BoardedFilterControl(
+                            title: wall.name,
+                            isSelected: viewModel.selectedWallFilterId == wall.id && !viewModel.isAllWallsSelected
+                        ) {
+                            viewModel.selectWall(id: wall.id)
+                        }
                     }
                 }
             }
         }
+    }
+
+    private var selectedWallFilterName: String {
+        if viewModel.isAllWallsSelected {
+            return "All Walls"
+        }
+        return wallsViewModel.walls.first { $0.id == viewModel.selectedWallFilterId }?.name
+            ?? "Select Wall"
     }
 
     private var content: some View {
