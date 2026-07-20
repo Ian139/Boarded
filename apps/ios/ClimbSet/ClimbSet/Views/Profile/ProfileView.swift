@@ -36,8 +36,6 @@ struct ProfileView: View {
             .frame(maxWidth: .infinity)
         }
         .boardedPageBackground()
-        .navigationTitle("Profile")
-        .navigationBarTitleDisplayMode(.inline)
         .task(id: session.userId) {
             await viewModel.load(userID: session.userId)
         }
