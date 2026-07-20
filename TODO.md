@@ -23,6 +23,13 @@
 - [ ] Verify full simulator interaction matrix (blocked: XCTest press/drag synthesis does not move the hold marker, and the automation host lacks macOS Accessibility permission for real-pointer fallback)
 - [x] Verify final repository consistency
 
+## External Verification Backlog
+
+- [ ] Grant the OMP/Ghostty automation host macOS Accessibility access and restart it if required
+- [ ] Create `/tmp/climbset-test-credentials` with disposable `CLIMBSET_TEST_EMAIL` and `CLIMBSET_TEST_PASSWORD` values
+- [ ] Verify ordinary hold movement and saved position persistence with a real Simulator pointer drag
+- [ ] Verify live Supabase authentication and route, wall, and profile CRUD with the disposable account
+
 ## Checkpoint
 
 - Integrated implementation: `e7388fb`
