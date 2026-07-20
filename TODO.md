@@ -29,3 +29,4 @@
 - Web: dependency tree, ESLint, TypeScript, production build, and production route responses verified
 - Native: 14 unit tests and 7 deterministic UI tests passed; simulator build, unsigned Release archive, metadata, launch, compact route wall/grade/sort menus, route/wall CRUD, profile edit and fixture-local auth, editor add/resize/save/reopen, settings, appearance, orientation, and deep-link handling verified
 - Remaining limitations: ordinary hold-move automation is not covered; live Supabase-backed auth/CRUD was not exercised without dedicated test credentials
+- Next wave: grant the automation host macOS Accessibility access, verify hold-move and persistence with a real pointer drag, then exercise live auth/CRUD with disposable Supabase credentials
