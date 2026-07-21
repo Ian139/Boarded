@@ -14,6 +14,7 @@
 
 - [x] Replace route filter and sort chips with mobile-friendly dropdowns or equivalent compact controls
 - [x] Remove redundant Profile navigation banner
+- [x] Separate selected-hold pinch resizing from Pan canvas transforms
 
 ## Verification
 
@@ -28,13 +29,14 @@
 - [ ] Grant the OMP/Ghostty automation host macOS Accessibility access and restart it if required
 - [ ] Create `/tmp/climbset-test-credentials` with disposable `CLIMBSET_TEST_EMAIL` and `CLIMBSET_TEST_PASSWORD` values
 - [ ] Verify ordinary hold movement and saved position persistence with a real Simulator pointer drag
+- [ ] Verify Pan-mode pinch/drag from both wall background and a hold with real multitouch input
 - [ ] Verify live Supabase authentication and route, wall, and profile CRUD with the disposable account
 
 ## Checkpoint
 
-- Integrated implementation: `e7388fb`
+- Latest integrated implementation: `7ff2f36`
 - Web: dependency tree, ESLint, TypeScript, production build, and production route responses verified
-- Native: 14 unit tests and 7 deterministic UI tests passed; simulator build, unsigned Release archive, metadata, launch, compact route wall/grade/sort menus, route/wall CRUD, profile edit and fixture-local auth, editor add/resize/save/reopen, settings, appearance, orientation, and deep-link handling verified
+- Native: 17 unit tests and 7 deterministic UI tests passed before final gesture arbitration review; after the review fixes, the 7 hold-geometry tests and the editor selected-hold pinch/isolation/save/reopen UI flow passed, and the simulator build succeeded
 - Completion audit at `726308d`: dependency graph, ESLint, TypeScript, production build and route responses, 14 native unit tests, 7 deterministic UI tests, unsigned Release archive, and archived metadata all passed
-- Remaining limitations: ordinary hold-move automation is not covered; live Supabase-backed auth/CRUD was not exercised without dedicated test credentials
-- Next wave: grant the automation host macOS Accessibility access, verify hold-move and persistence with a real pointer drag, then exercise live auth/CRUD with disposable Supabase credentials
+- Remaining limitations: XCTest synthesized Pan pinches did not invoke the SwiftUI canvas callbacks, so Pan pinch/drag from the wall and from a hold still requires real multitouch verification; ordinary hold-move automation and live Supabase-backed auth/CRUD also remain unverified
+- Next wave: grant the automation host macOS Accessibility access, verify Pan pinch/drag and hold-move persistence with real input, then exercise live auth/CRUD with disposable Supabase credentials
