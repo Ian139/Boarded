@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useRoutesStore } from '@/lib/stores/routes-store';
 import { useUserStore } from '@/lib/stores/user-store';
-import { Comment } from '@/lib/types';
+import { Comment } from '@climbset/shared/types';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 

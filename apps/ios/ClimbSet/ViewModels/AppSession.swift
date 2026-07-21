@@ -159,8 +159,7 @@ final class AppSession: ObservableObject {
     private func fetchProfile(userId: UUID, generation: Int? = nil) async {
         guard let client = SupabaseClientProvider.client else { return }
         do {
-            let profiles: [Profile] = try await client.database
-                .from("profiles")
+            let profiles: [Profile] = try await client.from("profiles")
                 .select("*")
                 .eq("id", value: userId.uuidString)
                 .limit(1)
@@ -207,8 +206,7 @@ final class AppSession: ObservableObject {
         )
 
         do {
-            _ = try await client.database
-                .from("profiles")
+            _ = try await client.from("profiles")
                 .upsert(payload)
                 .execute()
             await fetchProfile(userId: userId)

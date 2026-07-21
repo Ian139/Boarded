@@ -28,14 +28,17 @@ enum ProfileRepositoryError: LocalizedError {
 struct SupabaseProfileRepository: ProfileRepository {
     private let client: SupabaseClient?
 
-    init(client: SupabaseClient? = SupabaseClientProvider.client) {
+    init(client: SupabaseClient?) {
         self.client = client
+    }
+
+    @MainActor init() {
+        self.init(client: SupabaseClientProvider.client)
     }
 
     func fetchProfile(userID: UUID) async throws -> Profile? {
         guard let client else { throw ProfileRepositoryError.unavailable }
-        let profiles: [Profile] = try await client.database
-            .from("profiles")
+        let profiles: [Profile] = try await client.from("profiles")
             .select("id,username,full_name,avatar_url,bio,created_at")
             .eq("id", value: userID.uuidString)
             .limit(1)
@@ -46,8 +49,7 @@ struct SupabaseProfileRepository: ProfileRepository {
 
     func fetchLeaderboard() async throws -> [ProfileLeaderboardEntry] {
         guard let client else { throw ProfileRepositoryError.unavailable }
-        let ascents: [Ascent] = try await client.database
-            .from("ascents")
+        let ascents: [Ascent] = try await client.from("ascents")
             .select("id,route_id,user_id,user_name,grade_v,rating,notes,flashed,created_at")
             .order("created_at", ascending: false)
             .execute()
@@ -65,8 +67,7 @@ struct SupabaseProfileRepository: ProfileRepository {
     func fetchClimbHistory(userID: UUID) async throws -> [ProfileClimbHistoryItem] {
         guard let client else { throw ProfileRepositoryError.unavailable }
         let userIDString = userID.uuidString
-        let ascents: [Ascent] = try await client.database
-            .from("ascents")
+        let ascents: [Ascent] = try await client.from("ascents")
             .select("id,route_id,user_id,user_name,grade_v,rating,notes,flashed,created_at")
             .eq("user_id", value: userIDString)
             .order("created_at", ascending: false)
@@ -102,8 +103,7 @@ struct SupabaseProfileRepository: ProfileRepository {
             let id: String
         }
 
-        let routeIDs: [RouteID] = try await client.database
-            .from("routes")
+        let routeIDs: [RouteID] = try await client.from("routes")
             .select("id")
             .eq("user_id", value: userIDString)
             .execute()
@@ -114,8 +114,7 @@ struct SupabaseProfileRepository: ProfileRepository {
         if routeIDStrings.isEmpty {
             likes = []
         } else {
-            likes = try await client.database
-                .from("route_likes")
+            likes = try await client.from("route_likes")
                 .select("route_id")
                 .in("route_id", values: routeIDStrings)
                 .execute()
@@ -127,9 +126,8 @@ struct SupabaseProfileRepository: ProfileRepository {
 
     private func fetchRoutes(for ids: Set<String>, client: SupabaseClient) async throws -> [Route] {
         guard !ids.isEmpty else { return [] }
-        return try await client.database
-            .from("routes")
-            .select("id,user_id,user_name,wall_id,name,description,grade_v,grade_font,holds,is_public,view_count,share_token,created_at,updated_at,wall_image_url,ascents(id,route_id,user_id,user_name,grade_v,rating,notes,flashed,created_at)")
+        return try await client.from("routes")
+            .select("id,user_id,user_name,wall_id,name,description,grade_v,grade_font,holds,is_public,view_count,share_token,created_at,updated_at,wall_image_url,wall_image_width,wall_image_height,ascents(id,route_id,user_id,user_name,grade_v,rating,notes,flashed,created_at)")
             .in("id", values: Array(ids))
             .execute()
             .value
@@ -137,8 +135,7 @@ struct SupabaseProfileRepository: ProfileRepository {
 
     private func fetchProfiles(for ids: Set<String>, client: SupabaseClient) async throws -> [String: Profile] {
         guard !ids.isEmpty else { return [:] }
-        let profiles: [Profile] = try await client.database
-            .from("profiles")
+        let profiles: [Profile] = try await client.from("profiles")
             .select("id,username,full_name,avatar_url,bio,created_at")
             .in("id", values: Array(ids))
             .execute()

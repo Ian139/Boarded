@@ -21,6 +21,13 @@ import { Label } from '@/components/ui/label';
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { classifyStoragePath, getWallStoragePathFromUrl, intersectStoragePaths } from '@/lib/utils/storage';
+
+interface StorageFolderSize {
+  totalBytes: number;
+  latestTs: string | null;
+}
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -77,37 +84,43 @@ export default function SettingsPage() {
   };
 
   useEffect(() => {
-    const listFolderSize = async (supabase: ReturnType<typeof createClient>, folder: string) => {
-      let totalBytes = 0;
-      let latestTs: string | null = null;
+    const listStorageFolder = async (supabase: SupabaseClient, folder: string) => {
+      const items = [];
       let offset = 0;
       const limit = 100;
-      let keepGoing = true;
 
-      while (keepGoing) {
+      while (true) {
         const { data, error } = await supabase.storage
           .from('walls')
           .list(folder, { limit, offset, sortBy: { column: 'name', order: 'asc' } });
+        if (error) throw error;
+        if (!data) throw new Error(`Incomplete storage list for prefix "${folder}"`);
+        items.push(...data);
+        if (data.length < limit) return items;
+        offset += limit;
+      }
+    };
 
-        if (error) {
-          throw error;
+    const listFolderSize = async (supabase: SupabaseClient, folder: string): Promise<StorageFolderSize> => {
+      let totalBytes = 0;
+      let latestTs: string | null = null;
+      const items = await listStorageFolder(supabase, folder);
+
+      for (const item of items) {
+        if (!item.metadata) {
+          const child = await listFolderSize(supabase, `${folder}/${item.name}`);
+          totalBytes += child.totalBytes;
+          if (child.latestTs && (!latestTs || new Date(child.latestTs).getTime() > new Date(latestTs).getTime())) {
+            latestTs = child.latestTs;
+          }
+          continue;
         }
 
-        (data || []).forEach((item) => {
-          const size = item.metadata?.size;
-          if (typeof size === 'number') totalBytes += size;
-          const updatedAt = item.updated_at || item.created_at;
-          if (updatedAt) {
-            if (!latestTs || new Date(updatedAt).getTime() > new Date(latestTs).getTime()) {
-              latestTs = updatedAt;
-            }
-          }
-        });
-
-        if (!data || data.length < limit) {
-          keepGoing = false;
-        } else {
-          offset += limit;
+        const size = item.metadata.size;
+        if (typeof size === 'number') totalBytes += size;
+        const updatedAt = item.updated_at || item.created_at;
+        if (updatedAt && (!latestTs || new Date(updatedAt).getTime() > new Date(latestTs).getTime())) {
+          latestTs = updatedAt;
         }
       }
 
@@ -131,13 +144,7 @@ export default function SettingsPage() {
             }
           }
         }
-        const { data, error } = await supabase.storage
-          .from('walls')
-          .list('', { limit: 100, offset: 0, sortBy: { column: 'name', order: 'asc' } });
-
-        if (error) throw error;
-
-        const folders = (data || [])
+        const folders = (await listStorageFolder(supabase, ''))
           .filter((item) => !item.metadata)
           .map((item) => item.name);
 
@@ -187,53 +194,107 @@ export default function SettingsPage() {
     return `${gb.toFixed(2)} GB`;
   };
 
-  const getStoragePathFromUrl = (url: string) => {
-    const marker = '/storage/v1/object/public/walls/';
-    const index = url.indexOf(marker);
-    if (index === -1) return null;
-    return url.substring(index + marker.length);
-  };
 
   const getCleanupCandidates = async () => {
     const supabase = createClient();
-    const referenced = new Set<string>();
-    const now = Date.now();
-    const sevenDays = 7 * 24 * 60 * 60 * 1000;
+    const DB_PAGE_LIMIT = 1000;
+    const STORAGE_PAGE_LIMIT = 100;
+    const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
 
-    walls.forEach((wall) => {
-      const path = getStoragePathFromUrl(wall.image_url);
-      if (path) referenced.add(path);
-    });
-    routes.forEach((route) => {
-      const path = route.wall_image_url ? getStoragePathFromUrl(route.wall_image_url) : null;
-      if (path) referenced.add(path);
-    });
-
-    const { data: roots, error: rootError } = await supabase.storage
-      .from('walls')
-      .list('', { limit: 100, offset: 0, sortBy: { column: 'name', order: 'asc' } });
-
-    if (rootError) throw rootError;
-
-    const ownerFolders = (roots || []).filter((item) => !item.metadata).map((item) => item.name);
-    const deletions: string[] = [];
-    for (const ownerFolder of ownerFolders) {
-      const { data: wallFolders, error: wallFolderError } = await supabase.storage.from('walls').list(ownerFolder, { limit: 100, offset: 0, sortBy: { column: 'name', order: 'asc' } });
-      if (wallFolderError) throw wallFolderError;
-      for (const wallFolder of (wallFolders || []).filter((item) => !item.metadata)) {
-        const folder = `${ownerFolder}/${wallFolder.name}`;
-        const { data, error } = await supabase.storage.from('walls').list(folder, { limit: 100, offset: 0, sortBy: { column: 'name', order: 'asc' } });
+    const fetchReferencedWallPaths = async () => {
+      const referenced = new Set<string>();
+      let offset = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from('walls')
+          .select('id,image_url')
+          .order('id', { ascending: true })
+          .range(offset, offset + DB_PAGE_LIMIT - 1);
         if (error) throw error;
-        (data || []).forEach((item) => {
-          const updatedAt = item.updated_at || item.created_at;
-          const ageOk = updatedAt ? (now - new Date(updatedAt).getTime() > sevenDays) : false;
-          const path = `${folder}/${item.name}`;
-          if (!referenced.has(path) && ageOk) deletions.push(path);
-        });
+        if (!data) throw new Error('Incomplete walls.image_url query');
+        for (const row of data) {
+          const path = row.image_url ? getWallStoragePathFromUrl(row.image_url) : null;
+          if (path) referenced.add(path);
+        }
+        if (data.length < DB_PAGE_LIMIT) break;
+        offset += DB_PAGE_LIMIT;
       }
-    }
+      offset = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from('routes')
+          .select('id,wall_image_url')
+          .order('id', { ascending: true })
+          .range(offset, offset + DB_PAGE_LIMIT - 1);
+        if (error) throw error;
+        if (!data) throw new Error('Incomplete routes.wall_image_url query');
+        for (const row of data) {
+          const path = row.wall_image_url ? getWallStoragePathFromUrl(row.wall_image_url) : null;
+          if (path) referenced.add(path);
+        }
+        if (data.length < DB_PAGE_LIMIT) break;
+        offset += DB_PAGE_LIMIT;
+      }
+      return referenced;
+    };
 
-    return deletions;
+    const isOldEnough = (item: { updated_at?: string; created_at?: string }) => {
+      const ts = item.updated_at || item.created_at;
+      if (!ts) return false;
+      return Date.now() - new Date(ts).getTime() > SEVEN_DAYS;
+    };
+
+    const listStorageFolder = async (prefix: string) => {
+      const items = [];
+      let offset = 0;
+      while (true) {
+        const { data, error } = await supabase.storage
+          .from('walls')
+          .list(prefix, { limit: STORAGE_PAGE_LIMIT, offset, sortBy: { column: 'name', order: 'asc' } });
+        if (error) throw error;
+        if (!data) throw new Error(`Incomplete storage list for prefix "${prefix}"`);
+        items.push(...data);
+        if (data.length < STORAGE_PAGE_LIMIT) break;
+        offset += STORAGE_PAGE_LIMIT;
+      }
+      return items;
+    };
+
+    const collectStorageCandidates = async () => {
+      const candidates: string[] = [];
+      const rootFolders = (await listStorageFolder('')).filter((item) => !item.metadata);
+      for (const rootFolder of rootFolders) {
+        const rootPrefix = rootFolder.name;
+        const rootItems = await listStorageFolder(rootPrefix);
+        const hasFiles = rootItems.some((item) => item.metadata);
+        if (hasFiles) {
+          // Legacy layout: <wall-id>/<file>
+          for (const item of rootItems) {
+            if (!item.metadata || !isOldEnough(item)) continue;
+            const classified = classifyStoragePath(`${rootPrefix}/${item.name}`);
+            if (classified.layout !== 'unknown') candidates.push(classified.path);
+          }
+        } else {
+          // Owner layout: <user>/<wall-id>/<file>
+          for (const wallFolder of rootItems.filter((item) => !item.metadata)) {
+            const wallPrefix = `${rootPrefix}/${wallFolder.name}`;
+            const wallItems = await listStorageFolder(wallPrefix);
+            for (const item of wallItems) {
+              if (!item.metadata || !isOldEnough(item)) continue;
+              const classified = classifyStoragePath(`${wallPrefix}/${item.name}`);
+              if (classified.layout !== 'unknown') candidates.push(classified.path);
+            }
+          }
+        }
+      }
+      return candidates;
+    };
+
+    const [referenced, candidates] = await Promise.all([
+      fetchReferencedWallPaths(),
+      collectStorageCandidates(),
+    ]);
+    return candidates.filter((path) => !referenced.has(path));
   };
 
   const loadCleanupPreview = async () => {
@@ -252,10 +313,11 @@ export default function SettingsPage() {
   const runStorageCleanup = async () => {
     setIsCleaning(true);
     try {
-      const supabase = createClient();
-      const deletions = cleanupPreview.length > 0 ? cleanupPreview : await getCleanupCandidates();
+      const freshCandidates = await getCleanupCandidates();
+      const deletions = intersectStoragePaths(freshCandidates, cleanupPreview);
 
       if (deletions.length > 0) {
+        const supabase = createClient();
         const { error } = await supabase.storage.from('walls').remove(deletions);
         if (error) throw error;
       }

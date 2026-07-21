@@ -12,10 +12,11 @@ import json
 import os
 import subprocess
 import sys
+import uuid
 from dataclasses import dataclass
 from http.client import HTTPResponse
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 from urllib.request import Request, urlopen
 
 
@@ -158,6 +159,117 @@ def decode_response(response: HTTPResponse) -> ApiResult | object:
         return ApiResult(response.status, json.loads(raw))
     except json.JSONDecodeError:
         return ApiResult(response.status, raw)
+
+
+def request_storage(
+    method: str,
+    base: str,
+    key: str,
+    token: str | None = None,
+    payload: bytes | None = None,
+) -> ApiResult | object:
+    headers = {"Accept": "application/json"}
+    if payload is not None:
+        headers["Content-Type"] = "image/jpeg"
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    url = f"{base}/storage/v1/object/walls/{quote(key, safe='/')}"
+    request = Request(url, data=payload, headers=headers, method=method)
+    try:
+        with urlopen(request, timeout=15) as response:
+            return decode_response(response)
+    except HTTPError as exc:
+        raw = exc.read().decode("utf-8", errors="replace")
+        try:
+            body: object = json.loads(raw) if raw else None
+        except json.JSONDecodeError:
+            body = raw
+        return ApiResult(exc.code, body)
+    except (URLError, TimeoutError, OSError) as exc:
+        fail(f"Storage HTTP {method} {url} failed: {exc}")
+
+
+
+
+def storage_metadata_count(key: str) -> int:
+    result = run_psql(
+        "SELECT count(*) FROM storage.objects "
+        f"WHERE bucket_id = 'walls' AND name = {sql_quote(key)};"
+    )
+    try:
+        return int(result)
+    except ValueError:
+        fail(f"unexpected Storage metadata count for {key!r}: {result!r}")
+
+
+def assert_storage_absent(base: str, key: str, description: str) -> None:
+    result = expect_api_result(
+        request_storage("GET", base, key),
+        f"{description} object lookup",
+    )
+    if result.status not in {400, 404}:
+        fail(f"{description}: expected missing object, HTTP {result.status} {result.body!r}")
+    count = storage_metadata_count(key)
+    if count != 0:
+        fail(f"{description}: rejected upload left {count} Storage metadata row(s)")
+
+
+def assert_storage_ownership(base: str, owner_token: str, other_token: str) -> None:
+    wall_id = f"rls-harness-wall-{uuid.uuid4().hex}"
+    owner_key = f"{OWNER_ID}/{wall_id}/owner.jpg"
+    non_owner_key = f"{OWNER_ID}/{wall_id}/non-owner.jpg"
+    legacy_key = f"{wall_id}/legacy.jpg"
+    upload = b"climbset-storage-rls-harness"
+    created_keys: list[str] = []
+
+    for key in (owner_key, non_owner_key, legacy_key):
+        assert_storage_absent(base, key, f"unique fixture key {key}")
+
+    try:
+        owner_result = expect_api_result(
+            request_storage("POST", base, owner_key, owner_token, upload),
+            "owner-prefixed owner upload",
+        )
+        if owner_result.status not in {200, 201}:
+            fail(f"owner-prefixed owner upload failed: HTTP {owner_result.status} {owner_result.body!r}")
+        created_keys.append(owner_key)
+        if storage_metadata_count(owner_key) != 1:
+            fail("owner-prefixed owner upload did not create exactly one metadata row")
+
+        owner_object = expect_api_result(
+            request_storage("GET", base, owner_key),
+            "owner-prefixed owner object read",
+        )
+        if owner_object.status != 200:
+            fail(f"owner-prefixed owner object is not readable: HTTP {owner_object.status} {owner_object.body!r}")
+
+        non_owner_result = expect_api_result(
+            request_storage("POST", base, non_owner_key, other_token, upload),
+            "non-owner owner-prefix upload",
+        )
+        if 200 <= non_owner_result.status < 300:
+            created_keys.append(non_owner_key)
+            fail(f"non-owner owner-prefix upload unexpectedly succeeded: HTTP {non_owner_result.status}")
+        assert_storage_absent(base, non_owner_key, "non-owner owner-prefix rejection")
+
+        legacy_result = expect_api_result(
+            request_storage("POST", base, legacy_key, owner_token, upload),
+            "owner legacy-prefix upload",
+        )
+        if 200 <= legacy_result.status < 300:
+            created_keys.append(legacy_key)
+            fail(f"owner legacy-prefix upload unexpectedly succeeded: HTTP {legacy_result.status}")
+        assert_storage_absent(base, legacy_key, "owner legacy-prefix rejection")
+        print("PASS: owner-prefixed Storage upload succeeded; non-owner and legacy-prefix uploads were rejected cleanly")
+    finally:
+        for key in created_keys:
+            delete_result = expect_api_result(
+                request_storage("DELETE", base, key, owner_token),
+                f"cleanup Storage object {key}",
+            )
+            if delete_result.status not in {200, 204}:
+                fail(f"cleanup Storage object {key} failed: HTTP {delete_result.status} {delete_result.body!r}")
+            assert_storage_absent(base, key, f"cleanup Storage object {key}")
 
 
 def expect_api_result(result: ApiResult | object, description: str) -> ApiResult:
@@ -315,6 +427,7 @@ def run() -> None:
         setup_fixtures()
         owner = login(base, User(OWNER_ID, OWNER_EMAIL))
         other = login(base, User(OTHER_ID, OTHER_EMAIL))
+        assert_storage_ownership(base, owner, other)
 
         assert_update(
             base,

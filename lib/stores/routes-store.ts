@@ -3,8 +3,10 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { createClient, type BrowserSupabaseClient } from '@/lib/supabase/client';
-import type { Route, Ascent, Comment } from '@/lib/types';
+import type { Route, Ascent, Comment } from '@climbset/shared/types';
+import { canonicalizeGrade, normalizeRouteGrades } from '@climbset/shared/utils/grades';
 import { nanoid } from 'nanoid';
+import { getWallStoragePathFromUrl } from '@/lib/utils/storage';
 
 interface RoutesState {
   routes: Route[];
@@ -73,17 +75,6 @@ async function ownsRemoteRoute(supabase: BrowserSupabaseClient, routeId: string,
   const { data, error } = await supabase.from('routes').select('id, user_id').eq('id', routeId).maybeSingle();
   return !error && data?.user_id === userId;
 }
-function storageObjectPath(source: string) {
-  const marker = '/storage/v1/object/public/walls/';
-  const markerIndex = source.indexOf(marker);
-  if (markerIndex === -1) return null;
-  const path = source.slice(markerIndex + marker.length).split(/[?#]/, 1)[0];
-  try {
-    return decodeURIComponent(path);
-  } catch {
-    return path;
-  }
-}
 
 function isCurrentStorageHost(source: string) {
   const configuredOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL?.match(/^https?:\/\/[^/]+/i)?.[0].toLowerCase();
@@ -99,7 +90,7 @@ function isCurrentRouteSnapshot(sourcePath: string | null, route: Route, userId:
 
 async function normalizeRouteImage(supabase: BrowserSupabaseClient, route: Route, userId: string) {
   const source = route.wall_image_url;
-  const sourcePath = source && /^https?:\/\//i.test(source) ? storageObjectPath(source) : null;
+  const sourcePath = source && /^https?:\/\//i.test(source) ? getWallStoragePathFromUrl(source) : null;
   const hasCurrentRouteSnapshot = isCurrentRouteSnapshot(sourcePath, route, userId);
   if (!source || hasCurrentRouteSnapshot || /^https?:\/\//i.test(source) && !sourcePath) return source;
   const response = await fetch(source);
@@ -183,14 +174,14 @@ export const useRoutesStore = create<RoutesState>()(
             });
           }
 
-          const existingRoutes = get().routes;
+          const existingRoutes = get().routes.map((route) => normalizeRouteGrades(route));
           const remoteRoutes = result.data?.map(r => {
             const likedBy = likesByRoute[r.id] || [];
             const localSnapshot = existingRoutes.find(existing => existing.id === r.id);
             const ownedSnapshot = localSnapshot?.user_id === currentUserId && r.user_id === currentUserId
               ? localSnapshot as LocalRoute
               : undefined;
-            return {
+            return normalizeRouteGrades({
               ...r,
               // Older schemas do not return these columns. Keep the local snapshot
               // until a later full-schema sync can persist it.
@@ -210,7 +201,7 @@ export const useRoutesStore = create<RoutesState>()(
               liked_by: likedBy,
               like_count: likedBy.length,
               is_liked: likedBy.includes(currentUserId),
-            };
+            }) as LocalRoute;
           });
 
           const { data: { user: latestUser } } = await supabase.auth.getUser();
@@ -280,7 +271,7 @@ export const useRoutesStore = create<RoutesState>()(
         const ownedExisting = existing?.user_id === user.id && data.user_id === user.id
           ? existing as LocalRoute
           : undefined;
-        const route = {
+        const route = normalizeRouteGrades({
           ...data,
           wall_image_url: data.wall_image_url ?? ownedExisting?.wall_image_url,
           wall_image_width: data.wall_image_width ?? ownedExisting?.wall_image_width,
@@ -291,7 +282,7 @@ export const useRoutesStore = create<RoutesState>()(
           holds: data.holds || [],
           ascents: ownedExisting?.ascents || [],
           comments: ownedExisting?.comments || [],
-        } as Route;
+        }) as Route & LocalRoute;
 
         set((state) => ({
           routes: state.routes.some((candidate) => candidate.id === id)
@@ -490,7 +481,9 @@ export const useRoutesStore = create<RoutesState>()(
 
       addRoute: async (route) => {
         const authGeneration = routeAuthGeneration;
-        const ensuredRoute = route.share_token ? route : { ...route, share_token: nanoid(10) };
+        const ensuredRoute = normalizeRouteGrades(
+          route.share_token ? route : { ...route, share_token: nanoid(10) }
+        );
         // Add to local state immediately
         set((state) => ({
           routes: [ensuredRoute, ...state.routes]
@@ -579,12 +572,18 @@ export const useRoutesStore = create<RoutesState>()(
         const previousRoute = get().routes.find((route) => route.id === id);
         if (!previousRoute) return false;
         const authGeneration = routeAuthGeneration;
+        const nextRoute = normalizeRouteGrades({
+          ...previousRoute,
+          ...updates,
+          updated_at: new Date().toISOString(),
+        });
+        const normalizedUpdates: Partial<Route> = { ...updates };
+        if ('grade_v' in updates) normalizedUpdates.grade_v = nextRoute.grade_v;
+        if ('ascents' in updates) normalizedUpdates.ascents = nextRoute.ascents;
 
         set((state) => ({
           routes: state.routes.map((route) =>
-            route.id === id
-              ? { ...route, ...updates, updated_at: new Date().toISOString() }
-              : route
+            route.id === id ? nextRoute : route
           ),
         }));
 
@@ -594,7 +593,7 @@ export const useRoutesStore = create<RoutesState>()(
           const supabase = createClient();
           const { data, error } = await supabase
             .from('routes')
-            .update(stripRouteRelations(updates))
+            .update(stripRouteRelations(normalizedUpdates))
             .eq('id', id)
             .select('id')
             .maybeSingle();
@@ -632,12 +631,16 @@ export const useRoutesStore = create<RoutesState>()(
         get().routes.filter((r) => r.wall_id === wallId),
       addAscent: async (routeId, ascent) => {
         const previousRoute = get().routes.find(r => r.id === routeId);
+        const normalizedAscent = {
+          ...ascent,
+          grade_v: canonicalizeGrade(ascent.grade_v),
+        };
         if (!previousRoute) return false;
         const isLocalOnly = previousRoute.user_id === 'local-user' || (previousRoute as LocalRoute)._createSyncPending;
         const applyLocal = () => set((state) => ({
           routes: state.routes.map((r) =>
             r.id === routeId
-              ? { ...r, ascents: [...(r.ascents || []), ascent], updated_at: new Date().toISOString() }
+              ? { ...r, ascents: [...(r.ascents || []), normalizedAscent], updated_at: new Date().toISOString() }
               : r
           ),
         }));
@@ -655,11 +658,11 @@ export const useRoutesStore = create<RoutesState>()(
           const { error } = await supabase
             .from('ascents')
             .insert({
-              id: ascent.id,
+              id: normalizedAscent.id,
               route_id: routeId,
               user_id: user.id,
-              user_name: ascent.user_name,
-              grade_v: ascent.grade_v,
+              user_name: normalizedAscent.user_name,
+              grade_v: normalizedAscent.grade_v,
               rating: ascent.rating,
               notes: ascent.notes,
               flashed: ascent.flashed,
@@ -880,6 +883,15 @@ export const useRoutesStore = create<RoutesState>()(
       partialize: (state) => ({
         routes: state.routes,
       }),
+      merge: (persistedState, currentState) => {
+        const persistedRoutes = (persistedState as Partial<RoutesState> | null)?.routes;
+        return {
+          ...currentState,
+          routes: Array.isArray(persistedRoutes)
+            ? persistedRoutes.map((route) => normalizeRouteGrades(route))
+            : currentState.routes,
+        };
+      },
     }
   )
 );

@@ -2,9 +2,9 @@
 
 import { useRef, useState, useEffect } from 'react';
 import Image from 'next/image';
-import { Hold } from '@/lib/types';
+import { Hold } from '@climbset/shared/types';
 import { HoldMarker } from './HoldMarker';
-import { pixelToPercentage } from '@/lib/utils/holds';
+import { pixelToPercentage } from '@climbset/shared/utils/holds';
 
 interface WallCanvasProps {
   wallImageUrl: string;

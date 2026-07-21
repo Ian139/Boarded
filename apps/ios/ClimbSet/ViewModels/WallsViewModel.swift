@@ -10,7 +10,7 @@ final class WallsViewModel: ObservableObject {
 
     private let repository: any WallsRepository
 
-    convenience init() {
+    @MainActor convenience init() {
         self.init(repository: SupabaseWallsRepository())
     }
 
@@ -115,6 +115,7 @@ final class WallsViewModel: ObservableObject {
         do {
             try await repository.updateWall(
                 id: id,
+                userId: userId,
                 name: name,
                 imageUrl: requestedImageUrl,
                 imageData: imageData,
@@ -132,11 +133,8 @@ final class WallsViewModel: ObservableObject {
 
     func deleteWall(id: String, userId: UUID?) async {
         do {
-            let cleanupErrorMessage = try await repository.deleteWall(id: id)
+            try await repository.deleteWall(id: id)
             await load(userId: userId)
-            if let cleanupErrorMessage, errorMessage == nil {
-                errorMessage = "Wall deleted, but image cleanup failed: \(cleanupErrorMessage)"
-            }
         } catch {
             errorMessage = error.localizedDescription
         }

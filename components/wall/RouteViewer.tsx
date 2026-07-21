@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
-import { Hold, HOLD_COLORS, HOLD_BORDER_WIDTH, Comment } from '@/lib/types';
+import { Hold, HOLD_COLORS, HOLD_BORDER_WIDTH, Comment } from '@climbset/shared/types';
 import { CommentsSection } from '@/components/route/CommentsSection';
 
 interface RouteViewerProps {

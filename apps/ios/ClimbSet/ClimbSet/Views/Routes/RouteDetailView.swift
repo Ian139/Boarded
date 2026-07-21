@@ -3,6 +3,54 @@ import UIKit
 import Supabase
 import PostgREST
 
+enum RouteDetailGeometry {
+    /// Returns the image-space rectangle inside `container` that should be shared
+    /// by the wall image and its hold markers. Invalid snapshot dimensions fall
+    /// back to the full container so legacy routes keep their existing layout.
+    static func imageRect(
+        imageWidth: Int?,
+        imageHeight: Int?,
+        in container: CGRect
+    ) -> CGRect {
+        guard let imageWidth,
+              let imageHeight,
+              imageWidth > 0,
+              imageHeight > 0,
+              container.width.isFinite,
+              container.height.isFinite,
+              container.width > 0,
+              container.height > 0 else {
+            return container
+        }
+
+        let imageAspectRatio = CGFloat(imageWidth) / CGFloat(imageHeight)
+        guard imageAspectRatio.isFinite, imageAspectRatio > 0 else {
+            return container
+        }
+
+        let containerAspectRatio = container.width / container.height
+        let fittedSize: CGSize
+        if containerAspectRatio > imageAspectRatio {
+            fittedSize = CGSize(
+                width: container.height * imageAspectRatio,
+                height: container.height
+            )
+        } else {
+            fittedSize = CGSize(
+                width: container.width,
+                height: container.width / imageAspectRatio
+            )
+        }
+
+        return CGRect(
+            x: container.midX - fittedSize.width / 2,
+            y: container.midY - fittedSize.height / 2,
+            width: fittedSize.width,
+            height: fittedSize.height
+        )
+    }
+}
+
 struct RouteDetailView: View {
     let route: Route
     let onRouteChanged: (Route) -> Void
@@ -29,6 +77,8 @@ struct RouteDetailView: View {
     @State private var isWallPickerPresented = false
     @State private var isEditPresented = false
     @State private var isDeleteConfirmationPresented = false
+    @State private var wallImageWidth: Int?
+    @State private var wallImageHeight: Int?
     @State private var isDeleting = false
     @State private var deleteError: String? = nil
     @State private var wallImageUrl: String?
@@ -53,6 +103,8 @@ struct RouteDetailView: View {
             wrappedValue: WallsViewModel(repository: wallsRepository)
         )
         _wallImageUrl = State(initialValue: route.normalizedWallImageUrl)
+        _wallImageWidth = State(initialValue: route.wallImageWidth)
+        _wallImageHeight = State(initialValue: route.wallImageHeight)
         _ascents = State(initialValue: route.ascents)
     }
 
@@ -145,6 +197,13 @@ struct RouteDetailView: View {
 
     private var wallHeader: some View {
         GeometryReader { proxy in
+            let container = CGRect(origin: .zero, size: proxy.size)
+            let imageRect = RouteDetailGeometry.imageRect(
+                imageWidth: wallImageWidth,
+                imageHeight: wallImageHeight,
+                in: container
+            )
+
             ZStack {
                 RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
                     .fill(AppColor.surface)
@@ -153,32 +212,13 @@ struct RouteDetailView: View {
                             .stroke(AppColor.border, lineWidth: 1)
                     )
 
-                if let url = wallImageURL {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .empty:
-                            Color.clear
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .scaledToFill()
-                        case .failure:
-                            defaultWallImage
-                        @unknown default:
-                            defaultWallImage
-                        }
-                    }
-                    .frame(width: proxy.size.width, height: proxy.size.height)
-                    .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
-                } else {
-                    defaultWallImage
-                }
+                wallImage(in: imageRect)
 
                 ForEach(route.holds) { hold in
                     routeHoldMarker(for: hold)
                         .position(
-                            x: hold.normalizedX * proxy.size.width,
-                            y: hold.normalizedY * proxy.size.height
+                            x: imageRect.minX + hold.normalizedX * imageRect.width,
+                            y: imageRect.minY + hold.normalizedY * imageRect.height
                         )
                 }
 
@@ -537,6 +577,34 @@ struct RouteDetailView: View {
             }
         }
     }
+    @ViewBuilder
+    private func wallImage(in rect: CGRect) -> some View {
+        if let url = wallImageURL {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .empty:
+                    Color.clear
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                case .failure:
+                    defaultWallImage
+                @unknown default:
+                    defaultWallImage
+                }
+            }
+            .frame(width: rect.width, height: rect.height)
+            .clipped()
+            .position(x: rect.midX, y: rect.midY)
+        } else {
+            defaultWallImage
+                .frame(width: rect.width, height: rect.height)
+                .clipped()
+                .position(x: rect.midX, y: rect.midY)
+        }
+    }
+
     private var wallImageURL: URL? {
         guard let normalized = normalizedRemoteImageURLString(wallImageUrl) else { return nil }
         return URL(string: normalized)
@@ -570,13 +638,11 @@ struct RouteDetailView: View {
                     "route_id": AnyEncodable(route.id),
                     "user_id": AnyEncodable(userId.uuidString)
                 ]
-                _ = try await client.database
-                    .from("route_likes")
+                _ = try await client.from("route_likes")
                     .insert(payload)
                     .execute()
             } else {
-                _ = try await client.database
-                    .from("route_likes")
+                _ = try await client.from("route_likes")
                     .delete()
                     .eq("route_id", value: route.id)
                     .eq("user_id", value: userId.uuidString)
@@ -618,8 +684,7 @@ struct RouteDetailView: View {
     ) async -> Bool {
         let userLikes: [RouteLikeFull]
         do {
-            userLikes = try await client.database
-                .from("route_likes")
+            userLikes = try await client.from("route_likes")
                 .select("route_id, user_id")
                 .eq("route_id", value: route.id)
                 .eq("user_id", value: userId.uuidString)
@@ -649,8 +714,7 @@ struct RouteDetailView: View {
         }
 
         isLiked = authoritativeIsLiked
-        if let authoritativeLikes: [RouteLikeFull] = try? await client.database
-            .from("route_likes")
+        if let authoritativeLikes: [RouteLikeFull] = try? await client.from("route_likes")
             .select("route_id, user_id")
             .eq("route_id", value: route.id)
             .execute()
@@ -672,7 +736,9 @@ struct RouteDetailView: View {
             likeCount: likeCount,
             isLiked: isLiked,
             ascents: currentRoute.ascents,
-            wallImageUrl: currentRoute.wallImageUrl
+            wallImageUrl: wallImageUrl,
+            wallImageWidth: wallImageWidth,
+            wallImageHeight: wallImageHeight
         )
     }
 
@@ -781,8 +847,7 @@ struct RouteDetailView: View {
         )
 
         do {
-            let insertedAscents: [Ascent] = try await client.database
-                .from("ascents")
+            let insertedAscents: [Ascent] = try await client.from("ascents")
                 .upsert(payload, onConflict: "id")
                 .select("*")
                 .execute()
@@ -811,18 +876,27 @@ struct RouteDetailView: View {
             likeCount: likeCount,
             isLiked: isLiked,
             ascents: updatedAscents,
-            wallImageUrl: currentRoute.wallImageUrl
+            wallImageUrl: wallImageUrl,
+            wallImageWidth: wallImageWidth,
+            wallImageHeight: wallImageHeight
         )
     }
 
     private func routeWithSharing(_ sharedRoute: Route) -> Route {
         let currentRoute = latestRoute
+        let usesSharedSnapshot = sharedRoute.wallImageUrl != nil
         return routeWithState(
             base: sharedRoute,
             likeCount: sharedRoute.likeCount ?? likeCount,
             isLiked: sharedRoute.isLiked ?? isLiked,
             ascents: sharedRoute.ascents,
-            wallImageUrl: sharedRoute.wallImageUrl ?? currentRoute.wallImageUrl
+            wallImageUrl: sharedRoute.wallImageUrl ?? currentRoute.wallImageUrl,
+            wallImageWidth: usesSharedSnapshot
+                ? sharedRoute.wallImageWidth
+                : currentRoute.wallImageWidth,
+            wallImageHeight: usesSharedSnapshot
+                ? sharedRoute.wallImageHeight
+                : currentRoute.wallImageHeight
         )
     }
 
@@ -835,7 +909,9 @@ struct RouteDetailView: View {
         likeCount: Int?,
         isLiked: Bool?,
         ascents: [Ascent],
-        wallImageUrl: String?
+        wallImageUrl: String?,
+        wallImageWidth: Int?,
+        wallImageHeight: Int?
     ) -> Route {
         Route(
             id: base.id,
@@ -853,18 +929,34 @@ struct RouteDetailView: View {
             updatedAt: base.updatedAt,
             userName: base.userName,
             wallImageUrl: wallImageUrl,
+            wallImageWidth: wallImageWidth,
+            wallImageHeight: wallImageHeight,
             likeCount: likeCount,
             isLiked: isLiked,
             ascents: ascents,
             comments: base.comments
         )
     }
-
-
     private func updateRouteWall(_ wall: Wall) async {
         do {
             try await routesViewModel.assignWall(routeId: route.id, wall: wall)
-            wallImageUrl = wall.normalizedImageUrl
+            let updatedImageUrl = wall.normalizedImageUrl
+            let updatedImageWidth = wall.imageWidth
+            let updatedImageHeight = wall.imageHeight
+            wallImageUrl = updatedImageUrl
+            wallImageWidth = updatedImageWidth
+            wallImageHeight = updatedImageHeight
+            onRouteChanged(
+                routeWithState(
+                    base: latestRoute,
+                    likeCount: likeCount,
+                    isLiked: isLiked,
+                    ascents: ascents,
+                    wallImageUrl: updatedImageUrl,
+                    wallImageWidth: updatedImageWidth,
+                    wallImageHeight: updatedImageHeight
+                )
+            )
         } catch {
             wallUpdateError = error.localizedDescription
         }

@@ -9,7 +9,7 @@ import { useWallsStore, DEFAULT_WALL } from '@/lib/stores/walls-store';
 import { useRoutesStore } from '@/lib/stores/routes-store';
 import { useTransitionStore } from '@/lib/stores/transition-store';
 import { useIsClient } from '@/lib/hooks/useIsClient';
-import { gradeToNumber, calculateDisplayGrade } from '@/lib/utils/grades';
+import { gradeToNumber, calculateDisplayGrade } from '@climbset/shared/utils/grades';
 import { Button } from '@/components/ui/button';
 import { InstallPrompt } from '@/components/shared/InstallPrompt';
 import { ConfirmDialog } from '@/components/home/ConfirmDialog';
@@ -19,7 +19,7 @@ import { SearchFilterBar } from '@/components/home/SearchFilterBar';
 import { WallPickerDialog } from '@/components/home/WallPickerDialog';
 import { RouteList } from '@/components/home/RouteList';
 import { toast } from 'sonner';
-import type { Route, Wall } from '@/lib/types';
+import type { Route, Wall } from '@climbset/shared/types';
 
 type SortOption =
   | 'newest'
@@ -35,8 +35,8 @@ type SortOption =
 export default function Home() {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
-  const { walls, selectedWall, setSelectedWall, addWall, fetchWalls } = useWallsStore();
-  const { routes, deleteRoute, fetchRoutes, isLoading: routesLoading, incrementViewCount, isOfflineMode } = useRoutesStore();
+  const { walls, selectedWall, setSelectedWall, addWall } = useWallsStore();
+  const { routes, deleteRoute, isLoading: routesLoading, incrementViewCount, isOfflineMode } = useRoutesStore();
   const startTransition = useTransitionStore((state) => state.startTransition);
   const isClient = useIsClient();
 
@@ -51,14 +51,6 @@ export default function Home() {
   const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [filterGrade, setFilterGrade] = useState<string>('all');
 
-  // Fetch data from Supabase on mount
-  useEffect(() => {
-    const loadData = async () => {
-      await fetchWalls();
-      await fetchRoutes();
-    };
-    loadData();
-  }, [fetchWalls, fetchRoutes]);
 
   // Ensure walls exist locally for any fetched routes (important for new devices)
   useEffect(() => {

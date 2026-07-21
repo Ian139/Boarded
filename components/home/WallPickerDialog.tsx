@@ -13,7 +13,7 @@ import { createClient } from '@/lib/supabase/client';
 import { compressImageWithDimensions } from '@/lib/utils/image';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import type { Wall } from '@/lib/types';
+import type { Wall } from '@climbset/shared/types';
 
 interface WallPickerDialogProps {
   open: boolean;

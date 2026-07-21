@@ -18,6 +18,7 @@ struct WallPickerView: View {
     @State private var editImageData: Data? = nil
 
     var body: some View {
+        let hasNewWallImage = viewModel.newWallImageData != nil
         NavigationStack {
             ZStack {
                 AppColor.background.ignoresSafeArea()
@@ -76,7 +77,7 @@ struct WallPickerView: View {
                         TextField("Wall name", text: $viewModel.newWallName)
                         TextField("Image URL (optional)", text: $viewModel.newWallImageUrl)
                         PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
-                            Text(viewModel.newWallImageData == nil ? "Pick Image" : "Change Image")
+                            Text(hasNewWallImage ? "Change Image" : "Pick Image")
                         }
                         #if canImport(UIKit)
                         if let data = viewModel.newWallImageData, let image = UIImage(data: data) {

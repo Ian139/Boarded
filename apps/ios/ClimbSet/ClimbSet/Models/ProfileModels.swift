@@ -17,7 +17,7 @@ struct Profile: Codable, Identifiable, Hashable {
         case createdAt = "created_at"
     }
 
-    var displayName: String {
+    nonisolated var displayName: String {
         if let fullName, !fullName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return fullName
         }
@@ -95,18 +95,9 @@ struct ProfileScoringRecord: Identifiable, Hashable {
         self.route = route
     }
 
-    var scoringGrade: String? {
+    nonisolated var scoringGrade: String? {
         guard let route else { return ascentGrade ?? routeGrade }
-        let setterRank = ProfileStatistics.gradeRank(route.gradeV)
-        let ascentRanks = route.ascents
-            .compactMap { ProfileStatistics.gradeRank($0.gradeV) >= 0 ? ProfileStatistics.gradeRank($0.gradeV) : nil }
-        guard setterRank >= 0 || !ascentRanks.isEmpty else { return nil }
-        if ascentRanks.isEmpty { return route.gradeV }
-        let average = Double(ascentRanks.reduce(0, +)) / Double(ascentRanks.count)
-        let blended = setterRank >= 0 ? Double(setterRank) * 0.5 + average * 0.5 : average
-        let rounded = Int(blended.rounded())
-        let labels = ["VB", "V0", "V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9", "V10", "V11", "V12", "V13", "V14", "V15", "V16", "V17"]
-        return labels.indices.contains(rounded) ? labels[rounded] : nil
+        return ProfileStatistics.displayGrade(for: route)
     }
 }
 

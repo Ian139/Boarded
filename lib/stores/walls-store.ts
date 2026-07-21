@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { createClient } from '@/lib/supabase/client';
-import type { Wall } from '@/lib/types';
+import type { Wall } from '@climbset/shared/types';
 
 // Default wall
 export const DEFAULT_WALL: Wall = {

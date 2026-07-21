@@ -4,42 +4,10 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import type { Route } from '@/lib/types';
-import { V_GRADES } from '@/lib/types';
+import type { Route } from '@climbset/shared/types';
+import { calculateDisplayGrade, normalizeRouteGrades } from '@climbset/shared/utils/grades';
 import { RouteViewer } from '@/components/wall/RouteViewer';
 import { DEFAULT_WALL } from '@/lib/stores/walls-store';
-
-const gradeToNumber = (grade?: string): number => {
-  if (!grade) return -1;
-  const index = V_GRADES.indexOf(grade);
-  return index >= 0 ? index : -1;
-};
-
-const numberToGrade = (num: number): string | undefined => {
-  const rounded = Math.round(num);
-  if (rounded >= 0 && rounded < V_GRADES.length) {
-    return V_GRADES[rounded];
-  }
-  return undefined;
-};
-
-const calculateDisplayGrade = (setterGrade?: string, ascents?: { grade_v?: string }[]): string | undefined => {
-  const setterNum = gradeToNumber(setterGrade);
-  const userGrades = (ascents || [])
-    .map(a => gradeToNumber(a.grade_v))
-    .filter(g => g >= 0);
-
-  if (setterNum < 0 && userGrades.length === 0) return undefined;
-  if (setterNum >= 0 && userGrades.length === 0) return setterGrade;
-  if (setterNum < 0 && userGrades.length > 0) {
-    const avgUser = userGrades.reduce((sum, g) => sum + g, 0) / userGrades.length;
-    return numberToGrade(avgUser);
-  }
-
-  const avgUser = userGrades.reduce((sum, g) => sum + g, 0) / userGrades.length;
-  const combined = (setterNum * 0.5) + (avgUser * 0.5);
-  return numberToGrade(combined);
-};
 
 export default function SharePage() {
   const params = useParams();
@@ -79,7 +47,7 @@ export default function SharePage() {
         if (result.error || !result.data) {
           setError('Route not found');
         } else {
-          setRoute(result.data as Route);
+          setRoute(normalizeRouteGrades(result.data as Route));
           const { data: nextCount, error: viewError } = await supabase.rpc('increment_route_view', { target_route_id: result.data.id });
           if (viewError || typeof nextCount !== 'number') {
             console.warn('Unable to increment route view count');

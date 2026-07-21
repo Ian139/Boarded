@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { WallCanvas } from '@/components/wall/WallCanvas';
 import { useHolds } from '@/lib/hooks/useHolds';
-import { HoldType, HoldSize, Route, V_GRADES, HOLD_COLORS, HOLD_TYPE_CYCLE, HOLD_BORDER_WIDTH } from '@/lib/types';
+import { HoldType, HoldSize, Route, V_GRADES, HOLD_COLORS, HOLD_TYPE_CYCLE, HOLD_BORDER_WIDTH } from '@climbset/shared/types';
 import { nanoid } from 'nanoid';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';

@@ -51,11 +51,3 @@ export async function compressImageWithDimensions(
 
   return { blob, width: targetWidth, height: targetHeight };
 }
-
-export async function compressImage(
-  file: File,
-  options: CompressOptions
-): Promise<Blob> {
-  const { blob } = await compressImageWithDimensions(file, options);
-  return blob;
-}

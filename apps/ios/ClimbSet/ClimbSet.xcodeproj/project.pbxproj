@@ -30,7 +30,6 @@
 		3CDD08F12F5A072900535751 /* RouteDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD08E42F5A072900535751 /* RouteDetailView.swift */; };
 		3CDD08F22F5A072900535751 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD08E22F5A072900535751 /* SettingsView.swift */; };
 		3CDD08F32F5A072900535751 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD08E12F5A072900535751 /* ProfileView.swift */; };
-		3CDD08F42F5A072900535751 /* FilterChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD08E92F5A072900535751 /* FilterChip.swift */; };
 		3CDD08F52F5A072900535751 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD08E82F5A072900535751 /* EmptyStateView.swift */; };
 		3CDD08F62F5A072900535751 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD08DF2F5A072900535751 /* EditorView.swift */; };
 		3CDD08FC2F5A0A0300535751 /* RoutesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD08FA2F5A0A0300535751 /* RoutesViewModel.swift */; };
@@ -39,6 +38,7 @@
 		3CDD08FF2F5A0A0300535751 /* AppSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD08F72F5A0A0300535751 /* AppSession.swift */; };
 		3CDD09152F5A200100535751 /* ProfileStatisticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD09142F5A200100535751 /* ProfileStatisticsTests.swift */; };
 		3CDD09172F5A200100535751 /* HoldRadiusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD09162F5A200100535751 /* HoldRadiusTests.swift */; };
+		AA1100202F5B000100535751 /* NativeContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1100212F5B000100535751 /* NativeContractTests.swift */; };
 		3CDD09012F5A0E6D00535751 /* WallsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD09002F5A0E6D00535751 /* WallsViewModel.swift */; };
 		3CDD09042F5A0F8E00535751 /* WallPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD09022F5A0F8E00535751 /* WallPickerView.swift */; };
 		AA1100012F5B000100535751 /* WallsRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1100022F5B000100535751 /* WallsRepository.swift */; };
@@ -82,10 +82,10 @@
 		3CDD08E52F5A072900535751 /* RouteRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteRow.swift; sourceTree = "<group>"; };
 		3CDD08E62F5A072900535751 /* RoutesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutesView.swift; sourceTree = "<group>"; };
 		3CDD08E82F5A072900535751 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
-		3CDD08E92F5A072900535751 /* FilterChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterChip.swift; sourceTree = "<group>"; };
 		3CDD08EA2F5A072900535751 /* SearchField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchField.swift; sourceTree = "<group>"; };
 		3CDD09142F5A200100535751 /* ProfileStatisticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileStatisticsTests.swift; sourceTree = "<group>"; };
 		3CDD09162F5A200100535751 /* HoldRadiusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoldRadiusTests.swift; sourceTree = "<group>"; };
+		AA1100212F5B000100535751 /* NativeContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeContractTests.swift; sourceTree = "<group>"; };
 		3CDD09192F5A200100535751 /* ClimbSetTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ClimbSetTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3CDD08F72F5A0A0300535751 /* AppSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSession.swift; sourceTree = "<group>"; };
 		3CDD08F82F5A0A0300535751 /* CommentsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommentsViewModel.swift; sourceTree = "<group>"; };
@@ -221,7 +221,6 @@
 			isa = PBXGroup;
 			children = (
 				3CDD08E82F5A072900535751 /* EmptyStateView.swift */,
-				3CDD08E92F5A072900535751 /* FilterChip.swift */,
 				3CDD08EA2F5A072900535751 /* SearchField.swift */,
 			);
 			path = Shared;
@@ -258,6 +257,7 @@
 			children = (
 				3CDD09142F5A200100535751 /* ProfileStatisticsTests.swift */,
 				3CDD09162F5A200100535751 /* HoldRadiusTests.swift */,
+				AA1100212F5B000100535751 /* NativeContractTests.swift */,
 			);
 			path = ClimbSetTests;
 			sourceTree = "<group>";
@@ -422,7 +422,6 @@
 				3CDD08F12F5A072900535751 /* RouteDetailView.swift in Sources */,
 				3CDD08F22F5A072900535751 /* SettingsView.swift in Sources */,
 				3CDD08F32F5A072900535751 /* ProfileView.swift in Sources */,
-				3CDD08F42F5A072900535751 /* FilterChip.swift in Sources */,
 				3CDD08F52F5A072900535751 /* EmptyStateView.swift in Sources */,
 				3CDD08F62F5A072900535751 /* EditorView.swift in Sources */,
 				AA1100012F5B000100535751 /* WallsRepository.swift in Sources */,
@@ -436,6 +435,7 @@
 			files = (
 				3CDD09152F5A200100535751 /* ProfileStatisticsTests.swift in Sources */,
 				3CDD09172F5A200100535751 /* HoldRadiusTests.swift in Sources */,
+				AA1100202F5B000100535751 /* NativeContractTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -13,9 +13,13 @@ final class CommentsViewModel: ObservableObject {
     private let routeId: String
     private let client: SupabaseClient?
 
-    init(routeId: String, client: SupabaseClient? = SupabaseClientProvider.client) {
+    init(routeId: String, client: SupabaseClient?) {
         self.routeId = routeId
         self.client = client
+    }
+
+    @MainActor convenience init(routeId: String) {
+        self.init(routeId: routeId, client: SupabaseClientProvider.client)
     }
 
     func load() async {
@@ -24,8 +28,7 @@ final class CommentsViewModel: ObservableObject {
         errorMessage = nil
         defer { isLoading = false }
         do {
-            let response: [Comment] = try await client.database
-                .from("comments")
+            let response: [Comment] = try await client.from("comments")
                 .select("*")
                 .eq("route_id", value: routeId)
                 .order("created_at", ascending: true)
@@ -68,8 +71,7 @@ final class CommentsViewModel: ObservableObject {
                 content: trimmed,
                 isBeta: isBeta
             )
-            _ = try await client.database
-                .from("comments")
+            _ = try await client.from("comments")
                 .insert(payload)
                 .execute()
             newComment = ""
@@ -83,8 +85,7 @@ final class CommentsViewModel: ObservableObject {
     func deleteComment(id: String) async {
         guard let client else { return }
         do {
-            _ = try await client.database
-                .from("comments")
+            _ = try await client.from("comments")
                 .delete()
                 .eq("id", value: id)
                 .execute()

@@ -5,7 +5,7 @@ import { persist } from 'zustand/middleware';
 import { createClient } from '@/lib/supabase/client';
 import { useRoutesStore } from '@/lib/stores/routes-store';
 import { useWallsStore } from '@/lib/stores/walls-store';
-import type { Profile } from '@/lib/types';
+import type { Profile } from '@climbset/shared/types';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 
@@ -92,15 +92,20 @@ function signedOutState() {
   };
 }
 
-function reconcileRoutesForAuthChange(currentUserId?: string): Promise<void> {
+function reconcileDataForAuthChange(currentUserId?: string): Promise<void> {
   const routesStore = useRoutesStore.getState();
   const wallsStore = useWallsStore.getState();
   routesStore.clearRemoteRoutes(currentUserId);
   wallsStore.clearRemoteWalls();
   const run = async () => {
     const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if ((user?.id || undefined) !== currentUserId) return;
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error) throw error;
+      if ((user?.id || undefined) !== currentUserId) return;
+    } catch {
+      // Local reconciliation still works when Auth cannot verify the session.
+    }
 
     try {
       await routesStore.syncLocalRoutes();
@@ -129,6 +134,23 @@ export const useUserStore = create<UserState>()(
       initializeAuth: async () => {
         const supabase = createClient();
 
+        if (!removeAuthListener) {
+          const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+            if (event === 'INITIAL_SESSION') return;
+
+            if (nextSession?.user) {
+              const user = mapSupabaseUser(nextSession.user);
+              set(authenticatedState(user));
+              void get().syncProfile();
+              void reconcileDataForAuthChange(user.id);
+            } else {
+              set(signedOutState());
+              void reconcileDataForAuthChange();
+            }
+          });
+          removeAuthListener = () => subscription.unsubscribe();
+        }
+
         try {
           const { data: { session } } = await supabase.auth.getSession();
 
@@ -136,29 +158,15 @@ export const useUserStore = create<UserState>()(
             const user = mapSupabaseUser(session.user);
             set({ ...authenticatedState(user), isLoading: false });
             await get().syncProfile();
-            await reconcileRoutesForAuthChange(user.id);
+            await reconcileDataForAuthChange(user.id);
           } else {
             set({ ...signedOutState(), isLoading: false });
-            await reconcileRoutesForAuthChange();
-          }
-
-          if (!removeAuthListener) {
-            const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-              if (nextSession?.user) {
-                const user = mapSupabaseUser(nextSession.user);
-                set(authenticatedState(user));
-                void get().syncProfile();
-                void reconcileRoutesForAuthChange(user.id);
-              } else {
-                set(signedOutState());
-                void reconcileRoutesForAuthChange();
-              }
-            });
-            removeAuthListener = () => subscription.unsubscribe();
+            await reconcileDataForAuthChange();
           }
         } catch (error) {
           console.error('Auth initialization error:', error);
           set({ isLoading: false });
+          await reconcileDataForAuthChange(get().user?.id);
         }
       },
 
@@ -194,7 +202,7 @@ export const useUserStore = create<UserState>()(
             const user = mapSupabaseUser(data.user);
             set(authenticatedState(user));
             await get().syncProfile();
-            await reconcileRoutesForAuthChange(user.id);
+            await reconcileDataForAuthChange(user.id);
             return { success: true };
           }
 
@@ -228,7 +236,7 @@ export const useUserStore = create<UserState>()(
             const user = mapSupabaseUser(data.user);
             set(authenticatedState(user));
             await get().syncProfile();
-            await reconcileRoutesForAuthChange(user.id);
+            await reconcileDataForAuthChange(user.id);
             return { success: true };
           }
 
@@ -257,7 +265,7 @@ export const useUserStore = create<UserState>()(
           userId: '',
           displayName: 'Guest',
         });
-        await reconcileRoutesForAuthChange();
+        await reconcileDataForAuthChange();
       },
 
       setDisplayName: async (name: string) => {

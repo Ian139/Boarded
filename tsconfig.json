@@ -26,9 +26,6 @@
       "@/*": [
         "./*"
       ],
-      "@climbset/shared": [
-        "./packages/shared/index.ts"
-      ],
       "@climbset/shared/*": [
         "./packages/shared/*"
       ]

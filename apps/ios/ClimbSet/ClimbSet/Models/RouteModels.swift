@@ -73,9 +73,10 @@ struct VGradeOption: Identifiable, Hashable {
         VGradeOption(value: 17, label: "V17")
     ]
 
-    static func label(for value: Int?) -> String? {
+    nonisolated static func label(for value: Int?) -> String? {
         guard let value else { return nil }
-        return all.first { $0.value == value }?.label
+        if value == -1 { return "VB" }
+        return (0...17).contains(value) ? "V\(value)" : nil
     }
 
     static func value(for label: String?) -> Int? {
@@ -98,10 +99,8 @@ struct FlexibleGrade: Codable, Hashable {
         let container = try decoder.singleValueContainer()
         if container.decodeNil() {
             value = nil
-        } else if let numericValue = try? container.decode(Int.self) {
-            value = VGradeOption.label(for: numericValue)
-        } else if let decimalValue = try? container.decode(Double.self) {
-            value = VGradeOption.label(for: Int(decimalValue.rounded()))
+        } else if let numericValue = try? container.decode(Double.self) {
+            value = VGradeOption.label(for: Int(exactly: numericValue))
         } else if let stringValue = try? container.decode(String.self) {
             value = Self.canonicalLabel(for: stringValue)
         } else {
@@ -147,6 +146,8 @@ struct Route: Codable, Identifiable, Hashable {
     let updatedAt: String
     let userName: String?
     let wallImageUrl: String?
+    let wallImageWidth: Int?
+    let wallImageHeight: Int?
     var likeCount: Int?
     var isLiked: Bool?
     let ascents: [Ascent]
@@ -168,6 +169,8 @@ struct Route: Codable, Identifiable, Hashable {
         case updatedAt = "updated_at"
         case userName = "user_name"
         case wallImageUrl = "wall_image_url"
+        case wallImageWidth = "wall_image_width"
+        case wallImageHeight = "wall_image_height"
         case likeCount = "like_count"
         case isLiked = "is_liked"
         case ascents
@@ -192,6 +195,8 @@ extension Route {
         updatedAt = try container.decode(String.self, forKey: .updatedAt)
         userName = try container.decodeIfPresent(String.self, forKey: .userName)
         wallImageUrl = try container.decodeIfPresent(String.self, forKey: .wallImageUrl)
+        wallImageWidth = try container.decodeIfPresent(Int.self, forKey: .wallImageWidth)
+        wallImageHeight = try container.decodeIfPresent(Int.self, forKey: .wallImageHeight)
         likeCount = try container.decodeIfPresent(Int.self, forKey: .likeCount)
         isLiked = try container.decodeIfPresent(Bool.self, forKey: .isLiked)
         ascents = try container.decodeIfPresent([Ascent].self, forKey: .ascents) ?? []

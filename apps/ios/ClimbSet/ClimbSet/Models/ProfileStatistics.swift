@@ -15,15 +15,44 @@ enum ProfileStatistics {
     /// Mirrors the web grade utility: V grades are ordered VB, V0 ... V17
     /// and unknown values have rank -1. The current web profile exposes no
     /// points formula, so points remain nil rather than inventing one.
-    static func gradeRank(_ grade: String?) -> Int {
+    nonisolated static func gradeRank(_ grade: String?) -> Int {
         guard let grade else { return -1 }
         let normalized = grade.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         if normalized == "VB" { return 0 }
-        guard normalized.first == "V", let value = Int(normalized.dropFirst()), value >= 0 else { return -1 }
+        guard normalized.first == "V", let value = Int(normalized.dropFirst()), (0...17).contains(value) else { return -1 }
         return value + 1
     }
+    /// Blends the setter grade with user ascent grades 50:50 when both are
+    /// present, falls back to whichever side is present, and converts the
+    /// resulting rank back to a canonical grade label. Unknown values are
+    /// ignored; an entirely unknown input returns nil.
+    nonisolated static func displayGrade(setterGrade: String?, ascentGrades: [String?]) -> String? {
+        let setterRank = gradeRank(setterGrade)
+        let ascentRanks = ascentGrades.compactMap { grade -> Int? in
+            let rank = gradeRank(grade)
+            return rank >= 0 ? rank : nil
+        }
+        guard setterRank >= 0 || !ascentRanks.isEmpty else { return nil }
+        let roundedRank: Int
+        if ascentRanks.isEmpty {
+            roundedRank = setterRank
+        } else {
+            let average = Double(ascentRanks.reduce(0, +)) / Double(ascentRanks.count)
+            let blended = setterRank >= 0 ? Double(setterRank) * 0.5 + average * 0.5 : average
+            roundedRank = Int(blended.rounded())
+        }
+        return VGradeOption.label(for: roundedRank - 1)
+    }
 
-    static func calculate(
+    nonisolated static func displayGrade(for route: Route) -> String? {
+        displayGrade(
+            setterGrade: route.gradeV,
+            ascentGrades: route.ascents.map(\.gradeV)
+        )
+    }
+
+
+    nonisolated static func calculate(
         records: [ProfileScoringRecord],
         profiles: [String: Profile] = [:],
         selectedUserID: String
@@ -78,7 +107,7 @@ enum ProfileStatistics {
         )
     }
 
-    private static func historyItem(_ record: ProfileScoringRecord) -> ProfileClimbHistoryItem {
+    nonisolated private static func historyItem(_ record: ProfileScoringRecord) -> ProfileClimbHistoryItem {
         ProfileClimbHistoryItem(
             id: record.id,
             routeId: record.routeId,
@@ -91,21 +120,21 @@ enum ProfileStatistics {
         )
     }
 
-    private static func newerRecord(_ lhs: ProfileScoringRecord, _ rhs: ProfileScoringRecord) -> Bool {
+    nonisolated private static func newerRecord(_ lhs: ProfileScoringRecord, _ rhs: ProfileScoringRecord) -> Bool {
         let lhsDate = lhs.completedAt ?? .distantPast
         let rhsDate = rhs.completedAt ?? .distantPast
         if lhsDate != rhsDate { return lhsDate > rhsDate }
         return lhs.id < rhs.id
     }
 
-    private static func bestRecordComesBefore(_ lhs: ProfileScoringRecord, _ rhs: ProfileScoringRecord) -> Bool {
+    nonisolated private static func bestRecordComesBefore(_ lhs: ProfileScoringRecord, _ rhs: ProfileScoringRecord) -> Bool {
         let lhsGrade = gradeRank(lhs.scoringGrade)
         let rhsGrade = gradeRank(rhs.scoringGrade)
         if lhsGrade != rhsGrade { return lhsGrade < rhsGrade }
         return newerRecord(rhs, lhs)
     }
 
-    private static func longestRecordComesBefore(_ lhs: ProfileScoringRecord, _ rhs: ProfileScoringRecord) -> Bool {
+    nonisolated private static func longestRecordComesBefore(_ lhs: ProfileScoringRecord, _ rhs: ProfileScoringRecord) -> Bool {
         switch (lhs.attemptCount, rhs.attemptCount) {
         case let (left?, right?) where left != right:
             return left < right
@@ -131,7 +160,7 @@ enum ProfileStatistics {
         }
     }
 
-    private static func duration(for record: ProfileScoringRecord) -> TimeInterval? {
+    nonisolated private static func duration(for record: ProfileScoringRecord) -> TimeInterval? {
         guard let first = record.firstAttemptAt, let completed = record.completedAt else { return nil }
         return max(0, completed.timeIntervalSince(first))
     }

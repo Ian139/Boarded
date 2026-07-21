@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Hold, HoldType, HoldSize } from '@/lib/types';
+import { Hold, HoldType, HoldSize } from '@climbset/shared/types';
 import {
 	addHold as addHoldUtil,
 	removeHold as removeHoldUtil,
@@ -10,7 +10,7 @@ import {
 	toggleSequencing,
 	findHoldNearPoint,
 	cycleHoldType as cycleHoldTypeUtil
-} from '@/lib/utils/holds';
+} from '@climbset/shared/utils/holds';
 
 const STORAGE_KEY = 'climbset-draft';
 

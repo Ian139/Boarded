@@ -2,17 +2,12 @@
   "name": "@climbset/shared",
   "version": "0.0.1",
   "private": true,
-  "main": "./index.ts",
-  "types": "./index.ts",
   "exports": {
-    ".": "./index.ts",
     "./types": "./types/index.ts",
     "./utils/holds": "./utils/holds.ts",
-    "./utils/grades": "./utils/grades.ts",
-    "./utils/ids": "./utils/ids.ts"
+    "./utils/grades": "./utils/grades.ts"
   },
   "dependencies": {
     "nanoid": "^5.1.6"
   }
 }
-

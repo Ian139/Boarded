@@ -1253,7 +1253,12 @@ struct EditorView: View {
             return
         }
 
-        let imagePoint = unzoomedPoint(from: location, in: size)
+        guard let imagePoint = EditorHoldGeometry.imagePoint(
+            from: location,
+            canvasSize: size,
+            zoomScale: zoomScale,
+            panOffset: panOffset
+        ) else { return }
         guard imageRect.contains(imagePoint) else { return }
 
         switch editorMode {
@@ -1268,7 +1273,12 @@ struct EditorView: View {
 
 
     private func hold(at location: CGPoint, in size: CGSize, imageRect: CGRect) -> Hold? {
-        let point = unzoomedPoint(from: location, in: size)
+        guard let point = EditorHoldGeometry.imagePoint(
+            from: location,
+            canvasSize: size,
+            zoomScale: zoomScale,
+            panOffset: panOffset
+        ) else { return nil }
         let selectedID = selectedHoldID
 
         func isHit(_ hold: Hold) -> Bool {
@@ -1332,7 +1342,7 @@ struct EditorView: View {
     }
 
     private func requestDelete(for id: String?) {
-        guard let id, let hold = holds.first(where: { $0.id == id }) else { return }
+        guard let id, holds.contains(where: { $0.id == id }) else { return }
         selectedDeleteHoldID = id
         editorMode = .edit(id)
         isDeleteConfirmationPresented = true
@@ -1442,13 +1452,12 @@ struct EditorView: View {
             return
         }
         #if DEBUG
-        let isFixtureImage = isFixtureWallImage(for: id)
-        #else
-        let isFixtureImage = false
-        #endif
-        if isFixtureImage {
+        if isFixtureWallImage(for: id) {
             wallImageState = .ready
-        } else if wallImageURL(for: id) == nil {
+            return
+        }
+        #endif
+        if wallImageURL(for: id) == nil {
             updateWallImageState(.failed, requestID: imageReloadID)
         } else {
             wallImageState = .loading
@@ -1514,13 +1523,6 @@ struct EditorView: View {
         }
     }
 
-    private func unzoomedPoint(from location: CGPoint, in size: CGSize) -> CGPoint {
-        let center = CGPoint(x: size.width / 2, y: size.height / 2)
-        return CGPoint(
-            x: ((location.x - center.x - panOffset.width) / zoomScale) + center.x,
-            y: ((location.y - center.y - panOffset.height) / zoomScale) + center.y
-        )
-    }
 
     private func clampedPanOffset(
         _ offset: CGSize,
@@ -1756,8 +1758,12 @@ struct EditorView: View {
         do {
             if let routeToEdit {
                 let patch = RoutePatch(
-                    wallId: wall.id,
-                    wallImageUrl: wall.normalizedImageUrl,
+                    wallSnapshot: RouteWallSnapshotPatch(
+                        wallId: wall.id,
+                        wallImageUrl: wall.normalizedImageUrl,
+                        wallImageWidth: wall.imageWidth,
+                        wallImageHeight: wall.imageHeight
+                    ),
                     name: trimmedName,
                     gradeV: routeGrade,
                     holds: holds

@@ -82,6 +82,8 @@ final class RoutesViewModel: ObservableObject {
             userName: userName,
             wallId: wall.id,
             wallImageUrl: wall.imageUrl,
+            wallImageWidth: wall.imageWidth,
+            wallImageHeight: wall.imageHeight,
             name: name.trimmingCharacters(in: .whitespacesAndNewlines),
             description: nil,
             gradeV: gradeV,
@@ -97,8 +99,12 @@ final class RoutesViewModel: ObservableObject {
 
     func assignWall(routeId: String, wall: Wall) async throws {
         let patch = RoutePatch(
-            wallId: wall.id,
-            wallImageUrl: wall.imageUrl,
+            wallSnapshot: RouteWallSnapshotPatch(
+                wallId: wall.id,
+                wallImageUrl: wall.imageUrl,
+                wallImageWidth: wall.imageWidth,
+                wallImageHeight: wall.imageHeight
+            ),
             name: nil,
             gradeV: nil,
             holds: nil
@@ -139,6 +145,8 @@ final class RoutesViewModel: ObservableObject {
             updatedAt: updatedRoute.updatedAt,
             userName: updatedRoute.userName,
             wallImageUrl: updatedRoute.wallImageUrl,
+            wallImageWidth: updatedRoute.wallImageWidth,
+            wallImageHeight: updatedRoute.wallImageHeight,
             likeCount: updatedRoute.likeCount ?? current.likeCount,
             isLiked: updatedRoute.isLiked ?? current.isLiked,
             ascents: updatedRoute.ascents,
@@ -220,29 +228,11 @@ final class RoutesViewModel: ObservableObject {
     }
 
     private func gradeNumber(_ grade: String?) -> Double {
-        guard let grade else { return -1 }
-        guard let option = VGradeOption.all.first(where: {
-            $0.label.caseInsensitiveCompare(grade) == .orderedSame
-        }) else {
-            return -1
-        }
-        return Double(option.value)
+        Double(ProfileStatistics.gradeRank(grade))
     }
 
     private func displayGrade(for route: Route) -> String? {
-        let setterGrade = gradeNumber(route.gradeV)
-        let userGrades = route.ascents.compactMap { ascent -> Double? in
-            guard let grade = ascent.gradeV else { return nil }
-            let value = gradeNumber(grade)
-            return value >= 0 ? value : nil
-        }
-
-        guard setterGrade >= 0 || !userGrades.isEmpty else { return nil }
-        guard !userGrades.isEmpty else { return route.gradeV }
-
-        let average = userGrades.reduce(0, +) / Double(userGrades.count)
-        let combined = setterGrade >= 0 ? (setterGrade * 0.5) + (average * 0.5) : average
-        return VGradeOption.label(for: Int(combined.rounded()))
+        ProfileStatistics.displayGrade(for: route)
     }
 
     private func averageRating(for route: Route) -> Double {

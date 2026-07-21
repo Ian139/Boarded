@@ -21,8 +21,12 @@ final class ProfileViewModel: ObservableObject {
     private let repository: any ProfileRepository
     private var generation = 0
 
-    init(repository: any ProfileRepository = SupabaseProfileRepository()) {
+    init(repository: any ProfileRepository) {
         self.repository = repository
+    }
+
+    @MainActor convenience init() {
+        self.init(repository: SupabaseProfileRepository())
     }
 
     func load(userID: UUID?) async {

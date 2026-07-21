@@ -7,7 +7,7 @@ import { useUserStore } from '@/lib/stores/user-store';
 import { useRoutesStore } from '@/lib/stores/routes-store';
 import { cn } from '@/lib/utils';
 import { useIsClient } from '@/lib/hooks/useIsClient';
-import { gradeToNumber, calculateDisplayGrade } from '@/lib/utils/grades';
+import { gradeToNumber, calculateDisplayGrade } from '@climbset/shared/utils/grades';
 
 export default function ProfilePage() {
   const { user, displayName, userId, isAuthenticated, profile, syncProfile, uploadAvatar } = useUserStore();

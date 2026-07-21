@@ -14,6 +14,8 @@ struct RouteDraft {
     let userName: String
     let wallId: String
     let wallImageUrl: String?
+    let wallImageWidth: Int?
+    let wallImageHeight: Int?
     let name: String
     let description: String?
     let gradeV: String?
@@ -22,10 +24,16 @@ struct RouteDraft {
     let isPublic: Bool
 }
 
-struct RoutePatch {
-    /// Nil fields are omitted from the update; nullable values, including `gradeV`, cannot currently be cleared.
-    let wallId: String?
+struct RouteWallSnapshotPatch {
+    let wallId: String
     let wallImageUrl: String?
+    let wallImageWidth: Int?
+    let wallImageHeight: Int?
+}
+
+struct RoutePatch {
+    /// Nil snapshot fields are omitted as a group; a present snapshot writes all four columns.
+    let wallSnapshot: RouteWallSnapshotPatch?
     let name: String?
     let gradeV: String?
     let holds: [Hold]?
@@ -65,6 +73,8 @@ struct MockRoutesRepository: RoutesRepository {
                 updatedAt: ISO8601DateFormatter().string(from: Date()),
                 userName: "Ian",
                 wallImageUrl: nil,
+                wallImageWidth: nil,
+                wallImageHeight: nil,
                 likeCount: 12,
                 isLiked: false,
                 ascents: [],
@@ -91,6 +101,8 @@ struct MockRoutesRepository: RoutesRepository {
                 updatedAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(-86000)),
                 userName: "Boarded",
                 wallImageUrl: nil,
+                wallImageWidth: nil,
+                wallImageHeight: nil,
                 likeCount: 8,
                 isLiked: false,
                 ascents: [],
@@ -132,6 +144,8 @@ struct MockRoutesRepository: RoutesRepository {
             updatedAt: index == 0 ? "2026-01-01T00:00:00Z" : "2026-01-02T00:00:00Z",
             userName: index == 0 ? "Fixture Climber" : route.userName,
             wallImageUrl: "fixture://default-wall",
+            wallImageWidth: route.wallImageWidth,
+            wallImageHeight: route.wallImageHeight,
             likeCount: route.likeCount,
             isLiked: route.isLiked,
             ascents: route.ascents,
@@ -171,10 +185,11 @@ struct MockRoutesRepository: RoutesRepository {
         }
 
         let current = storage.routes[index]
+        let snapshot = patch.wallSnapshot
         let updatedRoute = Route(
             id: current.id,
             userId: current.userId,
-            wallId: patch.wallId ?? current.wallId,
+            wallId: snapshot?.wallId ?? current.wallId,
             name: patch.name ?? current.name,
             description: current.description,
             gradeV: patch.gradeV ?? current.gradeV,
@@ -186,7 +201,9 @@ struct MockRoutesRepository: RoutesRepository {
             createdAt: current.createdAt,
             updatedAt: isoTimestamp(),
             userName: current.userName,
-            wallImageUrl: patch.wallImageUrl ?? current.wallImageUrl,
+            wallImageUrl: snapshot.map(\.wallImageUrl) ?? current.wallImageUrl,
+            wallImageWidth: snapshot.map(\.wallImageWidth) ?? current.wallImageWidth,
+            wallImageHeight: snapshot.map(\.wallImageHeight) ?? current.wallImageHeight,
             likeCount: current.likeCount,
             isLiked: current.isLiked,
             ascents: current.ascents,
@@ -223,6 +240,8 @@ struct MockRoutesRepository: RoutesRepository {
             updatedAt: isoTimestamp(),
             userName: current.userName,
             wallImageUrl: current.wallImageUrl,
+            wallImageWidth: current.wallImageWidth,
+            wallImageHeight: current.wallImageHeight,
             likeCount: current.likeCount,
             isLiked: current.isLiked,
             ascents: current.ascents,
@@ -245,12 +264,22 @@ struct MockRoutesRepository: RoutesRepository {
 import Supabase
 
 struct SupabaseRoutesRepository: RoutesRepository {
+    private let client: SupabaseClient?
+
     static func isConfigured() -> Bool {
         SupabaseConfig.current != nil
     }
 
+    init(client: SupabaseClient?) {
+        self.client = client
+    }
+
+    @MainActor init() {
+        self.init(client: SupabaseClientProvider.client)
+    }
+
     func fetchRoutes(userId: UUID?) async throws -> [Route] {
-        guard let client = SupabaseClientProvider.client else { return [] }
+        guard let client else { return [] }
         let currentUserId = userId?.uuidString ?? ""
         let response = try await fetchRoutesWithFallback(client: client, currentUserId: currentUserId)
         if response.isEmpty {
@@ -258,8 +287,7 @@ struct SupabaseRoutesRepository: RoutesRepository {
         }
 
         let routeIds = response.map { $0.id }
-        let likes: [RouteLikeFull] = try await client.database
-            .from("route_likes")
+        let likes: [RouteLikeFull] = try await client.from("route_likes")
             .select("route_id, user_id")
             .in("route_id", values: routeIds)
             .execute()
@@ -276,34 +304,12 @@ struct SupabaseRoutesRepository: RoutesRepository {
             currentUserId: currentUserId
         )) ?? [:]
 
-        var enriched = response
-        for index in enriched.indices {
-            let likedBy = likesByRoute[enriched[index].id] ?? []
-            enriched[index].likeCount = likedBy.count
-            enriched[index].isLiked = currentUserId.isEmpty ? false : likedBy.contains(currentUserId)
-            if enriched[index].normalizedWallImageUrl == nil {
-                enriched[index] = Route(
-                    id: enriched[index].id,
-                    userId: enriched[index].userId,
-                    wallId: enriched[index].wallId,
-                    name: enriched[index].name,
-                    description: enriched[index].description,
-                    gradeV: enriched[index].gradeV,
-                    gradeFont: enriched[index].gradeFont,
-                    holds: enriched[index].holds,
-                    isPublic: enriched[index].isPublic,
-                    viewCount: enriched[index].viewCount,
-                    shareToken: enriched[index].shareToken,
-                    createdAt: enriched[index].createdAt,
-                    updatedAt: enriched[index].updatedAt,
-                    userName: enriched[index].userName,
-                    wallImageUrl: normalizedRemoteImageURLString(wallImageById[enriched[index].wallId]),
-                    likeCount: enriched[index].likeCount,
-                    isLiked: enriched[index].isLiked,
-                    ascents: enriched[index].ascents,
-                    comments: enriched[index].comments
-                )
-            }
+        let enriched = response.map { route in
+            var enrichedRoute = enrichRouteSnapshot(route, wallImageById: wallImageById)
+            let likedBy = likesByRoute[route.id] ?? []
+            enrichedRoute.likeCount = likedBy.count
+            enrichedRoute.isLiked = currentUserId.isEmpty ? false : likedBy.contains(currentUserId)
+            return enrichedRoute
         }
 
         return enriched
@@ -313,14 +319,13 @@ struct SupabaseRoutesRepository: RoutesRepository {
         guard isValidShareToken(token) else {
             throw RoutesRepositoryError.invalidShareToken
         }
-        guard let client = SupabaseClientProvider.client else {
+        guard let client else {
             throw RoutesRepositoryError.unavailable
         }
 
         let routes: [Route]
         do {
-            routes = try await client.database
-                .from("routes")
+            routes = try await client.from("routes")
                 .select("*, ascents(*), comments(*)")
                 .eq("share_token", value: token)
                 .eq("is_public", value: true)
@@ -328,8 +333,7 @@ struct SupabaseRoutesRepository: RoutesRepository {
                 .execute()
                 .value
         } catch {
-            let fallbackRoutes: [RouteWithoutComments] = try await client.database
-                .from("routes")
+            let fallbackRoutes: [RouteWithoutComments] = try await client.from("routes")
                 .select("*, ascents(*)")
                 .eq("share_token", value: token)
                 .eq("is_public", value: true)
@@ -344,37 +348,24 @@ struct SupabaseRoutesRepository: RoutesRepository {
         }
 
         let currentUserId = (try? await client.auth.session.user.id.uuidString) ?? ""
-        let likes: [RouteLikeFull] = (try? await client.database
-            .from("route_likes")
+        let likes: [RouteLikeFull] = (try? await client.from("route_likes")
             .select("route_id, user_id")
             .eq("route_id", value: route.id)
             .execute()
             .value) ?? []
-        return Route(
-            id: route.id,
-            userId: route.userId,
-            wallId: route.wallId,
-            name: route.name,
-            description: route.description,
-            gradeV: route.gradeV,
-            gradeFont: route.gradeFont,
-            holds: route.holds,
-            isPublic: route.isPublic,
-            viewCount: route.viewCount,
-            shareToken: route.shareToken,
-            createdAt: route.createdAt,
-            updatedAt: route.updatedAt,
-            userName: route.userName,
-            wallImageUrl: route.wallImageUrl,
-            likeCount: likes.count,
-            isLiked: !currentUserId.isEmpty && likes.contains { $0.userId == currentUserId },
-            ascents: route.ascents,
-            comments: route.comments
-        )
+        let wallImageById = (try? await fetchWallImages(
+            client: client,
+            wallIds: [route.wallId],
+            currentUserId: currentUserId
+        )) ?? [:]
+        var enriched = enrichRouteSnapshot(route, wallImageById: wallImageById)
+        enriched.likeCount = likes.count
+        enriched.isLiked = !currentUserId.isEmpty && likes.contains { $0.userId == currentUserId }
+        return enriched
     }
 
     func createRoute(_ draft: RouteDraft) async throws -> Route {
-        guard let client = SupabaseClientProvider.client else {
+        guard let client else {
             throw RoutesRepositoryError.unavailable
         }
 
@@ -396,11 +387,11 @@ struct SupabaseRoutesRepository: RoutesRepository {
             "view_count": AnyEncodable(0),
             "share_token": AnyEncodable(shareToken),
             "created_at": AnyEncodable(timestamp),
-            "updated_at": AnyEncodable(timestamp)
+            "updated_at": AnyEncodable(timestamp),
+            "wall_image_width": AnyEncodable(draft.wallImageWidth),
+            "wall_image_height": AnyEncodable(draft.wallImageHeight)
         ]
-
-        _ = try await client.database
-            .from("routes")
+        _ = try await client.from("routes")
             .insert(payload)
             .execute()
 
@@ -413,13 +404,12 @@ struct SupabaseRoutesRepository: RoutesRepository {
     }
 
     func updateRoute(id: String, patch: RoutePatch) async throws -> Route {
-        guard let client = SupabaseClientProvider.client else {
+        guard let client else {
             throw RoutesRepositoryError.unavailable
         }
 
         let payload = patchPayload(from: patch)
-        let updatedRoutes: [Route] = try await client.database
-            .from("routes")
+        let updatedRoutes: [Route] = try await client.from("routes")
             .update(payload)
             .eq("id", value: id)
             .select("*, ascents(*), comments(*)")
@@ -436,7 +426,7 @@ struct SupabaseRoutesRepository: RoutesRepository {
         guard isValidShareToken(shareToken) else {
             throw RoutesRepositoryError.invalidShareToken
         }
-        guard let client = SupabaseClientProvider.client else {
+        guard let client else {
             throw RoutesRepositoryError.unavailable
         }
 
@@ -445,8 +435,7 @@ struct SupabaseRoutesRepository: RoutesRepository {
             "share_token": AnyEncodable(shareToken),
             "updated_at": AnyEncodable(isoTimestamp())
         ]
-        let conditionalRoutes: [Route] = try await client.database
-            .from("routes")
+        let conditionalRoutes: [Route] = try await client.from("routes")
             .update(publishPayload)
             .eq("id", value: id)
             .is("share_token", value: nil)
@@ -460,8 +449,7 @@ struct SupabaseRoutesRepository: RoutesRepository {
             return route
         }
 
-        let currentRoutes: [Route] = try await client.database
-            .from("routes")
+        let currentRoutes: [Route] = try await client.from("routes")
             .select("*, ascents(*), comments(*)")
             .eq("id", value: id)
             .execute()
@@ -479,8 +467,7 @@ struct SupabaseRoutesRepository: RoutesRepository {
             "share_token": AnyEncodable(authoritativeToken),
             "updated_at": AnyEncodable(isoTimestamp())
         ]
-        let publishedRoutes: [Route] = try await client.database
-            .from("routes")
+        let publishedRoutes: [Route] = try await client.from("routes")
             .update(existingTokenPayload)
             .eq("id", value: id)
             .eq("share_token", value: authoritativeToken)
@@ -494,8 +481,7 @@ struct SupabaseRoutesRepository: RoutesRepository {
             return route
         }
 
-        let latestRoutes: [Route] = try await client.database
-            .from("routes")
+        let latestRoutes: [Route] = try await client.from("routes")
             .select("*, ascents(*), comments(*)")
             .eq("id", value: id)
             .execute()
@@ -516,12 +502,11 @@ struct SupabaseRoutesRepository: RoutesRepository {
     }
 
     func deleteRoute(id: String) async throws {
-        guard let client = SupabaseClientProvider.client else {
+        guard let client else {
             throw RoutesRepositoryError.unavailable
         }
 
-        let deletedRoutes: [RouteIdentifierRecord] = try await client.database
-            .from("routes")
+        let deletedRoutes: [RouteIdentifierRecord] = try await client.from("routes")
             .delete()
             .eq("id", value: id)
             .select("id")
@@ -533,13 +518,12 @@ struct SupabaseRoutesRepository: RoutesRepository {
         }
     }
 
-    private func fetchWallImages(client: SupabaseClient, wallIds: [String], currentUserId: String) async throws -> [String: String] {
+    private func fetchWallImages(client: SupabaseClient, wallIds: [String], currentUserId: String) async throws -> [String: WallImageRecord] {
         let validWallIds = wallIds.filter(isUUID)
         guard !validWallIds.isEmpty else { return [:] }
 
-        var query = client.database
-            .from("walls")
-            .select("id, image_url")
+        var query = client.from("walls")
+            .select("id, image_url, image_width, image_height")
             .in("id", values: validWallIds)
 
         if currentUserId.isEmpty {
@@ -549,17 +533,45 @@ struct SupabaseRoutesRepository: RoutesRepository {
         }
 
         let walls: [WallImageRecord] = try await query.execute().value
-        return Dictionary(uniqueKeysWithValues: walls.compactMap { wall in
-            guard let imageUrl = wall.imageUrl else { return nil }
-            return (wall.id, imageUrl)
-        })
+        return Dictionary(uniqueKeysWithValues: walls.map { ($0.id, $0) })
+    }
+
+    func enrichRouteSnapshot(_ route: Route, wallImageById: [String: WallImageRecord]) -> Route {
+        guard let wall = wallImageById[route.wallId] else { return route }
+        let normalizedRouteURL = route.normalizedWallImageUrl
+        let normalizedWallURL = normalizedRemoteImageURLString(wall.imageUrl)
+        let useWallSnapshot = normalizedRouteURL == nil
+        let useWallDimensions = useWallSnapshot || normalizedRouteURL == normalizedWallURL
+        guard useWallSnapshot || useWallDimensions else { return route }
+        return Route(
+            id: route.id,
+            userId: route.userId,
+            wallId: route.wallId,
+            name: route.name,
+            description: route.description,
+            gradeV: route.gradeV,
+            gradeFont: route.gradeFont,
+            holds: route.holds,
+            isPublic: route.isPublic,
+            viewCount: route.viewCount,
+            shareToken: route.shareToken,
+            createdAt: route.createdAt,
+            updatedAt: route.updatedAt,
+            userName: route.userName,
+            wallImageUrl: useWallSnapshot ? normalizedWallURL : route.wallImageUrl,
+            wallImageWidth: useWallSnapshot ? wall.imageWidth : (useWallDimensions ? (route.wallImageWidth ?? wall.imageWidth) : route.wallImageWidth),
+            wallImageHeight: useWallSnapshot ? wall.imageHeight : (useWallDimensions ? (route.wallImageHeight ?? wall.imageHeight) : route.wallImageHeight),
+            likeCount: route.likeCount,
+            isLiked: route.isLiked,
+            ascents: route.ascents,
+            comments: route.comments
+        )
     }
 
     private func fetchRoutesWithFallback(client: SupabaseClient, currentUserId: String) async throws -> [Route] {
         let visibility = currentUserId.isEmpty ? "is_public.eq.true" : "is_public.eq.true,user_id.eq.\(currentUserId)"
         do {
-            return try await client.database
-                .from("routes")
+            return try await client.from("routes")
                 .select("*, ascents(*), comments(*)")
                 .or(visibility)
                 .order("created_at", ascending: false)
@@ -567,8 +579,7 @@ struct SupabaseRoutesRepository: RoutesRepository {
                 .value
         } catch {
             do {
-                let routes: [RouteWithoutComments] = try await client.database
-                    .from("routes")
+                let routes: [RouteWithoutComments] = try await client.from("routes")
                     .select("*, ascents(*)")
                     .or(visibility)
                     .order("created_at", ascending: false)
@@ -576,8 +587,7 @@ struct SupabaseRoutesRepository: RoutesRepository {
                     .value
                 return routes.map { $0.asRoute() }
             } catch {
-                let routes: [RoutePlainRecord] = try await client.database
-                    .from("routes")
+                let routes: [RoutePlainRecord] = try await client.from("routes")
                     .select("*")
                     .or(visibility)
                     .order("created_at", ascending: false)
@@ -599,7 +609,7 @@ enum AppServices {
         #endif
         #if canImport(Supabase)
         if SupabaseRoutesRepository.isConfigured() {
-            return SupabaseRoutesRepository()
+            return SupabaseRoutesRepository(client: SupabaseClientProvider.client)
         }
         #endif
         return MockRoutesRepository()
@@ -621,7 +631,7 @@ enum AppServices {
             )
         }
         #endif
-        return SupabaseProfileRepository()
+        return SupabaseProfileRepository(client: SupabaseClientProvider.client)
     }()
     static let wallsRepository: any WallsRepository = {
         #if DEBUG
@@ -629,7 +639,7 @@ enum AppServices {
             return MockWallsRepository()
         }
         #endif
-        return SupabaseWallsRepository()
+        return SupabaseWallsRepository(client: SupabaseClientProvider.client)
     }()
 }
 struct RouteLikeFull: Codable {
@@ -642,17 +652,21 @@ struct RouteLikeFull: Codable {
     }
 }
 
-private struct WallImageRecord: Codable {
+struct WallImageRecord: Codable {
     let id: String
     let imageUrl: String?
+    let imageWidth: Int?
+    let imageHeight: Int?
 
     enum CodingKeys: String, CodingKey {
         case id
         case imageUrl = "image_url"
+        case imageWidth = "image_width"
+        case imageHeight = "image_height"
     }
 }
 
-private struct RouteWithoutComments: Codable {
+struct RouteWithoutComments: Codable {
     let id: String
     let userId: String?
     let wallId: String
@@ -668,6 +682,8 @@ private struct RouteWithoutComments: Codable {
     let updatedAt: String
     let userName: String?
     let wallImageUrl: String?
+    let wallImageWidth: Int?
+    let wallImageHeight: Int?
     let ascents: [Ascent]
 
     enum CodingKeys: String, CodingKey {
@@ -686,6 +702,8 @@ private struct RouteWithoutComments: Codable {
         case updatedAt = "updated_at"
         case userName = "user_name"
         case wallImageUrl = "wall_image_url"
+        case wallImageWidth = "wall_image_width"
+        case wallImageHeight = "wall_image_height"
         case ascents
     }
 
@@ -706,6 +724,8 @@ private struct RouteWithoutComments: Codable {
             updatedAt: updatedAt,
             userName: userName,
             wallImageUrl: wallImageUrl,
+            wallImageWidth: wallImageWidth,
+            wallImageHeight: wallImageHeight,
             likeCount: nil,
             isLiked: nil,
             ascents: ascents,
@@ -714,7 +734,7 @@ private struct RouteWithoutComments: Codable {
     }
 }
 
-private struct RoutePlainRecord: Codable {
+struct RoutePlainRecord: Codable {
     let id: String
     let userId: String?
     let wallId: String
@@ -730,6 +750,8 @@ private struct RoutePlainRecord: Codable {
     let updatedAt: String
     let userName: String?
     let wallImageUrl: String?
+    let wallImageWidth: Int?
+    let wallImageHeight: Int?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -747,6 +769,8 @@ private struct RoutePlainRecord: Codable {
         case updatedAt = "updated_at"
         case userName = "user_name"
         case wallImageUrl = "wall_image_url"
+        case wallImageWidth = "wall_image_width"
+        case wallImageHeight = "wall_image_height"
     }
 
     func asRoute() -> Route {
@@ -766,6 +790,8 @@ private struct RoutePlainRecord: Codable {
             updatedAt: updatedAt,
             userName: userName,
             wallImageUrl: wallImageUrl,
+            wallImageWidth: wallImageWidth,
+            wallImageHeight: wallImageHeight,
             likeCount: nil,
             isLiked: nil,
             ascents: [],
@@ -827,6 +853,8 @@ private func buildRoute(id: String, draft: RouteDraft, shareToken: String, times
         updatedAt: timestamp,
         userName: draft.userName,
         wallImageUrl: draft.wallImageUrl,
+        wallImageWidth: draft.wallImageWidth,
+        wallImageHeight: draft.wallImageHeight,
         likeCount: 0,
         isLiked: false,
         ascents: [],
@@ -849,16 +877,16 @@ private func isUUID(_ value: String) -> Bool {
     UUID(uuidString: value) != nil
 }
 
-private func patchPayload(from patch: RoutePatch) -> [String: AnyEncodable] {
+func patchPayload(from patch: RoutePatch) -> [String: AnyEncodable] {
     var payload: [String: AnyEncodable] = [
         "updated_at": AnyEncodable(isoTimestamp())
     ]
 
-    if let wallId = patch.wallId {
-        payload["wall_id"] = AnyEncodable(wallId)
-    }
-    if let wallImageUrl = patch.wallImageUrl {
-        payload["wall_image_url"] = AnyEncodable(wallImageUrl)
+    if let snapshot = patch.wallSnapshot {
+        payload["wall_id"] = AnyEncodable(snapshot.wallId)
+        payload["wall_image_url"] = AnyEncodable(snapshot.wallImageUrl)
+        payload["wall_image_width"] = AnyEncodable(snapshot.wallImageWidth)
+        payload["wall_image_height"] = AnyEncodable(snapshot.wallImageHeight)
     }
     if let name = patch.name {
         payload["name"] = AnyEncodable(name)
