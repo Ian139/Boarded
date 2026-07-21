@@ -7,6 +7,38 @@ enum EditorHoldGeometry {
     static let minimumHoldRadius: CGFloat = 8
     static let maximumHoldRadius: CGFloat = 96
 
+    static let maximumInitialImageScale: CGFloat = 1.35
+
+    static func initialImageRect(imageAspectRatio: CGFloat, in size: CGSize) -> CGRect {
+        guard imageAspectRatio.isFinite,
+              imageAspectRatio > 0,
+              size.width.isFinite,
+              size.height.isFinite,
+              size.width > 0,
+              size.height > 0 else {
+            return .zero
+        }
+        let canvasAspectRatio = size.width / size.height
+        let fittedSize: CGSize
+        if canvasAspectRatio > imageAspectRatio {
+            fittedSize = CGSize(width: size.height * imageAspectRatio, height: size.height)
+        } else {
+            fittedSize = CGSize(width: size.width, height: size.width / imageAspectRatio)
+        }
+        let fillScale = max(size.width / fittedSize.width, size.height / fittedSize.height)
+        let initialScale = min(fillScale, maximumInitialImageScale)
+        let initialSize = CGSize(
+            width: fittedSize.width * initialScale,
+            height: fittedSize.height * initialScale
+        )
+        return CGRect(
+            x: (size.width - initialSize.width) / 2,
+            y: (size.height - initialSize.height) / 2,
+            width: initialSize.width,
+            height: initialSize.height
+        )
+    }
+
     static func imagePoint(
         from viewPoint: CGPoint,
         canvasSize: CGSize,
@@ -397,7 +429,7 @@ struct EditorView: View {
     }
 
     private func canvasSurface(size: CGSize) -> some View {
-        let imageRect = aspectFitRect(imageAspectRatio: wallAspectRatio, in: size)
+        let imageRect = EditorHoldGeometry.initialImageRect(imageAspectRatio: wallAspectRatio, in: size)
 
         return ZStack {
             Rectangle()
@@ -453,7 +485,7 @@ struct EditorView: View {
                     .allowsHitTesting(false)
             }
 
-            if zoomScale > 1.01 {
+            if zoomScale > 1.01 || abs(panOffset.width) > 0.5 || abs(panOffset.height) > 0.5 {
                 VStack {
                     HStack {
                         Text("\(zoomPercentage)%")
@@ -503,7 +535,7 @@ struct EditorView: View {
         if isFixtureImage {
             Image("DefaultWall")
                 .resizable()
-                .scaledToFit()
+                .scaledToFill()
                 .frame(width: rect.width, height: rect.height)
                 .onAppear { wallImageState = .ready }
         } else if let url = selectedWallImageURL {
@@ -517,7 +549,7 @@ struct EditorView: View {
                 case .success(let image):
                     image
                         .resizable()
-                        .scaledToFit()
+                        .scaledToFill()
                         .frame(width: rect.width, height: rect.height)
                         .onAppear { prepareWallImage(url: url, requestID: requestID) }
                 case .failure:
@@ -1207,7 +1239,9 @@ struct EditorView: View {
         in size: CGSize,
         imageRect: CGRect
     ) {
-        guard isPanMode, zoomScale > 1.01 else { return }
+        guard isPanMode,
+              imageRect.width * zoomScale > size.width + 0.5
+                || imageRect.height * zoomScale > size.height + 0.5 else { return }
         didPan = true
         isGestureInProgress = true
         let proposed = CGSize(
@@ -1530,7 +1564,7 @@ struct EditorView: View {
         scale: CGFloat,
         imageRect: CGRect
     ) -> CGSize {
-        guard scale > 1 else { return .zero }
+        guard scale >= 1 else { return .zero }
         let maxX = max(0, (imageRect.width * scale - size.width) / 2)
         let maxY = max(0, (imageRect.height * scale - size.height) / 2)
         return CGSize(
@@ -1553,22 +1587,6 @@ struct EditorView: View {
         }
     }
 
-    private func aspectFitRect(imageAspectRatio: CGFloat, in size: CGSize) -> CGRect {
-        guard imageAspectRatio > 0, size.width > 0, size.height > 0 else { return .zero }
-        let canvasAspectRatio = size.width / size.height
-        let fittedSize: CGSize
-        if canvasAspectRatio > imageAspectRatio {
-            fittedSize = CGSize(width: size.height * imageAspectRatio, height: size.height)
-        } else {
-            fittedSize = CGSize(width: size.width, height: size.width / imageAspectRatio)
-        }
-        return CGRect(
-            x: (size.width - fittedSize.width) / 2,
-            y: (size.height - fittedSize.height) / 2,
-            width: fittedSize.width,
-            height: fittedSize.height
-        )
-    }
 
     private var isPanMode: Bool {
         if case .pan = editorMode { return true }
@@ -1600,7 +1618,7 @@ struct EditorView: View {
     private var contextualHint: String {
         switch editorMode {
         case .pan:
-            return "Pinch to zoom. Drag the zoomed wall to pan."
+            return "Pinch to zoom. Drag the wall to pan."
         case .add(let type):
             return "Tap the wall to add a \(typeDisplayName(type).lowercased()) hold."
         case .edit(let id):

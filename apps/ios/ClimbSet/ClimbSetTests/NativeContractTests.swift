@@ -88,6 +88,29 @@ final class NativeContractTests: XCTestCase {
         XCTAssertEqual(RouteDetailGeometry.imageRect(imageWidth: 0, imageHeight: 500, in: container), container)
     }
 
+    func testEditorGeometryUsesModestInitialZoomForMismatchedAspectRatios() {
+        let canvas = CGSize(width: 400, height: 300)
+        let nearMatchingImage = EditorHoldGeometry.initialImageRect(
+            imageAspectRatio: 1.2,
+            in: canvas
+        )
+        XCTAssertEqual(nearMatchingImage.minX, 0, accuracy: 0.001)
+        XCTAssertEqual(nearMatchingImage.width, 400, accuracy: 0.001)
+        XCTAssertEqual(nearMatchingImage.height, 333.333, accuracy: 0.001)
+
+        let extremePortraitImage = EditorHoldGeometry.initialImageRect(
+            imageAspectRatio: 0.5,
+            in: canvas
+        )
+        XCTAssertEqual(extremePortraitImage.width, 202.5, accuracy: 0.001)
+        XCTAssertEqual(extremePortraitImage.height, 405, accuracy: 0.001)
+        XCTAssertEqual(
+            extremePortraitImage.height / 300,
+            EditorHoldGeometry.maximumInitialImageScale,
+            accuracy: 0.001
+        )
+    }
+
     func testWallUploadObjectPathUsesAuthenticatedOwnerPrefix() {
         let userID = UUID(uuidString: "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA")!
         XCTAssertEqual(
