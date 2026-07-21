@@ -27,6 +27,27 @@ final class HoldRadiusTests: XCTestCase {
         XCTAssertEqual(EditorHoldGeometry.clampedRadius(32), 32)
     }
 
+    func testScaledRadiusMultipliesWithinBounds() {
+        XCTAssertEqual(EditorHoldGeometry.scaledRadius(24, magnification: 1.5), 36)
+    }
+
+    func testScaledRadiusClampsToBounds() {
+        XCTAssertEqual(EditorHoldGeometry.scaledRadius(4, magnification: 2), 8)
+        XCTAssertEqual(EditorHoldGeometry.scaledRadius(60, magnification: 2), 96)
+        XCTAssertEqual(EditorHoldGeometry.scaledRadius(32, magnification: 1), 32)
+    }
+
+    func testScaledRadiusRejectsNonFiniteAndNonPositiveInput() {
+        XCTAssertNil(EditorHoldGeometry.scaledRadius(.nan, magnification: 2))
+        XCTAssertNil(EditorHoldGeometry.scaledRadius(24, magnification: .infinity))
+        XCTAssertNil(EditorHoldGeometry.scaledRadius(24, magnification: -.infinity))
+        XCTAssertNil(EditorHoldGeometry.scaledRadius(24, magnification: .nan))
+        XCTAssertNil(EditorHoldGeometry.scaledRadius(0, magnification: 2))
+        XCTAssertNil(EditorHoldGeometry.scaledRadius(-1, magnification: 2))
+        XCTAssertNil(EditorHoldGeometry.scaledRadius(24, magnification: 0))
+        XCTAssertNil(EditorHoldGeometry.scaledRadius(24, magnification: -1))
+    }
+
     func testNonFiniteRadiusCancels() {
         XCTAssertNil(EditorHoldGeometry.radius(from: CGPoint(x: 10, y: 10), to: CGPoint(x: CGFloat.infinity, y: 10)))
         XCTAssertNil(EditorHoldGeometry.clampedRadius(.nan))

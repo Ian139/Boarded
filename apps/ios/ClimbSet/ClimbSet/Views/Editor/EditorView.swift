@@ -46,6 +46,16 @@ enum EditorHoldGeometry {
         return min(max(radius, minimumHoldRadius), maximumHoldRadius)
     }
 
+    static func scaledRadius(_ radius: CGFloat, magnification: CGFloat) -> CGFloat? {
+        guard radius.isFinite,
+              radius > 0,
+              magnification.isFinite,
+              magnification > 0 else {
+            return nil
+        }
+        return clampedRadius(radius * magnification)
+    }
+
     static func defaultRadius(for size: HoldSize) -> CGFloat {
         switch size {
         case .small: return 8
@@ -89,6 +99,7 @@ struct EditorView: View {
     @State private var isGestureInProgress = false
     @State private var suppressNextCanvasTap = false
     @State private var didPan = false
+    @State private var isCanvasMagnificationActive = false
     @State private var canvasTapSuppressionGeneration = 0
     @State private var isRefreshingWallMetadata = false
     @State private var wallMetadataRefreshGeneration = 0
@@ -97,6 +108,7 @@ struct EditorView: View {
     @State private var resizeSession: ResizeSession?
     @State private var moveSession: MoveSession?
 
+    @State private var markerMagnificationSession: MarkerMagnificationSession?
     private struct ResizeSession {
         let id: String
         let center: CGPoint
@@ -106,8 +118,14 @@ struct EditorView: View {
 
     private struct MoveSession {
         let id: String
-        let originalCenter: CGPoint
+        let originalNormalizedX: Double
+        let originalNormalizedY: Double
         let initialFingerPoint: CGPoint
+    }
+
+    private struct MarkerMagnificationSession {
+        let id: String
+        let originalRadius: CGFloat
     }
 
     init() {
@@ -376,43 +394,47 @@ struct EditorView: View {
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Wall editor")
-        .accessibilityValue(canvasAccessibilityValue)
     }
 
     private func canvasSurface(size: CGSize) -> some View {
         let imageRect = aspectFitRect(imageAspectRatio: wallAspectRatio, in: size)
 
         return ZStack {
+            Rectangle()
+                .fill(Color.clear)
+                .contentShape(Rectangle())
+                .frame(width: size.width, height: size.height)
+                .zIndex(0)
+                .highPriorityGesture(magnificationGesture(in: size, imageRect: imageRect))
+                .simultaneousGesture(
+                    spatialTapGesture(in: size, imageRect: imageRect)
+                )
+                .simultaneousGesture(dragGesture(in: size, imageRect: imageRect))
+                .accessibilityElement()
+                .accessibilityIdentifier("Editor canvas surface")
+                .accessibilityLabel("Wall editor")
+                .accessibilityValue(canvasAccessibilityValue)
+
             ZStack {
                 wallImage(in: imageRect)
-            }
+                    .allowsHitTesting(false)
 
-            ForEach(Array(holds.enumerated()), id: \.element.id) { index, hold in
-                ZStack {
+
+                ForEach(Array(holds.enumerated()), id: \.element.id) { index, hold in
                     markerButton(
                         for: hold,
                         index: index,
                         imageRect: imageRect,
                         canvasSize: size
                     )
+                    .zIndex(selectedHoldID == hold.id ? 1000 : Double(index + 2))
+                    .allowsHitTesting(wallIsUsable)
                 }
-                .frame(width: size.width, height: size.height)
-                .scaleEffect(zoomScale)
-                .offset(panOffset)
-                .zIndex(selectedHoldID == hold.id ? 1000 : Double(index + 2))
-                .allowsHitTesting(wallIsUsable)
             }
-
-            Rectangle()
-                .fill(Color.clear)
-                .contentShape(Rectangle())
-                .frame(width: size.width, height: size.height)
-                .zIndex(1)
-                .gesture(
-                    spatialTapGesture(in: size, imageRect: imageRect)
-                )
+            .frame(width: size.width, height: size.height)
+            .scaleEffect(zoomScale)
+            .offset(panOffset)
+            .zIndex(1)
 
 
 
@@ -428,6 +450,7 @@ struct EditorView: View {
             } else if holds.isEmpty && isPanMode {
                 emptyPanPanel
                     .zIndex(2000)
+                    .allowsHitTesting(false)
             }
 
             if zoomScale > 1.01 {
@@ -467,8 +490,6 @@ struct EditorView: View {
         }
         .contentShape(Rectangle())
         .coordinateSpace(name: "editorCanvas")
-        .simultaneousGesture(magnificationGesture(in: size, imageRect: imageRect))
-        .simultaneousGesture(dragGesture(in: size, imageRect: imageRect))
         .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
     }
 
@@ -782,6 +803,13 @@ struct EditorView: View {
             x: imageRect.minX + hold.normalizedX * imageRect.width,
             y: imageRect.minY + hold.normalizedY * imageRect.height
         )
+        .highPriorityGesture(
+            markerMagnificationGesture(
+                for: hold,
+                canvasSize: canvasSize,
+                imageRect: imageRect
+            )
+        )
         .simultaneousGesture(
             resizeGesture(
                 for: hold,
@@ -801,7 +829,11 @@ struct EditorView: View {
         .accessibilityIdentifier("Editor hold \(index + 1)")
         .accessibilityLabel(markerAccessibilityLabel(for: hold, isSelected: isSelected))
         .accessibilityValue("\(Int(hold.x.rounded())) percent x, \(Int(hold.y.rounded())) percent y, \(Int(holdRadiusValue(hold).rounded())) image points")
-        .accessibilityHint("Double-tap to edit. Drag to move. Hold, then drag to resize.")
+        .accessibilityHint(
+            isSelected
+                ? "Drag to move. Pinch, or hold then drag, to resize."
+                : "Double-tap to select this hold."
+        )
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityHidden(!wallIsUsable)
         .accessibilityAction(named: Text("Delete Hold")) {
@@ -860,6 +892,74 @@ struct EditorView: View {
         .padding(isSelected ? 4 : 0)
     }
 
+    private func markerMagnificationGesture(
+        for hold: Hold,
+        canvasSize: CGSize,
+        imageRect: CGRect
+    ) -> some Gesture {
+        MagnificationGesture()
+            .onChanged { magnification in
+                if isCanvasMagnificationActive || (markerMagnificationSession == nil && isPanMode) {
+                    updateCanvasMagnification(
+                        magnification,
+                        in: canvasSize,
+                        imageRect: imageRect
+                    )
+                    return
+                }
+
+                if markerMagnificationSession == nil {
+                    guard case .edit(hold.id) = editorMode,
+                          wallIsUsable,
+                          let holdIndex = holds.firstIndex(where: { $0.id == hold.id }) else {
+                        return
+                    }
+                    if let moveSession, moveSession.id != hold.id { return }
+                    if let resizeSession, resizeSession.id != hold.id { return }
+
+
+                    if let moveSession {
+                        holds[holdIndex].x = moveSession.originalNormalizedX
+                        holds[holdIndex].y = moveSession.originalNormalizedY
+                        self.moveSession = nil
+                    }
+                    if let resizeSession {
+                        holds[holdIndex].radius = Double(resizeSession.originalRadius)
+                        self.resizeSession = nil
+                    }
+
+                    markerMagnificationSession = MarkerMagnificationSession(
+                        id: hold.id,
+                        originalRadius: holdRadiusValue(holds[holdIndex])
+                    )
+                    isGestureInProgress = true
+                    suppressNextCanvasTap = true
+                }
+
+                guard let session = markerMagnificationSession,
+                      session.id == hold.id,
+                      case .edit(hold.id) = editorMode,
+                      let radius = EditorHoldGeometry.scaledRadius(
+                        session.originalRadius,
+                        magnification: magnification
+                      ),
+                      let index = holds.firstIndex(where: { $0.id == hold.id }) else {
+                    return
+                }
+                holds[index].radius = Double(radius)
+            }
+            .onEnded { _ in
+                if markerMagnificationSession?.id == hold.id {
+                    markerMagnificationSession = nil
+                    isGestureInProgress = false
+                    suppressNextCanvasTap = true
+                    scheduleCanvasTapSuppressionClear()
+                } else if isCanvasMagnificationActive {
+                    finishCanvasMagnification(in: canvasSize, imageRect: imageRect)
+                }
+            }
+    }
+
     private func resizeGesture(
         for hold: Hold,
         imageRect: CGRect,
@@ -873,6 +973,7 @@ struct EditorView: View {
                 )
             )
             .onChanged { value in
+                guard case .edit(hold.id) = editorMode else { return }
                 switch value {
                 case .first(true):
                     guard moveSession == nil else { return }
@@ -890,7 +991,7 @@ struct EditorView: View {
                 }
             }
             .onEnded { _ in
-                finishResize()
+                finishResize(id: hold.id)
             }
     }
 
@@ -904,7 +1005,20 @@ struct EditorView: View {
             coordinateSpace: .named("editorCanvas")
         )
         .onChanged { value in
-            guard resizeSession == nil, wallIsUsable else { return }
+            if didPan || (moveSession == nil && isPanMode) {
+                updateCanvasDrag(
+                    translation: value.translation,
+                    in: canvasSize,
+                    imageRect: imageRect
+                )
+                return
+            }
+            guard case .edit(hold.id) = editorMode else { return }
+            guard resizeSession == nil,
+                  markerMagnificationSession == nil,
+                  wallIsUsable else {
+                return
+            }
             guard let fingerPoint = EditorHoldGeometry.imagePoint(
                 from: value.location,
                 canvasSize: canvasSize,
@@ -915,7 +1029,8 @@ struct EditorView: View {
             if moveSession == nil {
                 moveSession = MoveSession(
                     id: hold.id,
-                    originalCenter: markerCenter(for: hold, in: imageRect),
+                    originalNormalizedX: hold.x,
+                    originalNormalizedY: hold.y,
                     initialFingerPoint: fingerPoint
                 )
                 isGestureInProgress = true
@@ -929,19 +1044,28 @@ struct EditorView: View {
 
             let deltaX = (fingerPoint.x - moveSession.initialFingerPoint.x) / imageRect.width * 100
             let deltaY = (fingerPoint.y - moveSession.initialFingerPoint.y) / imageRect.height * 100
-            holds[index].x = min(98, max(2, Double(moveSession.originalCenter.x / imageRect.width * 100 + deltaX)))
-            holds[index].y = min(98, max(2, Double(moveSession.originalCenter.y / imageRect.height * 100 + deltaY)))
+            holds[index].x = min(98, max(2, moveSession.originalNormalizedX + Double(deltaX)))
+            holds[index].y = min(98, max(2, moveSession.originalNormalizedY + Double(deltaY)))
         }
         .onEnded { _ in
-            guard moveSession != nil else { return }
-            moveSession = nil
-            isGestureInProgress = false
-            scheduleCanvasTapSuppressionClear()
+            if moveSession?.id == hold.id {
+                moveSession = nil
+                isGestureInProgress = false
+                scheduleCanvasTapSuppressionClear()
+            } else if didPan {
+                finishCanvasDrag()
+            }
         }
     }
 
     private func beginResize(for hold: Hold, imageRect: CGRect) {
-        guard wallIsUsable, resizeSession == nil, moveSession == nil else { return }
+        guard case .edit(hold.id) = editorMode else { return }
+        guard wallIsUsable,
+              resizeSession == nil,
+              moveSession == nil,
+              markerMagnificationSession == nil else {
+            return
+        }
         let originalRadius = holdRadiusValue(hold)
         resizeSession = ResizeSession(
             id: hold.id,
@@ -982,8 +1106,8 @@ struct EditorView: View {
         self.resizeSession = resizeSession
     }
 
-    private func finishResize() {
-        guard let resizeSession else { return }
+    private func finishResize(id: String) {
+        guard let resizeSession, resizeSession.id == id else { return }
         if !resizeSession.didProduceValidRadius,
            let index = holds.firstIndex(where: { $0.id == resizeSession.id }) {
             holds[index].radius = Double(resizeSession.originalRadius)
@@ -1017,62 +1141,94 @@ struct EditorView: View {
     private func magnificationGesture(in size: CGSize, imageRect: CGRect) -> some Gesture {
         MagnificationGesture()
             .onChanged { value in
-                isGestureInProgress = true
-                suppressNextCanvasTap = true
-                let nextScale = min(4, max(1, lastZoomScale * value))
-                zoomScale = nextScale
-                panOffset = clampedPanOffset(
-                    panOffset,
-                    in: size,
-                    scale: nextScale,
-                    imageRect: imageRect
-                )
+                updateCanvasMagnification(value, in: size, imageRect: imageRect)
             }
             .onEnded { _ in
-                if zoomScale <= 1.01 {
-                    resetZoom(animated: false)
-                } else {
-                    zoomScale = min(4, max(1, zoomScale))
-                    panOffset = clampedPanOffset(
-                        panOffset,
-                        in: size,
-                        scale: zoomScale,
-                        imageRect: imageRect
-                    )
-                    lastZoomScale = zoomScale
-                    lastPanOffset = panOffset
-                }
-                isGestureInProgress = false
-                suppressNextCanvasTap = true
-                scheduleCanvasTapSuppressionClear()
+                finishCanvasMagnification(in: size, imageRect: imageRect)
             }
+    }
+
+    private func updateCanvasMagnification(
+        _ magnification: CGFloat,
+        in size: CGSize,
+        imageRect: CGRect
+    ) {
+        guard isPanMode else { return }
+        isCanvasMagnificationActive = true
+        isGestureInProgress = true
+        suppressNextCanvasTap = true
+        let nextScale = min(4, max(1, lastZoomScale * magnification))
+        zoomScale = nextScale
+        panOffset = clampedPanOffset(
+            panOffset,
+            in: size,
+            scale: nextScale,
+            imageRect: imageRect
+        )
+    }
+
+    private func finishCanvasMagnification(in size: CGSize, imageRect: CGRect) {
+        guard isCanvasMagnificationActive else { return }
+        if zoomScale <= 1.01 {
+            resetZoom(animated: false)
+        } else {
+            zoomScale = min(4, max(1, zoomScale))
+            panOffset = clampedPanOffset(
+                panOffset,
+                in: size,
+                scale: zoomScale,
+                imageRect: imageRect
+            )
+            lastZoomScale = zoomScale
+            lastPanOffset = panOffset
+        }
+        isCanvasMagnificationActive = false
+        isGestureInProgress = false
+        suppressNextCanvasTap = true
+        scheduleCanvasTapSuppressionClear()
     }
 
     private func dragGesture(in size: CGSize, imageRect: CGRect) -> some Gesture {
         DragGesture(minimumDistance: 2)
             .onChanged { value in
-                guard zoomScale > 1.01 else { return }
-                didPan = true
-                isGestureInProgress = true
-                let proposed = CGSize(
-                    width: lastPanOffset.width + value.translation.width,
-                    height: lastPanOffset.height + value.translation.height
-                )
-                panOffset = clampedPanOffset(
-                    proposed,
+                updateCanvasDrag(
+                    translation: value.translation,
                     in: size,
-                    scale: zoomScale,
                     imageRect: imageRect
                 )
             }
             .onEnded { _ in
-                guard didPan else { return }
-                lastPanOffset = panOffset
-                didPan = false
-                isGestureInProgress = false
-                suppressNextCanvasTap = true
-                scheduleCanvasTapSuppressionClear()
+                finishCanvasDrag()
             }
+    }
+
+    private func updateCanvasDrag(
+        translation: CGSize,
+        in size: CGSize,
+        imageRect: CGRect
+    ) {
+        guard isPanMode, zoomScale > 1.01 else { return }
+        didPan = true
+        isGestureInProgress = true
+        let proposed = CGSize(
+            width: lastPanOffset.width + translation.width,
+            height: lastPanOffset.height + translation.height
+        )
+        panOffset = clampedPanOffset(
+            proposed,
+            in: size,
+            scale: zoomScale,
+            imageRect: imageRect
+        )
+    }
+
+    private func finishCanvasDrag() {
+        guard didPan else { return }
+        lastPanOffset = panOffset
+        didPan = false
+        isGestureInProgress = false
+        suppressNextCanvasTap = true
+        scheduleCanvasTapSuppressionClear()
     }
 
     private func spatialTapGesture(in size: CGSize, imageRect: CGRect) -> some Gesture {
@@ -1447,7 +1603,7 @@ struct EditorView: View {
             return "Tap the wall to add a \(typeDisplayName(type).lowercased()) hold."
         case .edit(let id):
             let type = holds.first(where: { $0.id == id })?.type ?? .hand
-            return "Editing \(typeDisplayName(type).lowercased()) hold. Choose a type, hold to resize, or delete it."
+            return "Editing \(typeDisplayName(type).lowercased()) hold. Pinch or hold then drag to resize, choose a type, or delete."
         }
     }
 

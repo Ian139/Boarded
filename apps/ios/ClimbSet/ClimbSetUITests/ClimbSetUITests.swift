@@ -137,7 +137,7 @@ final class ClimbSetUITests: XCTestCase {
         let routeName = "UI Fixture Route \(UUID().uuidString)"
         XCTAssertTrue(app.staticTexts["Routes"].waitForExistence(timeout: 10))
         app.tabBars.buttons["Editor"].tap()
-        let canvas = app.otherElements["Wall editor"]
+        let canvas = app.otherElements["Editor canvas surface"]
         XCTAssertTrue(canvas.waitForExistence(timeout: 10))
         let addStart = app.buttons["Add Start hold"]
         XCTAssertTrue(addStart.waitForExistence(timeout: 5))
@@ -146,14 +146,20 @@ final class ClimbSetUITests: XCTestCase {
             evaluatedWith: addStart
         )
         wait(for: [addStartEnabled], timeout: 5)
-        addStart.tap()
+        app.buttons["Add Start hold"].tap()
         canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: 0.5)).tap()
         XCTAssertTrue((canvas.value as? String)?.contains("1 hold") == true)
 
-        let marker = app.descendants(matching: .any)["Editor hold 1"]
-        XCTAssertTrue(marker.waitForExistence(timeout: 5))
-        let initial = marker.value as? String
-        XCTAssertTrue(initial?.contains("percent x") == true)
+        app.buttons["Add Hand hold"].tap()
+        canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.65, dy: 0.5)).tap()
+        XCTAssertTrue((canvas.value as? String)?.contains("2 holds") == true)
+
+        let firstMarker = app.descendants(matching: .any)["Editor hold 1"]
+        let secondMarker = app.descendants(matching: .any)["Editor hold 2"]
+        XCTAssertTrue(firstMarker.waitForExistence(timeout: 5))
+        XCTAssertTrue(secondMarker.waitForExistence(timeout: 5))
+        XCTAssertTrue((firstMarker.value as? String)?.contains("percent x") == true)
+
         func radius(from value: String?) -> Int? {
             guard let value,
                   let component = value.split(separator: ",").last,
@@ -162,14 +168,50 @@ final class ClimbSetUITests: XCTestCase {
             }
             return Int(number)
         }
-        let initialRadius = radius(from: initial)
-        let resizeStart = marker.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-        resizeStart.press(forDuration: 0.5, thenDragTo: resizeStart.withOffset(CGVector(dx: 80, dy: 0)))
-        let resized = marker.value as? String
-        guard let resizedRadius = radius(from: resized) else {
-            return XCTFail("The resized hold must expose its radius.")
+        func position(from value: String?) -> (x: Int, y: Int)? {
+            guard let value else { return nil }
+            let components = value.split(separator: ",")
+            guard components.count >= 2,
+                  let x = Int(components[0].split(separator: " ").first ?? ""),
+                  let y = Int(components[1].split(separator: " ").first ?? "") else {
+                return nil
+            }
+            return (x, y)
         }
-        XCTAssertGreaterThan(resizedRadius, initialRadius ?? 0)
+
+        guard let firstInitialRadius = radius(from: firstMarker.value as? String),
+              let secondInitialRadius = radius(from: secondMarker.value as? String) else {
+            return XCTFail("Both holds must expose their initial radii.")
+        }
+
+        guard let firstPositionBeforeEdit = position(from: firstMarker.value as? String),
+              let secondPositionBeforeEdit = position(from: secondMarker.value as? String) else {
+            return XCTFail("Both holds must expose their positions.")
+        }
+
+        firstMarker.tap()
+        XCTAssertTrue(firstMarker.label.localizedCaseInsensitiveContains("selected"))
+        let resizeStart = firstMarker.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        resizeStart.press(forDuration: 0.5, thenDragTo: resizeStart.withOffset(CGVector(dx: 80, dy: 0)))
+        guard let firstLongPressRadius = radius(from: firstMarker.value as? String) else {
+            return XCTFail("The long-press resize must expose a radius.")
+        }
+        XCTAssertGreaterThan(firstLongPressRadius, firstInitialRadius)
+        firstMarker.pinch(withScale: 1.6, velocity: 1.0)
+        guard let firstResizedRadius = radius(from: firstMarker.value as? String),
+              let secondAfterEditRadius = radius(from: secondMarker.value as? String) else {
+            return XCTFail("Both holds must expose their radii after the edit pinch.")
+        }
+        XCTAssertGreaterThan(firstResizedRadius, firstLongPressRadius)
+        XCTAssertEqual(secondAfterEditRadius, secondInitialRadius)
+        guard let firstPositionAfterEdit = position(from: firstMarker.value as? String),
+              let secondPositionAfterEdit = position(from: secondMarker.value as? String) else {
+            return XCTFail("Both holds must expose their positions after the edit pinch.")
+        }
+        XCTAssertEqual(firstPositionAfterEdit.x, firstPositionBeforeEdit.x)
+        XCTAssertEqual(firstPositionAfterEdit.y, firstPositionBeforeEdit.y)
+        XCTAssertEqual(secondPositionAfterEdit.x, secondPositionBeforeEdit.x)
+        XCTAssertEqual(secondPositionAfterEdit.y, secondPositionBeforeEdit.y)
 
         app.buttons["Save"].tap()
         let routeNameField = app.textFields["Route name"]
@@ -183,9 +225,20 @@ final class ClimbSetUITests: XCTestCase {
         app.staticTexts[routeName].tap()
         XCTAssertTrue(app.navigationBars["Route"].waitForExistence(timeout: 5))
         app.buttons["Edit"].tap()
-        let persistedMarker = app.descendants(matching: .any)["Editor hold 1"]
-        XCTAssertTrue(persistedMarker.waitForExistence(timeout: 5))
-        XCTAssertEqual(radius(from: persistedMarker.value as? String), resizedRadius)
+        let persistedFirstMarker = app.descendants(matching: .any)["Editor hold 1"]
+        let persistedSecondMarker = app.descendants(matching: .any)["Editor hold 2"]
+        XCTAssertTrue(persistedFirstMarker.waitForExistence(timeout: 5))
+        XCTAssertTrue(persistedSecondMarker.waitForExistence(timeout: 5))
+        XCTAssertEqual(radius(from: persistedFirstMarker.value as? String), firstResizedRadius)
+        XCTAssertEqual(radius(from: persistedSecondMarker.value as? String), secondAfterEditRadius)
+        guard let persistedFirstPosition = position(from: persistedFirstMarker.value as? String),
+              let persistedSecondPosition = position(from: persistedSecondMarker.value as? String) else {
+            return XCTFail("Both persisted holds must expose their positions.")
+        }
+        XCTAssertEqual(persistedFirstPosition.x, firstPositionAfterEdit.x)
+        XCTAssertEqual(persistedFirstPosition.y, firstPositionAfterEdit.y)
+        XCTAssertEqual(persistedSecondPosition.x, secondPositionAfterEdit.x)
+        XCTAssertEqual(persistedSecondPosition.y, secondPositionAfterEdit.y)
     }
 
     func testFixtureRouteReadUpdateReopenAndDelete() throws {
