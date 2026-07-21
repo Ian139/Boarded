@@ -34,9 +34,12 @@
 
 ## Checkpoint
 
-- Latest integrated implementation: `7ff2f36`
-- Web: dependency tree, ESLint, TypeScript, production build, and production route responses verified
-- Native: 17 unit tests and 7 deterministic UI tests passed before final gesture arbitration review; after the review fixes, the 7 hold-geometry tests and the editor selected-hold pinch/isolation/save/reopen UI flow passed, and the simulator build succeeded
-- Completion audit at `726308d`: dependency graph, ESLint, TypeScript, production build and route responses, 14 native unit tests, 7 deterministic UI tests, unsigned Release archive, and archived metadata all passed
-- Remaining limitations: XCTest synthesized Pan pinches did not invoke the SwiftUI canvas callbacks, so Pan pinch/drag from the wall and from a hold still requires real multitouch verification; ordinary hold-move automation and live Supabase-backed auth/CRUD also remain unverified
-- Next wave: grant the automation host macOS Accessibility access, verify Pan pinch/drag and hold-move persistence with real input, then exercise live auth/CRUD with disposable Supabase credentials
+- Latest integrated implementation: `1b31d1f`
+- Removed residue: `BoardedLogo-Transparent.png`; dead `lib/supabase/server.ts`, Card, DropdownMenu, FilterChip, and duplicate native ViewModels; web compatibility re-exports; shared root/IDs barrels; `@tanstack/react-query` and `@radix-ui/react-dropdown-menu`.
+- Repaired contracts: one auth-owned startup reconciliation; paginated, preview-safe moderator Storage cleanup; canonical web/native grades; normalized web route ingress; native route snapshot dimensions and atomic nullable wall patches; shared route-detail image/marker geometry; owner-prefixed lowercase native upload keys; row-only wall deletion.
+- Web gates: `npm ls --all --workspaces --include-workspace-root`, `npm run lint`, `npx tsc --noEmit`, `npm run build`, and production HTTP smoke passed. Brave rendered, searched, and filtered a persisted numeric `grade_v: 0` route as `V0`; startup issued one routes request and one walls request; the Radix Select resolved `animation-name: enter` at `0.15s`.
+- Focused web contracts: 15 Node tests across 6 suites passed for grade normalization/calculation and Storage URL/layout/preview intersection behavior.
+- Native gates: 26 unit tests and all 7 deterministic UI flows passed on simulator `9A8AC026-CF18-4FF9-98A5-48F47BAA0244`; the unchanged full suite passed after one simulator restart following a wedged orientation transition. Debug build and unsigned Release archive passed with no changed-source warnings. Archive metadata: `Boarded`, `0.1.2`, `com.ian.ClimbSet`, build `1`.
+- Local Supabase gate: the extended ownership harness passed against the disposable local stack. Owner-prefixed Storage upload succeeded; non-owner and legacy-prefix uploads were rejected without metadata or objects; route ownership and fixture cleanup also passed.
+- Remaining limitations: real-pointer hold movement and saved-position persistence still require macOS Accessibility access; Pan-mode wall/hold gestures still require real multitouch input; live remote Supabase authentication and route/wall/profile CRUD still require disposable account credentials. Local fixture/unit/model/path checks are not substitutes.
+- Next wave: grant Accessibility access, verify Pan and hold movement with real input, then exercise live remote auth/CRUD with the disposable account.
