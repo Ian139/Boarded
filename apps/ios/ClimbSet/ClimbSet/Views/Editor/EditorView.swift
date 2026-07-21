@@ -96,6 +96,17 @@ enum EditorHoldGeometry {
         }
     }
 }
+enum EditorHoldInteraction {
+    static func nextType(after type: HoldType) -> HoldType? {
+        switch type {
+        case .start: return .hand
+        case .hand: return .foot
+        case .foot: return .finish
+        case .finish: return nil
+        }
+    }
+}
+
 
 struct EditorView: View {
     let routeToEdit: Route?
@@ -112,9 +123,9 @@ struct EditorView: View {
     @State private var routeName = ""
     @State private var routeGrade: String? = nil
     @State private var isSavePresented = false
-    @State private var isWallPickerPresented = false
     @State private var isSaving = false
     @State private var saveErrorMessage: String? = nil
+    @State private var isWallPickerPresented = false
     @State private var zoomScale: CGFloat = 1
     @State private var lastZoomScale: CGFloat = 1
     @State private var panOffset: CGSize = .zero
@@ -124,36 +135,20 @@ struct EditorView: View {
     @State private var isApplyingWallSelection = false
     @State private var hasPendingWallSelection = false
     @State private var isWallSwitchConfirmationPresented = false
-    @State private var isDeleteConfirmationPresented = false
-    @State private var selectedDeleteHoldID: String? = nil
     @State private var wallImageState: WallImageState = .none
     @State private var imageReloadID = UUID()
     @State private var isGestureInProgress = false
     @State private var suppressNextCanvasTap = false
+    @State private var suppressNextMarkerTap = false
     @State private var didPan = false
     @State private var isCanvasMagnificationActive = false
     @State private var canvasTapSuppressionGeneration = 0
+    @State private var markerTapSuppressionGeneration = 0
     @State private var isRefreshingWallMetadata = false
     @State private var wallMetadataRefreshGeneration = 0
     @State private var loadedWallAspectRatio: CGFloat? = nil
     @State private var wallAspectRequestID: UUID? = nil
-    @State private var resizeSession: ResizeSession?
-    @State private var moveSession: MoveSession?
-
     @State private var markerMagnificationSession: MarkerMagnificationSession?
-    private struct ResizeSession {
-        let id: String
-        let center: CGPoint
-        let originalRadius: CGFloat
-        var didProduceValidRadius = false
-    }
-
-    private struct MoveSession {
-        let id: String
-        let originalNormalizedX: Double
-        let originalNormalizedY: Double
-        let initialFingerPoint: CGPoint
-    }
 
     private struct MarkerMagnificationSession {
         let id: String
@@ -186,7 +181,6 @@ struct EditorView: View {
     private enum EditorMode: Equatable {
         case pan
         case add(HoldType)
-        case edit(String)
     }
 
     private enum WallImageState: Equatable {
@@ -244,18 +238,6 @@ struct EditorView: View {
             }
         } message: {
             Text("Existing holds will be cleared because their positions belong to the current wall.")
-        }
-        .confirmationDialog(
-            "Delete this hold?",
-            isPresented: $isDeleteConfirmationPresented,
-            titleVisibility: .visible
-        ) {
-            Button("Delete Hold", role: .destructive) {
-                deleteSelectedHold()
-            }
-            Button("Cancel", role: .cancel) {
-                selectedDeleteHoldID = nil
-            }
         }
         .onChange(of: wallsViewModel.selectedWallId) { _, newValue in
             handleWallSelectionChange(newValue)
@@ -459,7 +441,7 @@ struct EditorView: View {
                         imageRect: imageRect,
                         canvasSize: size
                     )
-                    .zIndex(selectedHoldID == hold.id ? 1000 : Double(index + 2))
+                    .zIndex(Double(index + 2))
                     .allowsHitTesting(wallIsUsable)
                 }
             }
@@ -692,10 +674,6 @@ struct EditorView: View {
                     }
                 }
 
-                if case .edit = editorMode {
-                    deleteButton
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
 
                 Text(contextualHint)
                     .font(AppTypography.label)
@@ -732,8 +710,8 @@ struct EditorView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Pan tool")
+        .accessibilityHint("Selects pan mode; taps on the wall do not add holds.")
         .accessibilityValue(isSelected ? "Selected" : "Not selected")
-        .accessibilityHint("Prevents taps from adding holds.")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
@@ -743,13 +721,7 @@ struct EditorView: View {
         let color = Color.hex(type.colorHex)
 
         return Button {
-            guard isEnabled else { return }
-            switch editorMode {
-            case .edit(let id):
-                updateSelectedHold(id: id, type: type)
-            case .pan, .add:
-                setEditorMode(.add(type), announcement: "Add \(typeDisplayName(type).lowercased()) mode")
-            }
+            setEditorMode(.add(type), announcement: "Add \(typeDisplayName(type).lowercased()) mode")
         } label: {
             HStack(spacing: 5) {
                 Circle()
@@ -777,37 +749,12 @@ struct EditorView: View {
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)
-        .accessibilityLabel(
-            editorModeIsEdit
-                ? "Change selected hold to \(typeDisplayName(type))"
-                : "Add \(typeDisplayName(type)) hold"
-        )
+        .accessibilityLabel("Add \(typeDisplayName(type)) hold")
         .accessibilityValue(isSelected ? "Selected" : "Not selected")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
 
-    private var deleteButton: some View {
-        Button(role: .destructive) {
-            requestDelete(for: selectedHoldID)
-        } label: {
-            Label("Delete Hold", systemImage: "trash")
-                .font(AppTypography.label)
-                .foregroundColor(AppColor.destructive)
-                .frame(minHeight: 44)
-                .padding(.horizontal, 10)
-                .background(AppColor.surface)
-                .overlay(
-                    Capsule()
-                        .stroke(AppColor.destructive, lineWidth: 1)
-                )
-                .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .disabled(selectedHoldID == nil || !wallIsUsable)
-        .accessibilityLabel("Delete Hold")
-        .accessibilityHint("Asks for confirmation before deleting the selected hold.")
-    }
 
     private func markerButton(
         for hold: Hold,
@@ -815,17 +762,13 @@ struct EditorView: View {
         imageRect: CGRect,
         canvasSize: CGSize
     ) -> some View {
-        let isSelected = selectedHoldID == hold.id
         let minimumTargetSize = 44 / max(zoomScale, 1)
-        let targetSize = max(
-            minimumTargetSize,
-            holdDiameterValue(hold) + (isSelected ? 10 : 0)
-        )
+        let targetSize = max(minimumTargetSize, holdDiameterValue(hold))
 
         return Button {
             handleMarkerTap(id: hold.id)
         } label: {
-            holdView(for: hold, isSelected: isSelected)
+            holdView(for: hold)
                 .frame(width: targetSize, height: targetSize)
                 .contentShape(Rectangle())
         }
@@ -836,42 +779,18 @@ struct EditorView: View {
             y: imageRect.minY + hold.normalizedY * imageRect.height
         )
         .highPriorityGesture(
-            markerMagnificationGesture(
-                for: hold,
-                canvasSize: canvasSize,
-                imageRect: imageRect
-            )
+            markerMagnificationGesture(for: hold)
         )
         .simultaneousGesture(
-            resizeGesture(
-                for: hold,
-                imageRect: imageRect,
-                canvasSize: canvasSize
-            )
+            dragGesture(in: canvasSize, imageRect: imageRect, suppressMarkerTap: true)
         )
-        .simultaneousGesture(
-            moveGesture(
-                for: hold,
-                imageRect: imageRect,
-                canvasSize: canvasSize
-            )
-        )
-        .zIndex(isSelected ? 1000 : Double(index + 2))
+        .zIndex(Double(index + 2))
         .accessibilityElement(children: .ignore)
         .accessibilityIdentifier("Editor hold \(index + 1)")
-        .accessibilityLabel(markerAccessibilityLabel(for: hold, isSelected: isSelected))
+        .accessibilityLabel(markerAccessibilityLabel(for: hold))
         .accessibilityValue("\(Int(hold.x.rounded())) percent x, \(Int(hold.y.rounded())) percent y, \(Int(holdRadiusValue(hold).rounded())) image points")
-        .accessibilityHint(
-            isSelected
-                ? "Drag to move. Pinch, or hold then drag, to resize."
-                : "Double-tap to select this hold."
-        )
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityHint("Tap to cycle type. Pinch to resize. Drag to pan the wall.")
         .accessibilityHidden(!wallIsUsable)
-        .accessibilityAction(named: Text("Delete Hold")) {
-            guard wallIsUsable else { return }
-            requestDelete(for: hold.id)
-        }
         .accessibilityAdjustableAction { direction in
             adjustHoldRadius(id: hold.id, direction: direction)
         }
@@ -879,282 +798,78 @@ struct EditorView: View {
 
     private func handleMarkerTap(id: String) {
         guard wallIsUsable, !isGestureInProgress else { return }
-        if suppressNextCanvasTap {
-            suppressNextCanvasTap = false
+        if suppressNextMarkerTap {
+            suppressNextMarkerTap = false
             return
         }
-        selectHold(id: id)
+        guard let index = holds.firstIndex(where: { $0.id == id }) else { return }
+        let currentType = holds[index].type
+        guard let nextType = EditorHoldInteraction.nextType(after: currentType) else {
+            holds.remove(at: index)
+            announce("Finish hold deleted.")
+            return
+        }
+        holds[index].type = nextType
+        holds[index].color = nextType.colorHex
+        announce("Hold changed to \(typeDisplayName(nextType).lowercased()).")
     }
 
-    private func holdView(for hold: Hold, isSelected: Bool) -> some View {
+    private func holdView(for hold: Hold) -> some View {
         let size = holdDiameterValue(hold)
         let holdColor = Color.hex(hold.type.colorHex)
 
-        return ZStack(alignment: .topTrailing) {
-            ZStack {
-                Circle()
-                    .stroke(holdColor, lineWidth: 3)
-                    .background(
-                        Circle()
-                            .fill(holdColor.opacity(0.2))
-                    )
-                    .frame(width: size, height: size)
-
-                Text(hold.type.shortLabel)
-                    .font(.system(size: size * 0.35, weight: .bold))
-                    .foregroundColor(AppColor.text)
-            }
-            .frame(width: size, height: size)
-            .overlay {
-                if isSelected {
+        return ZStack {
+            Circle()
+                .stroke(holdColor, lineWidth: 3)
+                .background(
                     Circle()
-                        .stroke(AppColor.text, lineWidth: 2)
-                        .frame(width: size + 8, height: size + 8)
-                }
-            }
+                        .fill(holdColor.opacity(0.2))
+                )
+                .frame(width: size, height: size)
 
-            if isSelected {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(AppColor.text)
-                    .background(Circle().fill(AppColor.surface))
-                    .offset(x: 7, y: -7)
-            }
+            Text(hold.type.shortLabel)
+                .font(.system(size: size * 0.35, weight: .bold))
+                .foregroundColor(AppColor.text)
         }
-        .padding(isSelected ? 4 : 0)
     }
 
-    private func markerMagnificationGesture(
-        for hold: Hold,
-        canvasSize: CGSize,
-        imageRect: CGRect
-    ) -> some Gesture {
+
+    private func markerMagnificationGesture(for hold: Hold) -> some Gesture {
         MagnificationGesture()
             .onChanged { magnification in
-                if isCanvasMagnificationActive || (markerMagnificationSession == nil && isPanMode) {
-                    updateCanvasMagnification(
-                        magnification,
-                        in: canvasSize,
-                        imageRect: imageRect
-                    )
+                guard wallIsUsable,
+                      let index = holds.firstIndex(where: { $0.id == hold.id }) else {
                     return
                 }
-
                 if markerMagnificationSession == nil {
-                    guard case .edit(hold.id) = editorMode,
-                          wallIsUsable,
-                          let holdIndex = holds.firstIndex(where: { $0.id == hold.id }) else {
-                        return
-                    }
-                    if let moveSession, moveSession.id != hold.id { return }
-                    if let resizeSession, resizeSession.id != hold.id { return }
-
-
-                    if let moveSession {
-                        holds[holdIndex].x = moveSession.originalNormalizedX
-                        holds[holdIndex].y = moveSession.originalNormalizedY
-                        self.moveSession = nil
-                    }
-                    if let resizeSession {
-                        holds[holdIndex].radius = Double(resizeSession.originalRadius)
-                        self.resizeSession = nil
-                    }
-
                     markerMagnificationSession = MarkerMagnificationSession(
                         id: hold.id,
-                        originalRadius: holdRadiusValue(holds[holdIndex])
+                        originalRadius: holdRadiusValue(holds[index])
                     )
                     isGestureInProgress = true
                     suppressNextCanvasTap = true
                 }
-
                 guard let session = markerMagnificationSession,
                       session.id == hold.id,
-                      case .edit(hold.id) = editorMode,
                       let radius = EditorHoldGeometry.scaledRadius(
                         session.originalRadius,
                         magnification: magnification
-                      ),
-                      let index = holds.firstIndex(where: { $0.id == hold.id }) else {
+                      ) else {
                     return
                 }
                 holds[index].radius = Double(radius)
             }
             .onEnded { _ in
-                if markerMagnificationSession?.id == hold.id {
-                    markerMagnificationSession = nil
-                    isGestureInProgress = false
-                    suppressNextCanvasTap = true
-                    scheduleCanvasTapSuppressionClear()
-                } else if isCanvasMagnificationActive {
-                    finishCanvasMagnification(in: canvasSize, imageRect: imageRect)
-                }
-            }
-    }
-
-    private func resizeGesture(
-        for hold: Hold,
-        imageRect: CGRect,
-        canvasSize: CGSize
-    ) -> some Gesture {
-        LongPressGesture(minimumDuration: 0.25)
-            .sequenced(
-                before: DragGesture(
-                    minimumDistance: 0,
-                    coordinateSpace: .named("editorCanvas")
-                )
-            )
-            .onChanged { value in
-                guard case .edit(hold.id) = editorMode else { return }
-                switch value {
-                case .first(true):
-                    guard moveSession == nil else { return }
-                    beginResize(for: hold, imageRect: imageRect)
-                case .second(true, let drag):
-                    guard let drag else { return }
-                    updateResize(
-                        id: hold.id,
-                        fingerPoint: drag.location,
-                        imageRect: imageRect,
-                        canvasSize: canvasSize
-                    )
-                default:
-                    break
-                }
-            }
-            .onEnded { _ in
-                finishResize(id: hold.id)
-            }
-    }
-
-    private func moveGesture(
-        for hold: Hold,
-        imageRect: CGRect,
-        canvasSize: CGSize
-    ) -> some Gesture {
-        DragGesture(
-            minimumDistance: 2,
-            coordinateSpace: .named("editorCanvas")
-        )
-        .onChanged { value in
-            if didPan || (moveSession == nil && isPanMode) {
-                updateCanvasDrag(
-                    translation: value.translation,
-                    in: canvasSize,
-                    imageRect: imageRect
-                )
-                return
-            }
-            guard case .edit(hold.id) = editorMode else { return }
-            guard resizeSession == nil,
-                  markerMagnificationSession == nil,
-                  wallIsUsable else {
-                return
-            }
-            guard let fingerPoint = EditorHoldGeometry.imagePoint(
-                from: value.location,
-                canvasSize: canvasSize,
-                zoomScale: zoomScale,
-                panOffset: panOffset
-            ) else { return }
-
-            if moveSession == nil {
-                moveSession = MoveSession(
-                    id: hold.id,
-                    originalNormalizedX: hold.x,
-                    originalNormalizedY: hold.y,
-                    initialFingerPoint: fingerPoint
-                )
-                isGestureInProgress = true
-                suppressNextCanvasTap = true
-            }
-            guard let moveSession,
-                  moveSession.id == hold.id,
-                  let index = holds.firstIndex(where: { $0.id == hold.id }),
-                  imageRect.width > 0,
-                  imageRect.height > 0 else { return }
-
-            let deltaX = (fingerPoint.x - moveSession.initialFingerPoint.x) / imageRect.width * 100
-            let deltaY = (fingerPoint.y - moveSession.initialFingerPoint.y) / imageRect.height * 100
-            holds[index].x = min(98, max(2, moveSession.originalNormalizedX + Double(deltaX)))
-            holds[index].y = min(98, max(2, moveSession.originalNormalizedY + Double(deltaY)))
-        }
-        .onEnded { _ in
-            if moveSession?.id == hold.id {
-                moveSession = nil
+                guard markerMagnificationSession?.id == hold.id else { return }
+                markerMagnificationSession = nil
                 isGestureInProgress = false
+                suppressNextCanvasTap = true
                 scheduleCanvasTapSuppressionClear()
-            } else if didPan {
-                finishCanvasDrag()
+                suppressNextMarkerTap = true
+                scheduleMarkerTapSuppressionClear()
             }
-        }
     }
 
-    private func beginResize(for hold: Hold, imageRect: CGRect) {
-        guard case .edit(hold.id) = editorMode else { return }
-        guard wallIsUsable,
-              resizeSession == nil,
-              moveSession == nil,
-              markerMagnificationSession == nil else {
-            return
-        }
-        let originalRadius = holdRadiusValue(hold)
-        resizeSession = ResizeSession(
-            id: hold.id,
-            center: markerCenter(for: hold, in: imageRect),
-            originalRadius: originalRadius
-        )
-        isGestureInProgress = true
-        suppressNextCanvasTap = true
-        #if canImport(UIKit)
-        UISelectionFeedbackGenerator().selectionChanged()
-        #endif
-    }
-
-    private func updateResize(
-        id: String,
-        fingerPoint: CGPoint,
-        imageRect: CGRect,
-        canvasSize: CGSize
-    ) {
-        guard var resizeSession,
-              resizeSession.id == id,
-              let imagePoint = EditorHoldGeometry.imagePoint(
-                from: fingerPoint,
-                canvasSize: canvasSize,
-                zoomScale: zoomScale,
-                panOffset: panOffset
-              ),
-              let radius = EditorHoldGeometry.radius(
-                from: resizeSession.center,
-                to: imagePoint
-              ),
-              let clampedRadius = EditorHoldGeometry.clampedRadius(radius),
-              let index = holds.firstIndex(where: { $0.id == id }) else {
-            return
-        }
-        holds[index].radius = Double(clampedRadius)
-        resizeSession.didProduceValidRadius = true
-        self.resizeSession = resizeSession
-    }
-
-    private func finishResize(id: String) {
-        guard let resizeSession, resizeSession.id == id else { return }
-        if !resizeSession.didProduceValidRadius,
-           let index = holds.firstIndex(where: { $0.id == resizeSession.id }) {
-            holds[index].radius = Double(resizeSession.originalRadius)
-        }
-        self.resizeSession = nil
-        isGestureInProgress = false
-        scheduleCanvasTapSuppressionClear()
-    }
-
-    private func markerCenter(for hold: Hold, in imageRect: CGRect) -> CGPoint {
-        CGPoint(
-            x: imageRect.minX + hold.normalizedX * imageRect.width,
-            y: imageRect.minY + hold.normalizedY * imageRect.height
-        )
-    }
 
     private func adjustHoldRadius(
         id: String,
@@ -1166,7 +881,6 @@ struct EditorView: View {
         let delta: CGFloat = direction == .increment ? 4 : -4
         guard let radius = EditorHoldGeometry.clampedRadius(current + delta) else { return }
         holds[index].radius = Double(radius)
-        selectHold(id: id)
         announce("Hold radius \(Int(radius.rounded())) image points.")
     }
 
@@ -1185,7 +899,7 @@ struct EditorView: View {
         in size: CGSize,
         imageRect: CGRect
     ) {
-        guard isPanMode else { return }
+        guard wallIsUsable else { return }
         isCanvasMagnificationActive = true
         isGestureInProgress = true
         suppressNextCanvasTap = true
@@ -1220,7 +934,11 @@ struct EditorView: View {
         scheduleCanvasTapSuppressionClear()
     }
 
-    private func dragGesture(in size: CGSize, imageRect: CGRect) -> some Gesture {
+    private func dragGesture(
+        in size: CGSize,
+        imageRect: CGRect,
+        suppressMarkerTap: Bool = false
+    ) -> some Gesture {
         DragGesture(minimumDistance: 2)
             .onChanged { value in
                 updateCanvasDrag(
@@ -1230,7 +948,7 @@ struct EditorView: View {
                 )
             }
             .onEnded { _ in
-                finishCanvasDrag()
+                finishCanvasDrag(suppressMarkerTap: suppressMarkerTap)
             }
     }
 
@@ -1239,7 +957,8 @@ struct EditorView: View {
         in size: CGSize,
         imageRect: CGRect
     ) {
-        guard isPanMode,
+        guard markerMagnificationSession == nil,
+              !isCanvasMagnificationActive,
               imageRect.width * zoomScale > size.width + 0.5
                 || imageRect.height * zoomScale > size.height + 0.5 else { return }
         didPan = true
@@ -1256,7 +975,11 @@ struct EditorView: View {
         )
     }
 
-    private func finishCanvasDrag() {
+    private func finishCanvasDrag(suppressMarkerTap: Bool) {
+        if suppressMarkerTap {
+            suppressNextMarkerTap = true
+            scheduleMarkerTapSuppressionClear()
+        }
         guard didPan else { return }
         lastPanOffset = panOffset
         didPan = false
@@ -1282,8 +1005,7 @@ struct EditorView: View {
         guard wallIsUsable else { return }
 
 
-        if let hold = hold(at: location, in: size, imageRect: imageRect) {
-            selectHold(id: hold.id)
+        if hold(at: location, in: size, imageRect: imageRect) != nil {
             return
         }
 
@@ -1300,8 +1022,6 @@ struct EditorView: View {
             break
         case .add(let type):
             placeHold(at: imagePoint, in: imageRect, type: type)
-        case .edit:
-            setEditorMode(.pan, announcement: "Pan mode")
         }
     }
 
@@ -1313,8 +1033,6 @@ struct EditorView: View {
             zoomScale: zoomScale,
             panOffset: panOffset
         ) else { return nil }
-        let selectedID = selectedHoldID
-
         func isHit(_ hold: Hold) -> Bool {
             let markerPoint = CGPoint(
                 x: imageRect.minX + hold.normalizedX * imageRect.width,
@@ -1326,15 +1044,7 @@ struct EditorView: View {
             return (dx * dx) + (dy * dy) <= hitRadius * hitRadius
         }
 
-        if let selectedID,
-           let selectedHold = holds.first(where: { $0.id == selectedID }),
-           isHit(selectedHold) {
-            return selectedHold
-        }
-
-        return holds.reversed().first { hold in
-            hold.id != selectedID && isHit(hold)
-        }
+        return holds.reversed().first(where: isHit)
     }
 
     private func placeHold(at imagePoint: CGPoint, in imageRect: CGRect, type: HoldType) {
@@ -1354,10 +1064,6 @@ struct EditorView: View {
         announce("Added \(typeDisplayName(type).lowercased()) hold.")
     }
 
-    private func selectHold(id: String) {
-        guard let hold = holds.first(where: { $0.id == id }) else { return }
-        setEditorMode(.edit(id), announcement: "Editing \(typeDisplayName(hold.type).lowercased()) hold.")
-    }
 
     private func setEditorMode(_ mode: EditorMode, announcement: String? = nil) {
         editorMode = mode
@@ -1366,30 +1072,6 @@ struct EditorView: View {
         }
     }
 
-    private func updateSelectedHold(id: String?, type: HoldType? = nil) {
-        guard let id, let index = holds.firstIndex(where: { $0.id == id }) else { return }
-        if let type {
-            holds[index].type = type
-            holds[index].color = type.colorHex
-            announce("Selected hold changed to \(typeDisplayName(type).lowercased()).")
-        }
-    }
-
-    private func requestDelete(for id: String?) {
-        guard let id, holds.contains(where: { $0.id == id }) else { return }
-        selectedDeleteHoldID = id
-        editorMode = .edit(id)
-        isDeleteConfirmationPresented = true
-    }
-
-    private func deleteSelectedHold() {
-        guard let id = selectedDeleteHoldID else { return }
-        let deleted = holds.contains { $0.id == id }
-        holds.removeAll { $0.id == id }
-        selectedDeleteHoldID = nil
-        guard deleted else { return }
-        setEditorMode(.pan, announcement: "Hold deleted. Pan mode")
-    }
 
     private func handleWallSelectionChange(_ newID: String?) {
         guard !isApplyingWallSelection else { return }
@@ -1556,6 +1238,15 @@ struct EditorView: View {
             suppressNextCanvasTap = false
         }
     }
+    private func scheduleMarkerTapSuppressionClear() {
+        markerTapSuppressionGeneration += 1
+        let generation = markerTapSuppressionGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            guard generation == markerTapSuppressionGeneration else { return }
+            suppressNextMarkerTap = false
+        }
+    }
+
 
 
     private func clampedPanOffset(
@@ -1593,20 +1284,6 @@ struct EditorView: View {
         return false
     }
 
-    private var editorModeIsEdit: Bool {
-        if case .edit = editorMode { return true }
-        return false
-    }
-
-    private var selectedHoldID: String? {
-        if case .edit(let id) = editorMode { return id }
-        return nil
-    }
-
-    private var selectedHold: Hold? {
-        guard let id = selectedHoldID else { return nil }
-        return holds.first(where: { $0.id == id })
-    }
 
     private var wallIsUsable: Bool {
         selectedWall != nil
@@ -1618,12 +1295,9 @@ struct EditorView: View {
     private var contextualHint: String {
         switch editorMode {
         case .pan:
-            return "Pinch to zoom. Drag the wall to pan."
+            return "Pinch to zoom. Drag the wall to pan. Tap a hold to cycle its type."
         case .add(let type):
-            return "Tap the wall to add a \(typeDisplayName(type).lowercased()) hold."
-        case .edit(let id):
-            let type = holds.first(where: { $0.id == id })?.type ?? .hand
-            return "Editing \(typeDisplayName(type).lowercased()) hold. Pinch or hold then drag to resize, choose a type, or delete."
+            return "Tap the wall to add a \(typeDisplayName(type).lowercased()) hold. Tap a hold to cycle its type."
         }
     }
 
@@ -1638,8 +1312,6 @@ struct EditorView: View {
             return "Pan"
         case .add(let type):
             return "Add \(typeDisplayName(type))"
-        case .edit:
-            return "Edit"
         }
     }
 
@@ -1648,14 +1320,10 @@ struct EditorView: View {
     }
 
     private func typeIsSelected(_ type: HoldType) -> Bool {
-        switch editorMode {
-        case .add(let activeType):
+        if case .add(let activeType) = editorMode {
             return activeType == type
-        case .edit:
-            return selectedHold?.type == type
-        case .pan:
-            return false
         }
+        return false
     }
 #if DEBUG
     private func isFixtureWallImage(for id: String?) -> Bool {
@@ -1669,9 +1337,8 @@ struct EditorView: View {
 #endif
 
 
-    private func markerAccessibilityLabel(for hold: Hold, isSelected: Bool) -> String {
-        let selectedSuffix = isSelected ? ", selected" : ""
-        return "\(typeDisplayName(hold.type)) hold, \(sizeDisplayName(hold.size))\(selectedSuffix)"
+    private func markerAccessibilityLabel(for hold: Hold) -> String {
+        "\(typeDisplayName(hold.type)) hold, \(sizeDisplayName(hold.size))"
     }
 
     private func typeDisplayName(_ type: HoldType) -> String {

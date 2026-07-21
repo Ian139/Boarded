@@ -2,6 +2,13 @@ import XCTest
 @testable import ClimbSet
 
 final class HoldRadiusTests: XCTestCase {
+    func testNextTypeCyclesThroughPlacementTypesThenDeletes() {
+        XCTAssertEqual(EditorHoldInteraction.nextType(after: .start), .hand)
+        XCTAssertEqual(EditorHoldInteraction.nextType(after: .hand), .foot)
+        XCTAssertEqual(EditorHoldInteraction.nextType(after: .foot), .finish)
+        XCTAssertNil(EditorHoldInteraction.nextType(after: .finish))
+    }
+
     func testImagePointConversionIsScaleIndependent() {
         let atOne = EditorHoldGeometry.imagePoint(
             from: CGPoint(x: 240, y: 170),
