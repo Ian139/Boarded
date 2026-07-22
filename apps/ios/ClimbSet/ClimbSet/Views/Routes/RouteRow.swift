@@ -18,7 +18,7 @@ struct RouteRow: View {
                 .foregroundStyle(route.gradeV == nil ? theme.secondaryText : theme.secondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
-                .frame(width: 46, minHeight: 40)
+                .frame(width: 46, height: 40)
                 .background(route.gradeV == nil ? theme.panelBackground : theme.secondary.opacity(0.15))
                 .clipShape(Capsule())
                 .accessibilityLabel("Grade")
