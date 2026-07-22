@@ -54,20 +54,6 @@ export function pixelToPercentage(
   };
 }
 
-/**
- * Convert percentage coordinates to pixels based on container dimensions
- */
-export function percentageToPixel(
-  percentX: number,
-  percentY: number,
-  containerWidth: number,
-  containerHeight: number
-): { x: number; y: number } {
-  return {
-    x: (percentX / 100) * containerWidth,
-    y: (percentY / 100) * containerHeight,
-  };
-}
 
 /**
  * Add a hold to the array if no hold exists nearby
