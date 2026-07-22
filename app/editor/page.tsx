@@ -2,10 +2,12 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { WallCanvas } from '@/components/wall/WallCanvas';
 import { useHolds } from '@/lib/hooks/useHolds';
-import { HoldType, HoldSize, Route, V_GRADES, HOLD_COLORS, HOLD_TYPE_CYCLE, HOLD_BORDER_WIDTH } from '@climbset/shared/types';
+import { HoldType, HoldSize, Route, V_GRADES, HOLD_COLORS, HOLD_TYPE_CYCLE, HOLD_BORDER_WIDTH, Hold } from '@climbset/shared/types';
+import { pixelToPercentage } from '@climbset/shared/utils/holds';
+import { HoldMarker } from '@/components/wall/HoldMarker';
 import { nanoid } from 'nanoid';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -37,13 +39,192 @@ export default function EditorPage() {
 
   if (!paramsReady) {
     return (
-      <div className="h-dvh bg-background md:bg-zinc-950 flex items-center justify-center">
-        <div className="text-muted-foreground">Loading editor...</div>
+      <div className="h-dvh bg-background flex items-center justify-center">
+        <div className="text-muted-foreground font-medium">Loading editor...</div>
       </div>
     );
   }
 
   return <EditorContent editRouteId={editRouteId} />;
+}
+
+interface FullBleedCanvasProps {
+  wallImageUrl: string;
+  wallImageWidth?: number;
+  wallImageHeight?: number;
+  holds: Hold[];
+  showSequence: boolean;
+  onAddHold: (x: number, y: number) => void;
+  onRemoveHold: (x: number, y: number) => void;
+  onTap: (x: number, y: number) => void;
+}
+
+function FullBleedCanvas({
+  wallImageUrl,
+  wallImageWidth,
+  wallImageHeight,
+  holds,
+  showSequence,
+  onAddHold,
+  onRemoveHold,
+  onTap,
+}: FullBleedCanvasProps) {
+  const imageWidth = wallImageWidth && wallImageWidth > 0 ? wallImageWidth : 1920;
+  const imageHeight = wallImageHeight && wallImageHeight > 0 ? wallImageHeight : 1080;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
+  const isLongPressRef = useRef(false);
+  const ignoreNextClickRef = useRef(false);
+
+  useEffect(() => {
+    const updateDimensions = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        setDimensions({ width: rect.width, height: rect.height });
+      }
+    };
+
+    updateDimensions();
+    window.addEventListener('resize', updateDimensions);
+    return () => window.removeEventListener('resize', updateDimensions);
+  }, []);
+
+  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (ignoreNextClickRef.current) {
+      ignoreNextClickRef.current = false;
+      return;
+    }
+
+    if (!containerRef.current) return;
+
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const percentCoords = pixelToPercentage(x, y, rect.width, rect.height);
+    onAddHold(percentCoords.x, percentCoords.y);
+  };
+
+  const handleContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+
+    if (!containerRef.current) return;
+
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const percentCoords = pixelToPercentage(x, y, rect.width, rect.height);
+    onRemoveHold(percentCoords.x, percentCoords.y);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!containerRef.current) return;
+
+    const touch = e.touches[0];
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+
+    touchStartPosRef.current = { x, y };
+    isLongPressRef.current = false;
+
+    longPressTimerRef.current = setTimeout(() => {
+      isLongPressRef.current = true;
+      if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
+        window.navigator.vibrate(50);
+      }
+    }, 500);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!touchStartPosRef.current || !containerRef.current) return;
+
+    const touch = e.touches[0];
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+
+    const dx = Math.abs(x - touchStartPosRef.current.x);
+    const dy = Math.abs(y - touchStartPosRef.current.y);
+
+    if (dx > 10 || dy > 10) {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (!containerRef.current || !touchStartPosRef.current) return;
+
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+
+    const rect = containerRef.current.getBoundingClientRect();
+    const { x, y } = touchStartPosRef.current;
+    const percentCoords = pixelToPercentage(x, y, rect.width, rect.height);
+
+    if (isLongPressRef.current) {
+      onRemoveHold(percentCoords.x, percentCoords.y);
+    } else {
+      onTap(percentCoords.x, percentCoords.y);
+    }
+
+    ignoreNextClickRef.current = true;
+    setTimeout(() => {
+      ignoreNextClickRef.current = false;
+    }, 0);
+
+    touchStartPosRef.current = null;
+    isLongPressRef.current = false;
+  };
+
+  return (
+    <div className="absolute inset-0 w-full h-full bg-background overflow-hidden select-none">
+      <div
+        ref={containerRef}
+        className="relative w-full h-full cursor-crosshair touch-none select-none"
+        onClick={handleClick}
+        onContextMenu={handleContextMenu}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        <Image
+          src={wallImageUrl}
+          alt="Climbing wall"
+          width={imageWidth}
+          height={imageHeight}
+          className="w-full h-full object-cover select-none pointer-events-none"
+          priority
+          draggable={false}
+          onLoad={() => {
+            if (containerRef.current) {
+              const rect = containerRef.current.getBoundingClientRect();
+              setDimensions({ width: rect.width, height: rect.height });
+            }
+          }}
+        />
+
+        {dimensions.width > 0 &&
+          holds.map((hold) => (
+            <HoldMarker
+              key={hold.id}
+              hold={hold}
+              containerWidth={dimensions.width}
+              containerHeight={dimensions.height}
+              showSequence={showSequence}
+            />
+          ))}
+      </div>
+    </div>
+  );
 }
 
 function EditorContent({ editRouteId }: { editRouteId: string | null }) {
@@ -84,7 +265,6 @@ function EditorContent({ editRouteId }: { editRouteId: string | null }) {
   } = useUserStore();
   const wall = selectedWall?.id === 'all-walls' ? DEFAULT_WALL : (selectedWall || DEFAULT_WALL);
 
-  // Edit mode state
   const [editingRoute, setEditingRoute] = useState<Route | null>(null);
   const [editResolution, setEditResolution] = useState<'loading' | 'ready' | 'error'>(
     editRouteId ? 'loading' : 'ready'
@@ -101,12 +281,10 @@ function EditorContent({ editRouteId }: { editRouteId: string | null }) {
     : wall;
   const loadedEditRef = useRef<string | null>(null);
 
-  // Check if user can edit a route
   const canEditRoute = useCallback((route: Route) => {
     return isModerator || route.user_id === userId || route.user_id === 'local-user';
   }, [isModerator, userId]);
 
-  // Resolve direct edit URLs even when the route store starts empty.
   useEffect(() => {
     if (!editRouteId) {
       editFetchRef.current = null;
@@ -167,14 +345,12 @@ function EditorContent({ editRouteId }: { editRouteId: string | null }) {
     };
   }, [editRouteId, userLoading, routes, router, setAllHolds, canEditRoute, fetchRouteById]);
 
-  // Save state
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [routeName, setRouteName] = useState('');
   const [routeGrade, setRouteGrade] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Pre-populate form when editing
   useEffect(() => {
     if (editingRoute) {
       setRouteName(editingRoute.name);
@@ -182,7 +358,6 @@ function EditorContent({ editRouteId }: { editRouteId: string | null }) {
     }
   }, [editingRoute]);
 
-  // Handle save
   const handleSave = async () => {
     if (isEditMode && (editResolution !== 'ready' || !editingRoute)) {
       setSaveError('This route is still loading. Please try again.');
@@ -207,13 +382,12 @@ function EditorContent({ editRouteId }: { editRouteId: string | null }) {
         toast.success('Route updated!');
         router.push('/');
       } else {
-        // Create new route
         const route: Route = {
           id: crypto.randomUUID(),
           user_id: userId || 'local-user',
           user_name: displayName || 'Anonymous',
           wall_id: wall.id,
-          wall_image_url: wall.image_url, // Snapshot wall image at creation time
+          wall_image_url: wall.image_url,
           wall_image_width: wall.image_width,
           wall_image_height: wall.image_height,
           name: routeName.trim(),
@@ -231,9 +405,7 @@ function EditorContent({ editRouteId }: { editRouteId: string | null }) {
         toast.success('Route saved!');
       }
 
-      // Clear the draft from localStorage
       clearDraft();
-      // Close dialog and reset form
       setShowSaveDialog(false);
       setRouteName('');
       setRouteGrade('');
@@ -244,7 +416,6 @@ function EditorContent({ editRouteId }: { editRouteId: string | null }) {
     }
   };
 
-  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -270,7 +441,6 @@ function EditorContent({ editRouteId }: { editRouteId: string | null }) {
 
   const holdTypes: HoldType[] = ['start', 'hand', 'foot', 'finish'];
 
-  // Size as a numeric value for slider (0-100 maps to small/medium/large)
   const sizeToValue = (size: HoldSize): number => {
     switch (size) {
       case 'small': return 0;
@@ -287,12 +457,10 @@ function EditorContent({ editRouteId }: { editRouteId: string | null }) {
 
   const [sizeValue, setSizeValue] = useState(sizeToValue(selectedSize));
 
-  // Sync sizeValue when selectedSize changes externally
   useEffect(() => {
     setSizeValue(sizeToValue(selectedSize));
   }, [selectedSize]);
 
-  // Update size when slider value changes
   const handleSizeChange = (value: number) => {
     setSizeValue(value);
     const newSize = valueToSize(value);
@@ -301,7 +469,6 @@ function EditorContent({ editRouteId }: { editRouteId: string | null }) {
     }
   };
 
-  // Mobile drag state
   const [isDraggingSize, setIsDraggingSize] = useState(false);
   const dragStartRef = useRef<{ x: number; startValue: number } | null>(null);
 
@@ -315,7 +482,6 @@ function EditorContent({ editRouteId }: { editRouteId: string | null }) {
   const handleSizeDragMove = (e: React.PointerEvent) => {
     if (!isDraggingSize || !dragStartRef.current) return;
     const deltaX = e.clientX - dragStartRef.current.x;
-    // 100px drag = full range
     const newValue = Math.max(0, Math.min(100, dragStartRef.current.startValue + deltaX * 1.5));
     handleSizeChange(newValue);
   };
@@ -326,11 +492,9 @@ function EditorContent({ editRouteId }: { editRouteId: string | null }) {
     (e.target as HTMLElement).releasePointerCapture(e.pointerId);
   };
 
-  // Size preview circle size and border width
-  const previewSize = 12 + (sizeValue / 100) * 20; // 12-32px range
+  const previewSize = 12 + (sizeValue / 100) * 20;
   const previewBorderWidth = HOLD_BORDER_WIDTH[selectedSize];
 
-  // Cycle to next hold type (for mobile indicator tap)
   const cycleHoldType = () => {
     const currentIndex = HOLD_TYPE_CYCLE.indexOf(selectedType);
     const nextIndex = (currentIndex + 1) % HOLD_TYPE_CYCLE.length;
@@ -358,22 +522,35 @@ function EditorContent({ editRouteId }: { editRouteId: string | null }) {
 
   if (isEditMode && editResolution !== 'ready') {
     return (
-      <div className="h-dvh bg-background md:bg-zinc-950 flex items-center justify-center">
-        <div className="text-center text-muted-foreground" aria-live="polite">
+      <div className="h-dvh bg-background flex items-center justify-center">
+        <div className="text-center text-muted-foreground font-medium" aria-live="polite">
           {editResolution === 'error' ? 'Unable to load route.' : 'Loading route...'}
         </div>
       </div>
     );
   }
+
   return (
-    <div className="app-shell h-dvh bg-background/30 md:bg-zinc-950 flex flex-col overflow-hidden">
-      {/* Header - minimal, floating feel */}
-      <header className="absolute top-0 left-0 right-0 z-50 px-4 pt-4 pb-2 bg-gradient-to-b from-black/55 to-transparent">
-        <div className="flex items-center justify-between">
+    <div className="relative w-full h-dvh overflow-hidden bg-background">
+      {/* Full-bleed wall canvas */}
+      <FullBleedCanvas
+        wallImageWidth={canvasWall.image_width}
+        wallImageHeight={canvasWall.image_height}
+        wallImageUrl={canvasWall.image_url}
+        holds={holds}
+        showSequence={showSequence}
+        onAddHold={addHold}
+        onRemoveHold={removeHold}
+        onTap={handleTap}
+      />
+
+      {/* Header - translucent blurred overlay */}
+      <header className="fixed top-0 left-0 right-0 z-40 px-4 pt-safe pt-4 pb-3 bg-card/40 backdrop-blur-2xl border-b border-border/10">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
           <Link
             href="/"
             aria-label="Back to home"
-            className="size-10 rounded-xl bg-black/50 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white/70 hover:text-white hover:bg-black/60 transition-colors"
+            className="size-10 rounded-xl bg-card/60 backdrop-blur-xl border border-border/20 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-card/80 transition-colors"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
@@ -385,7 +562,7 @@ function EditorContent({ editRouteId }: { editRouteId: string | null }) {
               onClick={undo}
               disabled={!canUndo}
               aria-label="Undo"
-              className="size-10 rounded-xl bg-black/55 backdrop-blur-xl border border-white/15 flex items-center justify-center text-white/80 hover:text-white hover:bg-black/70 transition-colors disabled:cursor-not-allowed disabled:text-white/45 disabled:bg-black/35 disabled:border-white/10"
+              className="size-10 rounded-xl bg-card/60 backdrop-blur-xl border border-border/20 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-card/80 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
@@ -395,7 +572,7 @@ function EditorContent({ editRouteId }: { editRouteId: string | null }) {
               onClick={redo}
               disabled={!canRedo}
               aria-label="Redo"
-              className="size-10 rounded-xl bg-black/55 backdrop-blur-xl border border-white/15 flex items-center justify-center text-white/80 hover:text-white hover:bg-black/70 transition-colors disabled:cursor-not-allowed disabled:text-white/45 disabled:bg-black/35 disabled:border-white/10"
+              className="size-10 rounded-xl bg-card/60 backdrop-blur-xl border border-border/20 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-card/80 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 15l6-6m0 0l-6-6m6 6H9a6 6 0 000 12h3" />
@@ -404,42 +581,28 @@ function EditorContent({ editRouteId }: { editRouteId: string | null }) {
             <button
               onClick={() => setShowSaveDialog(true)}
               disabled={holds.length === 0 || (isEditMode && editResolution !== 'ready')}
-              className="h-10 px-5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-[1.02] active:scale-[0.98]"
+              className="h-10 px-5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:opacity-95 active:scale-95"
             >
               {isEditMode ? 'Update' : 'Save'}
             </button>
           </div>
         </div>
       </header>
-      <p className="pointer-events-none absolute left-1/2 top-20 z-40 -translate-x-1/2 rounded-lg border border-white/10 bg-black/55 px-3 py-1.5 text-center text-xs font-medium text-white/85 shadow-lg backdrop-blur-md">
+
+      {/* Floating instructional hint pill */}
+      <p className="pointer-events-none fixed left-1/2 top-20 z-30 -translate-x-1/2 rounded-full border border-border/20 bg-card/60 px-4 py-1.5 text-center text-xs font-medium text-muted-foreground shadow-lg backdrop-blur-xl">
         Tap the wall to place holds · tap a hold to change its type
       </p>
 
-      {/* Wall - full screen */}
-      <div className="flex-1">
-        <WallCanvas
-          wallImageWidth={canvasWall.image_width}
-          wallImageHeight={canvasWall.image_height}
-          wallImageUrl={canvasWall.image_url}
-          holds={holds}
-          showSequence={showSequence}
-          onAddHold={addHold}
-          onRemoveHold={removeHold}
-          onTap={handleTap}
-        />
-      </div>
-
-      {/* Bottom Controls - clean, modern */}
-      <div className="absolute bottom-0 left-0 right-0 z-50">
-        {/* Mobile: Bottom panel raised above nav */}
-        <div className="md:hidden mb-[104px]">
-          {/* Container with matching background */}
-          <div className="bg-background/95 backdrop-blur-xl border-t border-border/30 px-6 pt-4 pb-4">
+      {/* Bottom Controls - translucent blurred overlay above fixed bottom nav safe area */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 pointer-events-none">
+        {/* Mobile: Bottom controls elevated above fixed bottom nav */}
+        <div className="md:hidden pb-[84px] px-4 pointer-events-auto">
+          <div className="bg-card/75 backdrop-blur-2xl border border-border/20 rounded-2xl p-3 shadow-2xl">
             <div className="flex items-center justify-between gap-2">
-              {/* Hold type selector button */}
               <button
                 onClick={cycleHoldType}
-                className="flex items-center gap-2 px-3 py-2.5 rounded-xl border active:scale-95 transition-all"
+                className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border/20 bg-muted/40 active:scale-95 transition-all"
                 style={{
                   backgroundColor: `${HOLD_COLORS[selectedType]}15`,
                   borderColor: `${HOLD_COLORS[selectedType]}40`,
@@ -457,13 +620,12 @@ function EditorContent({ editRouteId }: { editRouteId: string | null }) {
                 </svg>
               </button>
 
-              {/* Size selector - drag to resize on mobile */}
               <div
                 className={cn(
-                  "flex items-center gap-2 px-3 py-2 rounded-xl border transition-all touch-none select-none",
+                  "flex items-center gap-2 px-3 py-1.5 rounded-xl border border-border/20 transition-all touch-none select-none",
                   isDraggingSize
                     ? "bg-primary/10 border-primary/40 scale-105"
-                    : "bg-muted/50 border-transparent"
+                    : "bg-muted/40"
                 )}
                 onPointerDown={handleSizeDragStart}
                 onPointerMove={handleSizeDragMove}
@@ -486,17 +648,16 @@ function EditorContent({ editRouteId }: { editRouteId: string | null }) {
                 <span className="text-xs text-muted-foreground capitalize w-12">{selectedSize}</span>
               </div>
 
-              {/* Action buttons */}
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => toggleSequenceVisibility(!showSequence)}
                   aria-label="Toggle sequence numbers"
                   title={showSequence ? "Hide sequence numbers" : "Show sequence numbers"}
                   className={cn(
-                    'h-10 rounded-lg px-2 flex items-center justify-center gap-1.5 transition-all',
+                    'h-10 rounded-xl px-2.5 flex items-center justify-center gap-1.5 transition-all border border-transparent',
                     showSequence
-                      ? 'bg-primary/15 text-primary'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                      ? 'bg-primary/15 text-primary border-primary/20'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                   )}
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -509,7 +670,7 @@ function EditorContent({ editRouteId }: { editRouteId: string | null }) {
                   onClick={clearHolds}
                   aria-label="Clear all holds"
                   title="Clear all holds"
-                  className="h-10 rounded-lg px-2 flex items-center justify-center gap-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
+                  className="h-10 rounded-xl px-2.5 flex items-center justify-center gap-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
@@ -521,116 +682,111 @@ function EditorContent({ editRouteId }: { editRouteId: string | null }) {
           </div>
         </div>
 
-        {/* Desktop: Full control bar with hold type pills */}
-        <div className="hidden md:block p-4 pb-safe">
-          <div className="relative">
-            <div className="absolute -top-12 left-1/2 -translate-x-1/2">
-              <span className="text-xs font-medium text-zinc-300 bg-zinc-900/90 backdrop-blur-md border border-zinc-800 px-3 py-1.5 rounded-lg shadow-lg">
+        {/* Desktop controls overlay */}
+        <div className="hidden md:block pb-safe p-4 pointer-events-auto">
+          <div className="relative max-w-5xl mx-auto">
+            <div className="absolute -top-10 left-1/2 -translate-x-1/2">
+              <span className="text-xs font-medium text-foreground bg-card/80 backdrop-blur-xl border border-border/20 px-3 py-1.5 rounded-lg shadow-lg">
                 {holds.length} holds
               </span>
             </div>
 
-            <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-1 rounded-xl border border-zinc-800 bg-zinc-900/95 p-1.5 shadow-xl backdrop-blur-xl">
-            {/* Hold type pills */}
-            <div className="flex min-w-[22rem] flex-1 gap-1 max-lg:basis-full">
-              {holdTypes.map((type) => (
-                <button
-                  key={type}
-                  onClick={() => setSelectedType(type)}
-                  className={cn(
-                    'flex-1 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-all border-2',
-                    selectedType === type
-                      ? 'bg-zinc-700/80 shadow-inner'
-                      : 'border-transparent hover:bg-zinc-800/80'
-                  )}
-                  style={selectedType === type ? {
-                    borderColor: HOLD_COLORS[type],
-                    boxShadow: `0 0 12px ${HOLD_COLORS[type]}66`,
-                  } : undefined}
-                >
-                  <div
+            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/20 bg-card/80 backdrop-blur-2xl p-2 shadow-2xl">
+              <div className="flex min-w-[22rem] flex-1 gap-1 max-lg:basis-full">
+                {holdTypes.map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => setSelectedType(type)}
                     className={cn(
-                      'size-4 rounded-full shadow-sm transition-transform',
-                      selectedType === type && 'scale-110'
+                      'flex-1 py-2 rounded-xl flex items-center justify-center gap-2 transition-all border-2',
+                      selectedType === type
+                        ? 'bg-muted/80 shadow-inner'
+                        : 'border-transparent hover:bg-muted/40'
                     )}
-                    style={{ backgroundColor: HOLD_COLORS[type] }}
-                  />
-                  <span className={cn(
-                    'text-xs font-medium capitalize',
-                    selectedType === type ? 'text-white' : 'text-zinc-400'
-                  )}>
-                    {type}
-                  </span>
-                </button>
-              ))}
+                    style={selectedType === type ? {
+                      borderColor: HOLD_COLORS[type],
+                      boxShadow: `0 0 12px ${HOLD_COLORS[type]}66`,
+                    } : undefined}
+                  >
+                    <div
+                      className={cn(
+                        'size-4 rounded-full shadow-sm transition-transform',
+                        selectedType === type && 'scale-110'
+                      )}
+                      style={{ backgroundColor: HOLD_COLORS[type] }}
+                    />
+                    <span className={cn(
+                      'text-xs font-medium capitalize',
+                      selectedType === type ? 'text-foreground' : 'text-muted-foreground'
+                    )}>
+                      {type}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="hidden h-8 w-px bg-border/20 mx-1 lg:block" />
+
+              <div className="flex items-center gap-2 bg-muted/40 rounded-xl px-3 py-2 border border-border/10">
+                <div
+                  className="shrink-0 rounded-full transition-all"
+                  style={{
+                    width: previewSize,
+                    height: previewSize,
+                    border: `${previewBorderWidth}px solid ${HOLD_COLORS[selectedType]}`,
+                    backgroundColor: `${HOLD_COLORS[selectedType]}30`,
+                  }}
+                />
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={sizeValue}
+                  onChange={(e) => handleSizeChange(Number(e.target.value))}
+                  className="w-20 h-1.5 bg-muted rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:cursor-pointer"
+                  title={`Size: ${selectedSize}`}
+                />
+                <span className="text-xs text-muted-foreground w-10 capitalize">{selectedSize}</span>
+              </div>
+
+              <div className="hidden h-8 w-px bg-border/20 mx-1 lg:block" />
+
+              <button
+                onClick={() => toggleSequenceVisibility(!showSequence)}
+                aria-label="Toggle sequence numbers"
+                title={showSequence ? "Hide sequence numbers" : "Show sequence numbers"}
+                className={cn(
+                  'h-10 rounded-xl px-3 flex items-center justify-center gap-1.5 text-xs font-medium transition-colors border border-transparent',
+                  showSequence
+                    ? 'bg-primary/20 text-primary border-primary/20'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                )}
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 8.25h15m-16.5 7.5h15m-1.8-13.5l-3.9 19.5m-2.1-19.5l-3.9 19.5" />
+                </svg>
+                <span>Sequence</span>
+              </button>
+
+              <button
+                onClick={clearHolds}
+                aria-label="Clear all holds"
+                title="Clear all holds"
+                className="h-10 rounded-xl px-3 flex items-center justify-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                </svg>
+                <span>Clear</span>
+              </button>
             </div>
-
-            {/* Divider */}
-            <div className="hidden h-8 w-px bg-zinc-700 mx-1 lg:block" />
-
-            {/* Size selector - slider on desktop */}
-            <div className="flex items-center gap-2 bg-zinc-800/50 rounded-lg px-3 py-2">
-              <div
-                className="shrink-0 rounded-full transition-all"
-                style={{
-                  width: previewSize,
-                  height: previewSize,
-                  border: `${previewBorderWidth}px solid ${HOLD_COLORS[selectedType]}`,
-                  backgroundColor: `${HOLD_COLORS[selectedType]}30`,
-                }}
-              />
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={sizeValue}
-                onChange={(e) => handleSizeChange(Number(e.target.value))}
-                className="w-20 h-1.5 bg-zinc-700 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:hover:scale-110 [&::-webkit-slider-thumb]:transition-transform"
-                title={`Size: ${selectedSize}`}
-              />
-              <span className="text-xs text-zinc-400 w-10 capitalize">{selectedSize}</span>
-            </div>
-
-            {/* Divider */}
-            <div className="hidden h-8 w-px bg-zinc-700 mx-1 lg:block" />
-
-            {/* More actions */}
-            <button
-              onClick={() => toggleSequenceVisibility(!showSequence)}
-              aria-label="Toggle sequence numbers"
-              title={showSequence ? "Hide sequence numbers" : "Show sequence numbers"}
-              className={cn(
-                'h-10 rounded-lg px-2.5 flex items-center justify-center gap-1.5 text-xs font-medium transition-colors',
-                showSequence
-                  ? 'bg-primary/20 text-primary'
-                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/80'
-              )}
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 8.25h15m-16.5 7.5h15m-1.8-13.5l-3.9 19.5m-2.1-19.5l-3.9 19.5" />
-              </svg>
-              <span>Sequence</span>
-            </button>
-
-            <button
-              onClick={clearHolds}
-              aria-label="Clear all holds"
-              title="Clear all holds"
-              className="h-10 rounded-lg px-2.5 flex items-center justify-center gap-1.5 text-xs font-medium text-zinc-300 hover:text-red-300 hover:bg-red-500/10 transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-              </svg>
-              <span>Clear</span>
-            </button>
-          </div>
           </div>
         </div>
       </div>
 
-      {/* Save Dialog */}
+      {/* Save / Edit Dialog */}
       <Dialog open={showSaveDialog} onOpenChange={handleSaveDialogChange}>
-        <DialogContent>
+        <DialogContent className="bg-card/95 backdrop-blur-2xl border-border/20">
           <DialogHeader>
             <DialogTitle>{isEditMode ? 'Update Route' : 'Save Route'}</DialogTitle>
           </DialogHeader>

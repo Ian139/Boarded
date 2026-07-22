@@ -48,11 +48,9 @@ export default function ProfilePage() {
     }
   };
 
-  // Calculate user stats
   const stats = useMemo(() => {
     const currentUserId = userId || 'local-user';
 
-    // Routes created by user
     const userRoutes = routes.filter(r => r.user_id === currentUserId);
     const userRouteStats = userRoutes.map((r) => {
       const ascents = r.ascents || [];
@@ -68,18 +66,15 @@ export default function ProfilePage() {
       };
     });
 
-    // All ascents by user across all routes
     const userAscents = routes.flatMap(r =>
       (r.ascents || []).filter(a => a.user_id === currentUserId)
     );
 
-    // Flash count and rate
     const flashedAscents = userAscents.filter(a => a.flashed);
     const flashRate = userAscents.length > 0
       ? (flashedAscents.length / userAscents.length) * 100
       : 0;
 
-    // Grade distribution (pyramid) - using display grades
     const gradeDistribution: Record<string, number> = {};
     userAscents.forEach(a => {
       const route = routes.find(r => r.id === a.route_id);
@@ -89,12 +84,10 @@ export default function ProfilePage() {
       }
     });
 
-    // Sort grades and get max count for scaling
     const sortedGrades = Object.entries(gradeDistribution)
       .sort((a, b) => gradeToNumber(a[0]) - gradeToNumber(b[0]));
     const maxCount = Math.max(...Object.values(gradeDistribution), 1);
 
-    // Recent activity (last 10 ascents)
     const recentActivity = userAscents
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
       .slice(0, 10)
@@ -105,11 +98,10 @@ export default function ProfilePage() {
           ...ascent,
           routeName: route?.name || 'Unknown Route',
           routeGrade: displayGrade,
-          userGrade: ascent.grade_v, // What the user graded it
+          userGrade: ascent.grade_v,
         };
       });
 
-    // Highest grade sent (using display grades)
     const highestGrade = userAscents
       .map(a => {
         const route = routes.find(r => r.id === a.route_id);
@@ -156,18 +148,19 @@ export default function ProfilePage() {
             <Link
               href="/"
               aria-label="Back to home"
-              className="size-10 rounded-xl bg-muted/50 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="size-10 rounded-xl bg-card/60 backdrop-blur-xl border border-border/20 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-card/80 transition-colors"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
               </svg>
             </Link>
-            <h1 className="text-xl font-bold">Profile</h1>
+            <h1 className="text-xl font-bold text-foreground">Profile</h1>
           </div>
 
           <Link
             href="/settings"
-            className="size-10 rounded-xl bg-muted/50 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            aria-label="Settings"
+            className="size-10 rounded-xl bg-card/60 backdrop-blur-xl border border-border/20 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-card/80 transition-colors"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
@@ -178,9 +171,9 @@ export default function ProfilePage() {
       </header>
 
       <main className="page-frame px-6 py-8 space-y-8">
-        {/* User Info */}
-        <section className="flex items-center gap-4">
-          <div className="size-16 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden border border-border/60">
+        {/* User Info Card */}
+        <section className="bg-card/60 backdrop-blur-xl border border-border/20 rounded-2xl p-5 shadow-lg flex items-center gap-4">
+          <div className="size-16 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden border border-border/40 shrink-0">
             {profile?.avatar_url ? (
               <Image
                 src={profile.avatar_url}
@@ -196,9 +189,9 @@ export default function ProfilePage() {
             )}
           </div>
 
-          <div className="flex-1">
-            <h2 className="text-xl font-bold">{displayName}</h2>
-            <p className="text-sm text-muted-foreground">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-xl font-bold text-foreground truncate">{displayName}</h2>
+            <p className="text-xs text-muted-foreground truncate">
               {isAuthenticated ? user?.email : 'Guest climber'}
             </p>
             {profile?.username && (
@@ -213,7 +206,7 @@ export default function ProfilePage() {
               </p>
             )}
             {profile?.bio && (
-              <p className="text-xs text-muted-foreground mt-1">{profile.bio}</p>
+              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{profile.bio}</p>
             )}
             {isAuthenticated && (
               <div className="mt-2">
@@ -230,7 +223,7 @@ export default function ProfilePage() {
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isUploadingAvatar}
                   aria-busy={isUploadingAvatar}
-                  className="text-xs font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+                  className="text-xs font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isUploadingAvatar ? 'Uploading...' : 'Change avatar'}
                 </button>
@@ -239,99 +232,107 @@ export default function ProfilePage() {
           </div>
         </section>
 
-        {/* Stats Row */}
-        <section>
-          <div className="flex gap-2">
-            <div className="flex-1 bg-muted/30 rounded-xl py-4 text-center">
+        {/* Flighty-Style Grouped Overview Stats */}
+        <section className="bg-card/60 backdrop-blur-xl border border-border/20 rounded-2xl overflow-hidden shadow-lg">
+          <div className="grid grid-cols-4 divide-x divide-border/10">
+            <div className="py-4 px-3 text-center">
               <p className="text-2xl font-bold text-primary">{stats.totalSends}</p>
-              <p className="text-xs text-muted-foreground">Sends</p>
+              <p className="text-xs font-medium text-muted-foreground mt-0.5">Sends</p>
             </div>
-            <div className="flex-1 bg-muted/30 rounded-xl py-4 text-center">
+            <div className="py-4 px-3 text-center">
               <p className="text-2xl font-bold text-foreground">
                 {stats.flashRate > 0 ? `${Math.round(stats.flashRate)}%` : '—'}
               </p>
-              <p className="text-xs text-muted-foreground">Flash Rate</p>
+              <p className="text-xs font-medium text-muted-foreground mt-0.5">Flash Rate</p>
             </div>
-            <div className="flex-1 bg-muted/30 rounded-xl py-4 text-center">
+            <div className="py-4 px-3 text-center">
               <p className="text-2xl font-bold text-foreground">{stats.routesCreated}</p>
-              <p className="text-xs text-muted-foreground">Routes Set</p>
+              <p className="text-xs font-medium text-muted-foreground mt-0.5">Routes Set</p>
+            </div>
+            <div className="py-4 px-3 text-center">
+              <p className="text-2xl font-bold text-primary">{stats.highestGrade || '—'}</p>
+              <p className="text-xs font-medium text-muted-foreground mt-0.5">Best Grade</p>
             </div>
           </div>
         </section>
 
-        {/* Highest Grade */}
-        {stats.highestGrade && (
-          <section>
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Highest Grade</h3>
-            <p className="text-3xl font-bold text-primary">{stats.highestGrade}</p>
-          </section>
-        )}
-
-        {/* Setter Analytics */}
+        {/* Setter Analytics Grouped Panel */}
         {stats.routesCreated > 0 && (
-          <section>
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4">Setter Analytics</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-muted/30 rounded-xl p-4">
-                <p className="text-xs text-muted-foreground mb-1">Total Likes</p>
-                <p className="text-xl font-bold text-foreground">{stats.totalLikes}</p>
-              </div>
-              <div className="bg-muted/30 rounded-xl p-4">
-                <p className="text-xs text-muted-foreground mb-1">Avg Rating</p>
-                <p className="text-xl font-bold text-foreground">
-                  {stats.avgRouteRating > 0 ? stats.avgRouteRating.toFixed(1) : '—'}
-                </p>
-              </div>
-              <div className="bg-muted/30 rounded-xl p-4">
-                <p className="text-xs text-muted-foreground mb-1">Most Liked</p>
-                <p className="text-sm font-medium text-foreground truncate">
-                  {stats.topLikedRoute?.name || '—'}
-                </p>
-              </div>
-              <div className="bg-muted/30 rounded-xl p-4">
-                <p className="text-xs text-muted-foreground mb-1">Most Viewed</p>
-                <p className="text-sm font-medium text-foreground truncate">
-                  {stats.topViewedRoute?.name || '—'}
-                </p>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* Grade Pyramid */}
-        {stats.gradeDistribution.length > 0 && (
-          <section>
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4">Grade Pyramid</h3>
-            <div className="space-y-2">
-              {stats.gradeDistribution.map(([grade, count]) => (
-                <div key={grade} className="flex items-center gap-3">
-                  <span className="w-8 text-sm font-medium text-muted-foreground">{grade}</span>
-                  <div className="flex-1 h-5 bg-muted/30 rounded-lg overflow-hidden">
-                    <div
-                      className="h-full bg-primary/70 rounded-lg transition-all duration-500"
-                      style={{ width: `${(count / stats.maxCount) * 100}%` }}
-                    />
-                  </div>
-                  <span className="w-6 text-sm font-medium text-right">{count}</span>
+          <section className="space-y-2">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
+              Setter Analytics
+            </h3>
+            <div className="bg-card/60 backdrop-blur-xl border border-border/20 rounded-2xl overflow-hidden shadow-lg divide-y divide-border/10">
+              <div className="grid grid-cols-2 divide-x divide-border/10">
+                <div className="p-4">
+                  <p className="text-xs font-medium text-muted-foreground">Total Likes</p>
+                  <p className="text-xl font-bold text-foreground mt-1">{stats.totalLikes}</p>
                 </div>
-              ))}
+                <div className="p-4">
+                  <p className="text-xs font-medium text-muted-foreground">Avg Rating</p>
+                  <p className="text-xl font-bold text-foreground mt-1">
+                    {stats.avgRouteRating > 0 ? stats.avgRouteRating.toFixed(1) : '—'}
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 divide-x divide-border/10">
+                <div className="p-4">
+                  <p className="text-xs font-medium text-muted-foreground">Most Liked</p>
+                  <p className="text-sm font-semibold text-foreground truncate mt-1">
+                    {stats.topLikedRoute?.name || '—'}
+                  </p>
+                </div>
+                <div className="p-4">
+                  <p className="text-xs font-medium text-muted-foreground">Most Viewed</p>
+                  <p className="text-sm font-semibold text-foreground truncate mt-1">
+                    {stats.topViewedRoute?.name || '—'}
+                  </p>
+                </div>
+              </div>
             </div>
           </section>
         )}
 
-        {/* Recent Activity */}
+        {/* Grade Pyramid Grouped Panel */}
+        {stats.gradeDistribution.length > 0 && (
+          <section className="space-y-2">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
+              Grade Pyramid
+            </h3>
+            <div className="bg-card/60 backdrop-blur-xl border border-border/20 rounded-2xl p-4 shadow-lg">
+              <div className="space-y-2.5">
+                {stats.gradeDistribution.map(([grade, count]) => (
+                  <div key={grade} className="flex items-center gap-3">
+                    <span className="w-8 text-sm font-semibold text-muted-foreground">{grade}</span>
+                    <div className="flex-1 h-4 bg-muted/40 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary rounded-full transition-all duration-500"
+                        style={{ width: `${(count / stats.maxCount) * 100}%` }}
+                      />
+                    </div>
+                    <span className="w-6 text-sm font-semibold text-right text-foreground">{count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Recent Activity Grouped Panel */}
         {stats.recentActivity.length > 0 && (
-          <section>
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4">Recent Activity</h3>
-            <div className="space-y-1">
+          <section className="space-y-2">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
+              Recent Activity
+            </h3>
+            <div className="bg-card/60 backdrop-blur-xl border border-border/20 rounded-2xl overflow-hidden shadow-lg divide-y divide-border/10">
               {stats.recentActivity.map((activity) => (
                 <div
                   key={activity.id}
-                  className="flex items-center gap-3 py-2.5"
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-muted/20 transition-colors"
                 >
                   <div className={cn(
-                    "size-8 rounded-lg flex items-center justify-center shrink-0",
-                    activity.flashed ? "bg-amber-500/10 text-amber-500" : "bg-muted/50 text-muted-foreground"
+                    "size-8 rounded-xl flex items-center justify-center shrink-0 border border-border/10",
+                    activity.flashed ? "bg-primary/15 text-primary" : "bg-muted/40 text-muted-foreground"
                   )}>
                     {activity.flashed ? (
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -343,17 +344,21 @@ export default function ProfilePage() {
                       </svg>
                     )}
                   </div>
-                  <div>
-                    <p className="font-medium">
-                      {activity.routeName}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-sm truncate text-foreground">
+                        {activity.routeName}
+                      </p>
                       {activity.routeGrade && (
-                        <span className="text-primary font-bold ml-2">{activity.routeGrade}</span>
+                        <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary shrink-0">
+                          {activity.routeGrade}
+                        </span>
                       )}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       {activity.flashed ? 'Flashed' : 'Sent'}
                       {activity.userGrade && activity.userGrade !== activity.routeGrade && (
-                        <span> • You: {activity.userGrade}</span>
+                        <span> • Logged as {activity.userGrade}</span>
                       )}
                       {' • '}{new Date(activity.created_at).toLocaleDateString()}
                     </p>
@@ -366,17 +371,17 @@ export default function ProfilePage() {
 
         {/* Empty State */}
         {stats.totalSends === 0 && stats.routesCreated === 0 && (
-          <section className="text-center py-12">
-            <div className="size-16 rounded-full bg-muted/50 mx-auto mb-4 flex items-center justify-center">
+          <section className="bg-card/60 backdrop-blur-xl border border-border/20 rounded-2xl text-center py-12 px-6 shadow-lg">
+            <div className="size-16 rounded-full bg-muted/40 mx-auto mb-4 flex items-center justify-center border border-border/10">
               <svg className="w-8 h-8 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <h3 className="font-semibold mb-1">No climbing activity yet</h3>
+            <h3 className="font-semibold text-foreground mb-1">No climbing activity yet</h3>
             <p className="text-sm text-muted-foreground mb-4">Start logging your sends to build your profile</p>
             <Link
               href="/"
-              className="inline-flex items-center justify-center h-10 px-6 rounded-xl bg-primary text-primary-foreground font-medium hover:opacity-90 transition-opacity"
+              className="inline-flex items-center justify-center h-10 px-6 rounded-xl bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity"
             >
               Browse Routes
             </Link>
@@ -385,7 +390,7 @@ export default function ProfilePage() {
 
         {/* App Info */}
         <section className="pt-4 pb-4 text-center">
-          <p className="text-xs text-muted-foreground">Boarded v0.1.2</p>
+          <p className="text-xs text-muted-foreground font-medium">Boarded v0.1.2</p>
         </section>
       </main>
     </div>
