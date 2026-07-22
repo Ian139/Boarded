@@ -383,10 +383,10 @@ extension HoldType {
 
     var colorHex: String {
         switch self {
-        case .start: return "#10b981"
-        case .hand: return "#ef4444"
-        case .foot: return "#3b82f6"
-        case .finish: return "#f59e0b"
+        case .start: return "#00E599"
+        case .hand: return "#FF5C00"
+        case .foot: return "#FFFFFF"
+        case .finish: return "#FF5C00"
         }
     }
 }
