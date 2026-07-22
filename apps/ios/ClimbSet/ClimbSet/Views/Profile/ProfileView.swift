@@ -75,7 +75,7 @@ struct ProfileView: View {
     private var header: some View {
         HStack(alignment: .top, spacing: 14) {
             Circle()
-                .fill(theme.primary.opacity(0.14))
+                .fill(theme.primary.opacity(0.15))
                 .frame(width: 64, height: 64)
                 .overlay(Image(systemName: "figure.climbing").font(.title2).foregroundStyle(theme.primary))
             VStack(alignment: .leading, spacing: 5) {
@@ -110,7 +110,7 @@ struct ProfileView: View {
     }
 
     private var pointsPanel: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Profile stats").font(AppTypography.headline).foregroundStyle(theme.primaryText)
@@ -124,9 +124,12 @@ struct ProfileView: View {
                     Text("Points unavailable").font(AppTypography.caption).foregroundStyle(theme.secondaryText)
                 }
             }
-            HStack(spacing: 16) {
+            theme.primaryText.opacity(0.12).frame(height: 1)
+            HStack(spacing: 0) {
                 statValue(title: "Sends", value: "\(viewModel.sendsCount)")
+                theme.primaryText.opacity(0.12).frame(width: 1).frame(maxHeight: .infinity)
                 statValue(title: "Flashes", value: "\(viewModel.flashedCount)")
+                theme.primaryText.opacity(0.12).frame(width: 1).frame(maxHeight: .infinity)
                 statValue(title: "Highest", value: viewModel.highestGrade ?? "—")
             }
         }
@@ -139,6 +142,7 @@ struct ProfileView: View {
             Text(title).font(AppTypography.caption).foregroundStyle(theme.secondaryText)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 8)
     }
 
     private var leaderboardSection: some View {
@@ -148,24 +152,29 @@ struct ProfileView: View {
                 emptyRow(icon: "trophy", text: "No public leaderboard data yet.")
             } else {
                 ForEach(Array(viewModel.leaderboard.enumerated()), id: \.element.id) { index, entry in
-                    Button {
-                        guard let id = UUID(uuidString: entry.id) else { return }
-                        Task { await viewModel.selectAccount(userID: id) }
-                    } label: {
-                        HStack(spacing: 12) {
-                            Text("\(index + 1)").font(AppTypography.headline).foregroundStyle(theme.primary).frame(width: 28)
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(entry.displayName).font(AppTypography.body).foregroundStyle(theme.primaryText).lineLimit(1)
-                                Text("\(entry.sendsCount) sends • best \(entry.highestGrade ?? "—")")
-                                    .font(AppTypography.caption).foregroundStyle(theme.secondaryText)
-                            }
-                            Spacer()
-                            Text(entry.points.map { "\($0) pts" } ?? "—")
-                                .font(AppTypography.headline).foregroundStyle(theme.primaryText)
+                    VStack(alignment: .leading, spacing: 12) {
+                        if index > 0 {
+                            theme.primaryText.opacity(0.12).frame(height: 1)
                         }
-                        .contentShape(Rectangle())
+                        Button {
+                            guard let id = UUID(uuidString: entry.id) else { return }
+                            Task { await viewModel.selectAccount(userID: id) }
+                        } label: {
+                            HStack(spacing: 12) {
+                                Text("\(index + 1)").font(AppTypography.headline).foregroundStyle(theme.primary).frame(width: 28)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(entry.displayName).font(AppTypography.body).foregroundStyle(theme.primaryText).lineLimit(1)
+                                    Text("\(entry.sendsCount) sends • best \(entry.highestGrade ?? "—")")
+                                        .font(AppTypography.caption).foregroundStyle(theme.secondaryText)
+                                }
+                                Spacer()
+                                Text(entry.points.map { "\($0) pts" } ?? "—")
+                                    .font(AppTypography.headline).foregroundStyle(theme.primaryText)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
             if let current = session.userId, viewModel.selectedUserID != current {
@@ -179,11 +188,13 @@ struct ProfileView: View {
     private var highlightsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             BoardedSectionHeading(title: "Highlights", subtitle: "Your strongest and longest completed climbs")
-            HStack(spacing: 12) {
+            HStack(spacing: 0) {
                 highlightCard(title: "Best Climb", climb: viewModel.highlights.bestClimb, icon: "star.fill")
+                theme.primaryText.opacity(0.12).frame(width: 1).frame(maxHeight: .infinity)
                 highlightCard(title: "Longest Project", climb: viewModel.highlights.longestProject, icon: "flag.fill")
             }
         }
+        .boardedPanel()
     }
 
     private var historySection: some View {
@@ -194,28 +205,33 @@ struct ProfileView: View {
             } else if viewModel.previousClimbs.isEmpty {
                 emptyRow(icon: "checkmark.circle", text: viewModel.selectedUserID == nil ? "Sign in to see climbing history." : "No public climbing history.")
             } else {
-                ForEach(viewModel.previousClimbs) { climb in
-                    Button {
-                        if let route = climb.route { selectedRoute = route }
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: climb.flashed ? "bolt.fill" : "checkmark.circle.fill")
-                                .foregroundStyle(climb.flashed ? theme.accent : theme.secondary)
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(climb.routeName).font(AppTypography.body).foregroundStyle(theme.primaryText).lineLimit(1)
-                                Text("\(climb.grade ?? "Unknown grade") • \(formattedDate(climb.completedAt))")
-                                    .font(AppTypography.caption).foregroundStyle(theme.secondaryText)
-                            }
-                            Spacer()
-                            if !climb.isAvailable {
-                                Text("Unavailable").font(AppTypography.caption).foregroundStyle(theme.secondaryText)
-                            } else {
-                                Image(systemName: "chevron.right").foregroundStyle(theme.secondaryText)
+                ForEach(Array(viewModel.previousClimbs.enumerated()), id: \.element.id) { index, climb in
+                    VStack(alignment: .leading, spacing: 12) {
+                        if index > 0 {
+                            theme.primaryText.opacity(0.12).frame(height: 1)
+                        }
+                        Button {
+                            if let route = climb.route { selectedRoute = route }
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: climb.flashed ? "bolt.fill" : "checkmark.circle.fill")
+                                    .foregroundStyle(climb.flashed ? theme.accent : theme.secondary)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(climb.routeName).font(AppTypography.body).foregroundStyle(theme.primaryText).lineLimit(1)
+                                    Text("\(climb.grade ?? "Unknown grade") • \(formattedDate(climb.completedAt))")
+                                        .font(AppTypography.caption).foregroundStyle(theme.secondaryText)
+                                }
+                                Spacer()
+                                if !climb.isAvailable {
+                                    Text("Unavailable").font(AppTypography.caption).foregroundStyle(theme.secondaryText)
+                                } else {
+                                    Image(systemName: "chevron.right").foregroundStyle(theme.secondaryText)
+                                }
                             }
                         }
+                        .buttonStyle(.plain)
+                        .disabled(!climb.isAvailable)
                     }
-                    .buttonStyle(.plain)
-                    .disabled(!climb.isAvailable)
                 }
             }
         }
@@ -230,8 +246,7 @@ struct ProfileView: View {
             if let climb { Text(climb.grade ?? "Unknown grade").font(AppTypography.caption).foregroundStyle(theme.primary) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(theme.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: theme.controlCornerRadius))
+        .padding(8)
     }
 
     private var settingsRow: some View {

@@ -188,17 +188,24 @@ struct EditorView: View {
     }
 
     var body: some View {
+        let theme = BoardedTheme(colorScheme: colorScheme)
         ZStack {
+            GeometryReader { proxy in
+                canvasSurface(size: proxy.size)
+            }
+            .ignoresSafeArea(.container, edges: .bottom)
+
             VStack(spacing: 0) {
                 header
-                Divider().background(AppColor.border)
-
-                GeometryReader { _ in
-                    wallCanvas
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
+                    .background(
+                        theme.panelBackground
+                            .background(.ultraThinMaterial)
+                    )
+                    .overlay(alignment: .bottom) {
+                        theme.primaryText.opacity(0.12).frame(height: 1)
+                    }
+                Spacer()
             }
-            .background(Color.clear.ignoresSafeArea())
         }
         .boardedPageBackground()
         .sheet(isPresented: $isSavePresented) {
@@ -372,35 +379,9 @@ struct EditorView: View {
         .accessibilityHint("Saves this route.")
     }
 
-    private var wallCanvas: some View {
-        GeometryReader { proxy in
-            let surfaceSize = CGSize(
-                width: max(1, proxy.size.width - 12),
-                height: max(1, proxy.size.height - 8)
-            )
-            let theme = BoardedTheme(colorScheme: colorScheme)
-
-            ZStack {
-                RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                    .fill(theme.panelBackground)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: theme.panelCornerRadius)
-                            .stroke(theme.border, lineWidth: 1)
-                    )
-
-                canvasSurface(size: surfaceSize)
-                    .frame(width: surfaceSize.width, height: surfaceSize.height)
-            }
-            .frame(width: proxy.size.width, height: proxy.size.height)
-        }
-        .frame(maxWidth: AppLayout.editorMaxWidth)
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
-    }
-
     private func canvasSurface(size: CGSize) -> some View {
         let imageRect = EditorHoldGeometry.initialImageRect(imageAspectRatio: wallAspectRatio, in: size)
+        let theme = BoardedTheme(colorScheme: colorScheme)
 
         return ZStack {
             Rectangle()
@@ -473,7 +454,7 @@ struct EditorView: View {
                             .foregroundColor(AppColor.text)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 5)
-                            .background(AppColor.surface.opacity(0.88))
+                            .background(theme.panelBackground.background(.ultraThinMaterial))
                             .clipShape(Capsule())
                             .accessibilityElement(children: .ignore)
                             .accessibilityLabel("Wall zoom")
@@ -489,7 +470,7 @@ struct EditorView: View {
                         .padding(.horizontal, 8)
                         .padding(.vertical, 5)
                         .frame(minWidth: 44, minHeight: 44)
-                        .background(AppColor.surface.opacity(0.88))
+                        .background(theme.panelBackground.background(.ultraThinMaterial))
                         .clipShape(Capsule())
                         .accessibilityLabel("Reset wall zoom")
                         .accessibilityHint("Returns the wall to 100 percent and centers it.")
@@ -502,7 +483,6 @@ struct EditorView: View {
         }
         .contentShape(Rectangle())
         .coordinateSpace(name: "editorCanvas")
-        .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
     }
 
     @ViewBuilder
@@ -583,7 +563,7 @@ struct EditorView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(AppColor.surface.opacity(0.92))
+        .background(BoardedTheme(colorScheme: colorScheme).panelBackground.background(.ultraThinMaterial))
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
@@ -597,7 +577,7 @@ struct EditorView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(AppColor.surface.opacity(0.92))
+        .background(BoardedTheme(colorScheme: colorScheme).panelBackground.background(.ultraThinMaterial))
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
@@ -617,13 +597,13 @@ struct EditorView: View {
                 .foregroundColor(AppColor.primary)
                 .frame(minWidth: 44, minHeight: 44)
                 .padding(.horizontal, 10)
-                .background(AppColor.surface.opacity(0.92))
+                .background(BoardedTheme(colorScheme: colorScheme).panelBackground.background(.ultraThinMaterial))
                 .clipShape(Capsule())
                 .accessibilityLabel("Retry wall image")
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(AppColor.surface.opacity(0.92))
+            .background(BoardedTheme(colorScheme: colorScheme).panelBackground.background(.ultraThinMaterial))
             .clipShape(RoundedRectangle(cornerRadius: 14))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -644,7 +624,7 @@ struct EditorView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(AppColor.surface.opacity(0.86))
+        .background(BoardedTheme(colorScheme: colorScheme).panelBackground.background(.ultraThinMaterial))
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
