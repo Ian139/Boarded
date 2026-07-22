@@ -97,6 +97,8 @@ enum EditorHoldGeometry {
     }
 }
 enum EditorHoldInteraction {
+    static let defaultType: HoldType = .start
+
     static func nextType(after type: HoldType) -> HoldType? {
         switch type {
         case .start: return .hand
@@ -119,7 +121,6 @@ struct EditorView: View {
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var wallsViewModel: WallsViewModel
     @State private var holds: [Hold] = []
-    @State private var editorMode: EditorMode = .pan
     @State private var routeName = ""
     @State private var routeGrade: String? = nil
     @State private var isSavePresented = false
@@ -178,10 +179,6 @@ struct EditorView: View {
         _isApplyingWallSelection = State(initialValue: routeToEdit != nil)
     }
 
-    private enum EditorMode: Equatable {
-        case pan
-        case add(HoldType)
-    }
 
     private enum WallImageState: Equatable {
         case none
@@ -196,17 +193,9 @@ struct EditorView: View {
                 header
                 Divider().background(AppColor.border)
 
-                GeometryReader { proxy in
-                    let bodyHeight = proxy.size.height
-                    let wallHeight = bodyHeight * (dynamicTypeSize.isAccessibilitySize ? 0.55 : 0.75)
-                    let controlsHeight = max(0, bodyHeight - wallHeight)
-
-                    VStack(spacing: 0) {
-                        wallCanvas
-                            .frame(height: wallHeight)
-                        controls
-                            .frame(height: controlsHeight)
-                    }
+                GeometryReader { _ in
+                    wallCanvas
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
             .background(Color.clear.ignoresSafeArea())
@@ -259,7 +248,7 @@ struct EditorView: View {
         .onReceive(NotificationCenter.default.publisher(for: .wallImageDidChange)) { notification in
             guard let wallID = notification.object as? String, wallID == acceptedWallID else { return }
             holds.removeAll()
-            setEditorMode(.pan, announcement: "Wall image changed. Holds cleared. Pan mode")
+            announce("Wall image changed. Holds cleared.")
             resetZoom(animated: false)
             refreshWallMetadata()
         }
@@ -428,6 +417,15 @@ struct EditorView: View {
                 .accessibilityIdentifier("Editor canvas surface")
                 .accessibilityLabel("Wall editor")
                 .accessibilityValue(canvasAccessibilityValue)
+                .accessibilityHint("Activate to add a Start hold at the wall center. Drag to pan when the wall overflows. Pinch the wall to zoom or a hold to resize it.")
+                .accessibilityAction {
+                    guard wallIsUsable else { return }
+                    placeHold(
+                        at: CGPoint(x: imageRect.midX, y: imageRect.midY),
+                        in: imageRect,
+                        type: EditorHoldInteraction.defaultType
+                    )
+                }
 
             ZStack {
                 wallImage(in: imageRect)
@@ -461,8 +459,8 @@ struct EditorView: View {
             } else if wallImageState == .failed {
                 failedImagePanel
                     .zIndex(2000)
-            } else if holds.isEmpty && isPanMode {
-                emptyPanPanel
+            } else if holds.isEmpty {
+                emptyWallPanel
                     .zIndex(2000)
                     .allowsHitTesting(false)
             }
@@ -631,14 +629,14 @@ struct EditorView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private var emptyPanPanel: some View {
+    private var emptyWallPanel: some View {
         VStack(spacing: 8) {
-            Text("Choose a hold type below")
+            Text("Tap the wall to add a Start hold")
                 .font(AppTypography.headline)
                 .foregroundColor(AppColor.text)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Then tap the wall to place it.")
+            Text("Drag to pan when the wall overflows. Pinch to zoom. Tap a hold to cycle its type.")
                 .font(AppTypography.label)
                 .foregroundColor(AppColor.muted)
                 .multilineTextAlignment(.center)
@@ -650,109 +648,8 @@ struct EditorView: View {
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
-    private var controls: some View {
-        ScrollView(.vertical, showsIndicators: dynamicTypeSize.isAccessibilitySize) {
-            VStack(alignment: .leading, spacing: 8) {
-                if dynamicTypeSize.isAccessibilitySize {
-                    VStack(alignment: .leading, spacing: 8) {
-                        panButton
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        ForEach(HoldType.allCases, id: \.self) { type in
-                            typeButton(type)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    }
-                } else {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            panButton
-                            ForEach(HoldType.allCases, id: \.self) { type in
-                                typeButton(type)
-                            }
-                        }
-                        .padding(.vertical, 1)
-                    }
-                }
 
 
-                Text(contextualHint)
-                    .font(AppTypography.label)
-                    .foregroundColor(AppColor.muted)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 2)
-                    .accessibilityAddTraits(.isStaticText)
-            }
-            .padding(.horizontal, AppLayout.horizontalPadding)
-            .padding(.vertical, 8)
-            .frame(maxWidth: AppLayout.contentMaxWidth)
-            .frame(maxWidth: .infinity, alignment: .top)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Color.clear)
-    }
-
-    private var panButton: some View {
-        let isSelected = isPanMode
-        return Button {
-            setEditorMode(.pan, announcement: "Pan mode")
-        } label: {
-            Label("Pan", systemImage: "hand.draw")
-                .font(AppTypography.label)
-                .foregroundColor(isSelected ? AppColor.primary : AppColor.text)
-                .frame(minWidth: 44, minHeight: 44)
-                .padding(.horizontal, 10)
-                .background(isSelected ? AppColor.primary.opacity(0.12) : AppColor.surface)
-                .overlay(
-                    Capsule()
-                        .stroke(isSelected ? AppColor.primary : AppColor.border, lineWidth: isSelected ? 2 : 1)
-                )
-                .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Pan tool")
-        .accessibilityHint("Selects pan mode; taps on the wall do not add holds.")
-        .accessibilityValue(isSelected ? "Selected" : "Not selected")
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-
-    private func typeButton(_ type: HoldType) -> some View {
-        let isSelected = typeIsSelected(type)
-        let isEnabled = wallIsUsable
-        let color = Color.hex(type.colorHex)
-
-        return Button {
-            setEditorMode(.add(type), announcement: "Add \(typeDisplayName(type).lowercased()) mode")
-        } label: {
-            HStack(spacing: 5) {
-                Circle()
-                    .fill(isEnabled ? color : AppColor.muted)
-                    .frame(width: 10, height: 10)
-                    .accessibilityHidden(true)
-                Text(type.shortLabel)
-                    .font(.system(.footnote, design: .rounded).weight(.bold))
-                Text(typeDisplayName(type))
-                    .font(AppTypography.label)
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 11, weight: .bold))
-                }
-            }
-            .foregroundColor(isEnabled ? AppColor.text : AppColor.muted)
-            .frame(minHeight: 44)
-            .padding(.horizontal, 10)
-            .background(AppColor.surface)
-            .overlay(
-                Capsule()
-                    .stroke(isSelected ? AppColor.primary : AppColor.border, lineWidth: isSelected ? 2 : 1)
-            )
-            .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .disabled(!isEnabled)
-        .accessibilityLabel("Add \(typeDisplayName(type)) hold")
-        .accessibilityValue(isSelected ? "Selected" : "Not selected")
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
 
 
 
@@ -1017,12 +914,7 @@ struct EditorView: View {
         ) else { return }
         guard imageRect.contains(imagePoint) else { return }
 
-        switch editorMode {
-        case .pan:
-            break
-        case .add(let type):
-            placeHold(at: imagePoint, in: imageRect, type: type)
-        }
+        placeHold(at: imagePoint, in: imageRect, type: EditorHoldInteraction.defaultType)
     }
 
 
@@ -1065,12 +957,6 @@ struct EditorView: View {
     }
 
 
-    private func setEditorMode(_ mode: EditorMode, announcement: String? = nil) {
-        editorMode = mode
-        if let announcement {
-            announce(announcement)
-        }
-    }
 
 
     private func handleWallSelectionChange(_ newID: String?) {
@@ -1078,7 +964,7 @@ struct EditorView: View {
         guard newID != acceptedWallID else { return }
         if let acceptedWallID, !wallsViewModel.walls.contains(where: { $0.id == acceptedWallID }) {
             holds.removeAll()
-            acceptWallSelection(newID, announcement: "Previous wall deleted. Holds cleared. Pan mode")
+            acceptWallSelection(newID, announcement: "Previous wall deleted. Holds cleared.")
             return
         }
 
@@ -1110,7 +996,7 @@ struct EditorView: View {
         pendingWallID = nil
         hasPendingWallSelection = false
         holds.removeAll()
-        setEditorMode(.pan, announcement: "Wall changed. Pan mode")
+        announce("Wall changed. Holds cleared.")
         resetZoom(animated: false)
         resetWallImageState(for: acceptedWallID)
         DispatchQueue.main.async {
@@ -1118,17 +1004,18 @@ struct EditorView: View {
         }
     }
 
-    private func acceptWallSelection(_ id: String?, announcement: String = "Pan mode") {
+    private func acceptWallSelection(_ id: String?, announcement: String? = nil) {
         acceptedWallID = id
         pendingWallID = nil
         hasPendingWallSelection = false
-        setEditorMode(.pan, announcement: announcement)
+        if let announcement {
+            announce(announcement)
+        }
         resetZoom(animated: false)
         resetWallImageState(for: id)
     }
 
     private func retryWallImage() {
-        editorMode = .pan
         refreshWallMetadata()
     }
 
@@ -1225,7 +1112,6 @@ struct EditorView: View {
         guard wallImageState != state else { return }
         wallImageState = state
         if state == .failed {
-            editorMode = .pan
             announce("Wall image couldn’t load.")
         }
     }
@@ -1279,10 +1165,6 @@ struct EditorView: View {
     }
 
 
-    private var isPanMode: Bool {
-        if case .pan = editorMode { return true }
-        return false
-    }
 
 
     private var wallIsUsable: Bool {
@@ -1292,39 +1174,17 @@ struct EditorView: View {
             && !isRefreshingWallMetadata
     }
 
-    private var contextualHint: String {
-        switch editorMode {
-        case .pan:
-            return "Pinch to zoom. Drag the wall to pan. Tap a hold to cycle its type."
-        case .add(let type):
-            return "Tap the wall to add a \(typeDisplayName(type).lowercased()) hold. Tap a hold to cycle its type."
-        }
-    }
 
     private var canvasAccessibilityValue: String {
         let wallName = selectedWall?.name ?? "No wall selected"
-        return "\(wallName), \(holds.count) \(holds.count == 1 ? "hold" : "holds"), \(modeAccessibilityName) mode, zoom \(zoomPercentage) percent."
+        return "\(wallName), \(holds.count) \(holds.count == 1 ? "hold" : "holds"), zoom \(zoomPercentage) percent."
     }
 
-    private var modeAccessibilityName: String {
-        switch editorMode {
-        case .pan:
-            return "Pan"
-        case .add(let type):
-            return "Add \(typeDisplayName(type))"
-        }
-    }
 
     private var zoomPercentage: Int {
         Int((zoomScale * 100).rounded())
     }
 
-    private func typeIsSelected(_ type: HoldType) -> Bool {
-        if case .add(let activeType) = editorMode {
-            return activeType == type
-        }
-        return false
-    }
 #if DEBUG
     private func isFixtureWallImage(for id: String?) -> Bool {
         guard AppLaunchConfiguration.isUITestFixture,
@@ -1467,10 +1327,10 @@ struct EditorView: View {
                     userId: session.userId,
                     userName: session.displayName
                 )
+                announce("Route saved.")
                 routeName = ""
                 routeGrade = nil
                 holds = []
-                setEditorMode(.pan, announcement: "Route saved. Pan mode")
                 resetZoom()
             }
             isSavePresented = false

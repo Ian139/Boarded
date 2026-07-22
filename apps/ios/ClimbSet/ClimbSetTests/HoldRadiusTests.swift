@@ -2,6 +2,9 @@ import XCTest
 @testable import ClimbSet
 
 final class HoldRadiusTests: XCTestCase {
+    func testDefaultTypeIsStart() {
+        XCTAssertEqual(EditorHoldInteraction.defaultType, .start)
+    }
     func testNextTypeCyclesThroughPlacementTypesThenDeletes() {
         XCTAssertEqual(EditorHoldInteraction.nextType(after: .start), .hand)
         XCTAssertEqual(EditorHoldInteraction.nextType(after: .hand), .foot)

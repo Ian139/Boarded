@@ -83,8 +83,19 @@ final class ClimbSetUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Routes"].waitForExistence(timeout: 10))
         app.tabBars.buttons["Editor"].tap()
         XCTAssertTrue(app.staticTexts["Hold count"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["Add Start hold"].exists)
-        XCTAssertTrue(app.buttons["Add Hand hold"].exists)
+
+        // Holds are inferred from canvas touches; the old explicit selectors are gone.
+        let removedEditorControls = [
+            "Add Start hold",
+            "Add Hand hold",
+            "Add Foot hold",
+            "Add Finish hold",
+            "Pan tool",
+            "Selected mode"
+        ]
+        for identifier in removedEditorControls {
+            XCTAssertFalse(app.buttons[identifier].exists, "\(identifier) must not be exposed.")
+        }
     }
     func testFixtureWallCreateAndDeleteStayInMemory() throws {
         let name = "UI Fixture Wall \(UUID().uuidString)"
@@ -137,15 +148,8 @@ final class ClimbSetUITests: XCTestCase {
         let routeName = "UI Fixture Route \(UUID().uuidString)"
         XCTAssertTrue(app.staticTexts["Routes"].waitForExistence(timeout: 10))
         app.tabBars.buttons["Editor"].tap()
-        let canvas = app.otherElements["Editor canvas surface"]
+        let canvas = app.descendants(matching: .any)["Editor canvas surface"]
         XCTAssertTrue(canvas.waitForExistence(timeout: 10))
-        let addStart = app.buttons["Add Start hold"]
-        XCTAssertTrue(addStart.waitForExistence(timeout: 5))
-        let addStartEnabled = expectation(
-            for: NSPredicate(format: "enabled == true"),
-            evaluatedWith: addStart
-        )
-        wait(for: [addStartEnabled], timeout: 5)
 
         func radius(from value: String?) -> Int? {
             guard let value,
@@ -167,11 +171,19 @@ final class ClimbSetUITests: XCTestCase {
             return (x, y)
         }
 
-        app.buttons["Add Start hold"].tap()
+        func zoom(from value: String?) -> Int? {
+            guard let value else { return nil }
+            let components = value.split(separator: " ")
+            guard let zoomIndex = components.firstIndex(of: "zoom"),
+                  components.index(after: zoomIndex) < components.endIndex else {
+                return nil
+            }
+            return Int(components[components.index(after: zoomIndex)])
+        }
+
+        // Empty-canvas taps place the default Start type without a tool selection.
         canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: 0.5)).tap()
         XCTAssertTrue((canvas.value as? String)?.contains("1 hold") == true)
-
-        app.buttons["Add Hand hold"].tap()
         canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.65, dy: 0.5)).tap()
         XCTAssertTrue((canvas.value as? String)?.contains("2 holds") == true)
 
@@ -180,15 +192,17 @@ final class ClimbSetUITests: XCTestCase {
         XCTAssertTrue(firstMarker.waitForExistence(timeout: 5))
         XCTAssertTrue(secondMarker.waitForExistence(timeout: 5))
         XCTAssertTrue(firstMarker.label.hasPrefix("Start"))
+        XCTAssertTrue(secondMarker.label.hasPrefix("Start"))
         XCTAssertFalse(firstMarker.label.localizedCaseInsensitiveContains("selected"))
         XCTAssertTrue((firstMarker.value as? String)?.contains("percent x") == true)
 
         guard let secondInitialRadius = radius(from: secondMarker.value as? String),
-              let secondInitialPosition = position(from: secondMarker.value as? String) else {
-            return XCTFail("The surviving hold must expose its initial radius and position.")
+              let secondInitialPosition = position(from: secondMarker.value as? String),
+              let initialCanvasZoom = zoom(from: canvas.value as? String) else {
+            return XCTFail("The surviving hold and canvas must expose their initial geometry.")
         }
 
-        // Tapping a marker cycles its type directly, then removes it after Finish.
+        // A marker cycles Start → Hand → Foot → Finish → delete without a selector.
         firstMarker.tap()
         XCTAssertTrue(firstMarker.label.hasPrefix("Hand"))
         firstMarker.tap()
@@ -198,47 +212,46 @@ final class ClimbSetUITests: XCTestCase {
         firstMarker.tap()
         XCTAssertTrue((canvas.value as? String)?.contains("1 hold") == true)
 
-        // The selected add mode survives marker interactions, so a new hold can
-        // be placed without reselecting a type button.
-        let addHand = app.buttons["Add Hand hold"]
-        XCTAssertEqual(addHand.value as? String, "Selected")
+        // Reacquire the surviving marker after deletion; it starts as Start.
+        let survivingMarker = app.descendants(matching: .any)["Editor hold 1"]
+        XCTAssertTrue(survivingMarker.waitForExistence(timeout: 5))
+        XCTAssertTrue(survivingMarker.label.hasPrefix("Start"))
+        survivingMarker.tap()
+        XCTAssertTrue(survivingMarker.label.hasPrefix("Hand"))
+
+        // A further empty-canvas tap still defaults to Start.
         canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75)).tap()
         XCTAssertTrue((canvas.value as? String)?.contains("2 holds") == true)
 
-        // Reacquire after deletion; the surviving hold was renumbered.
-        let survivingMarker = app.descendants(matching: .any)["Editor hold 1"]
         let addedMarker = app.descendants(matching: .any)["Editor hold 2"]
-        XCTAssertTrue(survivingMarker.waitForExistence(timeout: 5))
         XCTAssertTrue(addedMarker.waitForExistence(timeout: 5))
-        XCTAssertTrue(survivingMarker.label.hasPrefix("Hand"))
-        XCTAssertTrue(addedMarker.label.hasPrefix("Hand"))
+        XCTAssertTrue(addedMarker.label.hasPrefix("Start"))
         XCTAssertFalse(survivingMarker.label.localizedCaseInsensitiveContains("selected"))
 
         guard let addedInitialRadius = radius(from: addedMarker.value as? String),
               let addedInitialPosition = position(from: addedMarker.value as? String) else {
             return XCTFail("The added hold must expose its initial radius and position.")
         }
-        XCTAssertEqual(addHand.value as? String, "Selected")
 
-        // A marker pinch changes only that marker and does not enter selection mode.
+        // A marker pinch changes only that marker.
         survivingMarker.pinch(withScale: 1.6, velocity: 1.0)
         guard let survivingResizedRadius = radius(from: survivingMarker.value as? String),
               let addedAfterMarkerPinchRadius = radius(from: addedMarker.value as? String),
               let survivingPositionAfterPinch = position(from: survivingMarker.value as? String),
-              let addedPositionAfterPinch = position(from: addedMarker.value as? String) else {
-            return XCTFail("Both holds must expose radius and position after marker pinch.")
+              let addedPositionAfterPinch = position(from: addedMarker.value as? String),
+              let canvasZoomAfterMarkerPinch = zoom(from: canvas.value as? String) else {
+            return XCTFail("Both holds and canvas must expose geometry after marker pinch.")
         }
         XCTAssertGreaterThan(survivingResizedRadius, secondInitialRadius)
         XCTAssertEqual(addedAfterMarkerPinchRadius, addedInitialRadius)
+        XCTAssertEqual(canvasZoomAfterMarkerPinch, initialCanvasZoom)
         XCTAssertEqual(survivingPositionAfterPinch.x, secondInitialPosition.x)
         XCTAssertEqual(survivingPositionAfterPinch.y, secondInitialPosition.y)
         XCTAssertEqual(addedPositionAfterPinch.x, addedInitialPosition.x)
         XCTAssertEqual(addedPositionAfterPinch.y, addedInitialPosition.y)
-        XCTAssertEqual(addHand.value as? String, "Selected")
         XCTAssertTrue(survivingMarker.label.hasPrefix("Hand"))
 
-        // A one-finger drag begun on a marker while Add Hand remains active
-        // must not move either hold or create another one.
+        // A one-finger drag begun on a marker must not move either hold or create another.
         let dragStart = survivingMarker.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         dragStart.press(
             forDuration: 0.1,
@@ -253,7 +266,6 @@ final class ClimbSetUITests: XCTestCase {
         XCTAssertEqual(addedPositionAfterDrag.x, addedInitialPosition.x)
         XCTAssertEqual(addedPositionAfterDrag.y, addedInitialPosition.y)
         XCTAssertTrue((canvas.value as? String)?.contains("2 holds") == true)
-        XCTAssertEqual(addHand.value as? String, "Selected")
         XCTAssertTrue(survivingMarker.label.hasPrefix("Hand"))
 
         app.buttons["Save"].tap()
@@ -273,6 +285,8 @@ final class ClimbSetUITests: XCTestCase {
         let persistedSecondMarker = app.descendants(matching: .any)["Editor hold 2"]
         XCTAssertTrue(persistedFirstMarker.waitForExistence(timeout: 5))
         XCTAssertTrue(persistedSecondMarker.waitForExistence(timeout: 5))
+        XCTAssertTrue(persistedFirstMarker.label.hasPrefix("Hand"))
+        XCTAssertTrue(persistedSecondMarker.label.hasPrefix("Start"))
         XCTAssertEqual(radius(from: persistedFirstMarker.value as? String), survivingResizedRadius)
         XCTAssertEqual(radius(from: persistedSecondMarker.value as? String), addedInitialRadius)
         guard let persistedFirstPosition = position(from: persistedFirstMarker.value as? String),
