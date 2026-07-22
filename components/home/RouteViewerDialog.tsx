@@ -1,3 +1,4 @@
+'use client';
 
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { RouteViewer } from '@/components/wall/RouteViewer';
@@ -10,41 +11,45 @@ interface RouteViewerDialogProps {
   wallImageUrl: string;
 }
 
-export function RouteViewerDialog({ route, onOpenChange, wallImageUrl }: RouteViewerDialogProps) {
+export function RouteViewerDialog({
+  route,
+  onOpenChange,
+  wallImageUrl,
+}: RouteViewerDialogProps) {
   return (
-    <Dialog open={!!route} onOpenChange={() => onOpenChange(false)}>
+    <Dialog open={Boolean(route)} onOpenChange={onOpenChange}>
       <DialogContent
-        className="w-fit h-auto max-w-[95vw] sm:max-w-[95vw] max-h-[95vh] min-w-[50vw] gap-0 p-0 overflow-y-auto overflow-x-hidden border-0 bg-black/60 backdrop-blur-sm rounded-none md:rounded-2xl shadow-2xl ring-1 ring-white/10"
+        className="w-[calc(100vw-1rem)] !max-w-[min(96vw,70rem)] max-h-[94vh] gap-0 overflow-y-auto overflow-x-hidden rounded-3xl border border-foreground/[0.12] bg-card/80 p-0 shadow-none backdrop-blur-xl motion-reduce:animate-none motion-reduce:transition-none"
         showCloseButton={false}
         aria-describedby={undefined}
       >
-        <DialogTitle className="sr-only">
-          {route?.name || 'Route Viewer'}
-        </DialogTitle>
+        <DialogTitle className="sr-only">{route?.name || 'Route Viewer'}</DialogTitle>
         {route && (
-          <button
-            onClick={() => onOpenChange(false)}
-            aria-label="Close"
-            className="absolute top-3 right-3 z-10 size-10 rounded-full bg-black/60 text-white/80 hover:text-white hover:bg-black/70 transition-colors"
-          >
-            <svg className="w-5 h-5 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        )}
-        {route && (
-          <RouteViewer
-            wallImageUrl={route.wall_image_url || wallImageUrl}
-            wallImageWidth={route.wall_image_width}
-            wallImageHeight={route.wall_image_height}
-            holds={route.holds}
-            routeName={route.name}
-            grade={calculateDisplayGrade(route.grade_v, route.ascents)}
-            setterName={route.user_name}
-            routeId={route.id}
-            comments={route.comments || []}
-            fitToContent
-          />
+          <>
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              aria-label="Close route viewer"
+              className="absolute right-3 top-3 z-20 flex size-10 items-center justify-center rounded-full border border-foreground/[0.12] bg-card/80 text-foreground/70 backdrop-blur-md transition-colors hover:bg-foreground/[0.1] hover:text-foreground motion-reduce:transition-none"
+            >
+              <svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <RouteViewer
+              wallImageUrl={route.wall_image_url || wallImageUrl}
+              wallImageWidth={route.wall_image_width}
+              wallImageHeight={route.wall_image_height}
+              holds={route.holds}
+              routeName={route.name}
+              grade={calculateDisplayGrade(route.grade_v, route.ascents)}
+              setterName={route.user_name}
+              routeId={route.id}
+              comments={route.comments || []}
+              route={route}
+              fitToContent
+            />
+          </>
         )}
       </DialogContent>
     </Dialog>
