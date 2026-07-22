@@ -120,7 +120,7 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
   return (
     <>
       {/* Mobile Routes List */}
-      <div className="md:hidden rounded-xl border border-border bg-card overflow-hidden divide-y divide-border">
+      <div className="md:hidden -mx-4 bg-background divide-y divide-border">
         {routes.map((route) => {
           const ascents = route.ascents || [];
           const avgRating = ascents.length > 0
@@ -146,7 +146,7 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
 
               <div
                 onClick={() => onViewRoute(route)}
-                className="relative flex items-center gap-3 py-4 cursor-pointer"
+                className="relative flex items-center gap-3 py-4 px-4 cursor-pointer"
               >
                 {/* Grade */}
                 <div className="w-12 shrink-0">
@@ -278,7 +278,7 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
                     transition={{ duration: 0.2 }}
                     className="relative overflow-hidden"
                   >
-                    <div className="pb-4 space-y-3">
+                    <div className="px-4 pb-4 space-y-3">
                       {/* Stats Grid */}
                       <div className="grid grid-cols-5 gap-2">
                         <div className="text-center">
@@ -393,7 +393,7 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
 
       {/* Desktop Routes List */}
       <div className="hidden md:block">
-        <div className="rounded-xl border border-border bg-card overflow-hidden divide-y divide-border">
+        <div className="divide-y divide-border bg-background">
           {routes.map((route) => {
             const ascents = route.ascents || [];
             const avgRating = ascents.length > 0
