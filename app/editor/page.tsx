@@ -71,6 +71,8 @@ function FullBleedCanvas({
 }: FullBleedCanvasProps) {
   const imageWidth = wallImageWidth && wallImageWidth > 0 ? wallImageWidth : 1920;
   const imageHeight = wallImageHeight && wallImageHeight > 0 ? wallImageHeight : 1080;
+  const aspectRatio = imageWidth / imageHeight;
+
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -186,10 +188,11 @@ function FullBleedCanvas({
   };
 
   return (
-    <div className="absolute inset-0 w-full h-full bg-background overflow-hidden select-none">
+    <div className="absolute inset-0 w-full h-full bg-background overflow-hidden flex items-center justify-center select-none">
       <div
         ref={containerRef}
-        className="relative w-full h-full cursor-crosshair touch-none select-none"
+        className="relative max-w-full max-h-full cursor-crosshair touch-none select-none flex items-center justify-center"
+        style={{ aspectRatio }}
         onClick={handleClick}
         onContextMenu={handleContextMenu}
         onTouchStart={handleTouchStart}
@@ -201,7 +204,7 @@ function FullBleedCanvas({
           alt="Climbing wall"
           width={imageWidth}
           height={imageHeight}
-          className="w-full h-full object-cover select-none pointer-events-none"
+          className="w-full h-full max-w-full max-h-full object-contain select-none pointer-events-none"
           priority
           draggable={false}
           onLoad={() => {
