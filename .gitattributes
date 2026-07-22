@@ -1,4 +1,3 @@
-/supabase export-ignore
-/supabase/** export-ignore
-/scripts export-ignore
-/scripts/** export-ignore
+/.github export-ignore
+/.github/** export-ignore
+/TODO.md export-ignore
