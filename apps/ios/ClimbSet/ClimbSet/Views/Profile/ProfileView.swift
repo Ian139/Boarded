@@ -113,7 +113,7 @@ struct ProfileView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Profile stats").font(AppTypography.headline).foregroundStyle(theme.primaryText)
+                    Text("Stats").font(AppTypography.headline).foregroundStyle(theme.primaryText)
                     Text("Points are not defined by the web profile").font(AppTypography.caption).foregroundStyle(theme.secondaryText)
                 }
                 Spacer()
@@ -187,7 +187,7 @@ struct ProfileView: View {
 
     private var highlightsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            BoardedSectionHeading(title: "Highlights", subtitle: "Your strongest and longest completed climbs")
+            BoardedSectionHeading(title: "Previous Highlights", subtitle: "Your strongest and longest completed climbs")
             HStack(spacing: 0) {
                 highlightCard(title: "Best Climb", climb: viewModel.highlights.bestClimb, icon: "star.fill")
                 theme.primaryText.opacity(0.12).frame(width: 1).frame(maxHeight: .infinity)
