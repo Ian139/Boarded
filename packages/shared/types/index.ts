@@ -100,10 +100,10 @@ export interface Profile {
 
 // Hold colors mapping
 export const HOLD_COLORS: Record<HoldType, string> = {
-  start: '#00E599',
-  hand: '#FF5C00',
-  foot: '#FFFFFF',
-  finish: '#FF5C00',
+  start: '#10b981',   // green
+  hand: '#ef4444',    // red
+  foot: '#3b82f6',    // blue
+  finish: '#f59e0b',  // yellow
 };
 
 // Hold sizes mapping (as % of wall)

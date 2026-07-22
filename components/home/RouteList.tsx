@@ -152,7 +152,7 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
                 <div className="w-12 shrink-0">
                   <span className={cn(
                     "text-lg font-bold",
-                    displayGrade ? "text-secondary" : "text-muted-foreground"
+                    displayGrade ? "text-primary" : "text-muted-foreground"
                   )}>
                     {displayGrade || '—'}
                   </span>
@@ -425,7 +425,7 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
                   <div className="w-14 shrink-0">
                     <span className={cn(
                       "text-lg font-bold",
-                      displayGrade ? "text-secondary" : "text-muted-foreground"
+                      displayGrade ? "text-primary" : "text-muted-foreground"
                     )}>
                       {displayGrade || '—'}
                     </span>

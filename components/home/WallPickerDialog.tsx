@@ -393,8 +393,8 @@ export function WallPickerDialog({ open, onOpenChange }: WallPickerDialogProps) 
                     className="object-cover"
                     unoptimized
                   />
-                  <div className="absolute inset-0 bg-background/80 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                    <span className="text-foreground text-sm font-medium">Change photo</span>
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                    <span className="text-white text-sm font-medium">Change photo</span>
                   </div>
                 </div>
               ) : (
@@ -523,8 +523,8 @@ export function WallPickerDialog({ open, onOpenChange }: WallPickerDialogProps) 
                     className="object-cover"
                     unoptimized
                   />
-                  <div className="absolute inset-0 bg-background/80 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                    <span className="text-foreground text-sm font-medium">Change photo</span>
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                    <span className="text-white text-sm font-medium">Change photo</span>
                   </div>
                 </div>
               ) : (

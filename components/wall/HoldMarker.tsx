@@ -1,6 +1,6 @@
 'use client';
 
-import { Hold, HOLD_SIZES, HOLD_BORDER_WIDTH, HOLD_COLORS } from '@climbset/shared/types';
+import { Hold, HOLD_SIZES, HOLD_BORDER_WIDTH } from '@climbset/shared/types';
 
 interface HoldMarkerProps {
   hold: Hold;
@@ -26,7 +26,6 @@ export function HoldMarker({
 
   // Get border width based on hold size
   const borderWidth = HOLD_BORDER_WIDTH[hold.size];
-  const color = HOLD_COLORS[hold.type];
 
   return (
     <div
@@ -44,18 +43,18 @@ export function HoldMarker({
         style={{
           borderWidth: `${borderWidth}px`,
           borderStyle: 'solid',
-          borderColor: color,
-          backgroundColor: `${color}20`,
+          borderColor: hold.color,
+          backgroundColor: `${hold.color}20`, // 20% opacity
         }}
       />
 
       {/* Sequence number */}
       {showSequence && hold.sequence !== null && (
         <div
-          className="absolute inset-0 flex items-center justify-center text-foreground font-bold pointer-events-none"
+          className="absolute inset-0 flex items-center justify-center text-white font-bold pointer-events-none"
           style={{
             fontSize: `${size * 0.4}px`,
-            textShadow: '0 0 4px var(--bg-main)',
+            textShadow: '0 0 4px rgba(0,0,0,0.8)',
           }}
         >
           {hold.sequence}
