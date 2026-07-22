@@ -32,6 +32,7 @@ OTHER_ID = "7a4e2d80-6c35-49d2-8d2e-51ec2dd09322"
 OWNER_ROUTE_ID = "b5f0d878-5d47-4db8-90a5-3c5bc73f7c31"
 PROTECTED_ROUTE_ID = "d2f7e93e-8a59-45a8-b3cb-4d5ef7bd2314"
 NULL_OWNER_ROUTE_ID = "f3c4a8d1-9b62-4f27-8a4c-6e0d2b1f8357"
+INSERTED_ROUTE_ID = "e8a1f57c-6d32-4bd1-9e48-2f0c7a6b9135"
 
 OWNER_EMAIL = "climbset-rls-harness-owner@local.invalid"
 OTHER_EMAIL = "climbset-rls-harness-other@local.invalid"
@@ -128,7 +129,7 @@ def ensure_backend(url: str) -> None:
 
 def request_json(method: str, url: str, token: str | None = None, payload: object | None = None) -> ApiResult | object:
     headers = {"Accept": "application/json"}
-    if method in {"PATCH", "DELETE"}:
+    if method in {"POST", "PATCH", "DELETE"}:
         headers["Prefer"] = "return=representation"
     data = None
     if payload is not None:
@@ -297,7 +298,10 @@ def login(base: str, user: User) -> str:
 def setup_fixtures() -> None:
     users = [(OWNER_ID, OWNER_EMAIL), (OTHER_ID, OTHER_EMAIL)]
     user_ids = ", ".join(sql_quote(user_id) for user_id, _ in users)
-    route_ids = ", ".join(sql_quote(route_id) for route_id in (OWNER_ROUTE_ID, PROTECTED_ROUTE_ID, NULL_OWNER_ROUTE_ID))
+    route_ids = ", ".join(
+        sql_quote(route_id)
+        for route_id in (OWNER_ROUTE_ID, PROTECTED_ROUTE_ID, NULL_OWNER_ROUTE_ID, INSERTED_ROUTE_ID)
+    )
     expected_emails = ", ".join(sql_quote(email) for _, email in users)
     marker = sql_quote(ROUTE_MARKER)
     app_metadata = sql_quote(json.dumps({"provider": "email", "providers": ["email"]}, separators=(",", ":")))
@@ -363,7 +367,10 @@ COMMIT;
 
 def cleanup_fixtures() -> None:
     user_ids = ", ".join(sql_quote(user_id) for user_id in (OWNER_ID, OTHER_ID))
-    route_ids = ", ".join(sql_quote(route_id) for route_id in (OWNER_ROUTE_ID, PROTECTED_ROUTE_ID, NULL_OWNER_ROUTE_ID))
+    route_ids = ", ".join(
+        sql_quote(route_id)
+        for route_id in (OWNER_ROUTE_ID, PROTECTED_ROUTE_ID, NULL_OWNER_ROUTE_ID, INSERTED_ROUTE_ID)
+    )
     emails = ", ".join(sql_quote(email) for email in (OWNER_EMAIL, OTHER_EMAIL))
     run_psql(
         f"DELETE FROM public.routes WHERE id IN ({route_ids}) AND position({sql_quote(ROUTE_MARKER)} IN name) = 1;"
@@ -379,12 +386,53 @@ def cleanup_fixtures() -> None:
 
 def get_route(base: str, route_id: str, token: str | None = None) -> dict | None:
     result = expect_api_result(
-        request_json("GET", f"{base}/rest/v1/routes?id=eq.{route_id}&select=id,user_id,name,grade_v,holds", token),
+        request_json(
+            "GET",
+            f"{base}/rest/v1/routes?id=eq.{route_id}&select=id,user_id,name,grade_v,holds,wall_image_width,wall_image_height",
+            token,
+        ),
         f"read route {route_id}",
     )
     if result.status != 200 or not isinstance(result.body, list):
         fail(f"read route {route_id} failed: HTTP {result.status} {result.body!r}")
     return result.body[0] if result.body else None
+
+
+def insert_owner_route(base: str, token: str) -> dict:
+    width = 1600
+    height = 900
+    result = expect_api_result(
+        request_json(
+            "POST",
+            f"{base}/rest/v1/routes?select=id,user_id,name,wall_image_width,wall_image_height",
+            token,
+            {
+                "id": INSERTED_ROUTE_ID,
+                "user_id": OWNER_ID,
+                "wall_id": "rls-harness-wall",
+                "name": ROUTE_MARKER + "inserted",
+                "grade_v": "V3",
+                "holds": [],
+                "is_public": True,
+                "wall_image_width": width,
+                "wall_image_height": height,
+            },
+        ),
+        "owner route insert",
+    )
+    if result.status not in {200, 201} or not isinstance(result.body, list) or len(result.body) != 1:
+        fail(f"owner route insert failed: HTTP {result.status} {result.body!r}")
+    inserted = result.body[0]
+    if not isinstance(inserted, dict):
+        fail(f"owner route insert returned unexpected body: {result.body!r}")
+    if (
+        inserted.get("id") != INSERTED_ROUTE_ID
+        or inserted.get("user_id") != OWNER_ID
+        or inserted.get("wall_image_width") != width
+        or inserted.get("wall_image_height") != height
+    ):
+        fail(f"owner route insert returned unexpected dimensions: {inserted!r}")
+    return inserted
 
 
 def assert_update(base: str, route_id: str, token: str, name: str, expected_count: int, description: str) -> None:
@@ -427,6 +475,14 @@ def run() -> None:
         setup_fixtures()
         owner = login(base, User(OWNER_ID, OWNER_EMAIL))
         other = login(base, User(OTHER_ID, OTHER_EMAIL))
+        inserted = insert_owner_route(base, owner)
+        inserted_read = get_route(base, INSERTED_ROUTE_ID, owner)
+        if (
+            not inserted_read
+            or inserted_read.get("wall_image_width") != inserted["wall_image_width"]
+            or inserted_read.get("wall_image_height") != inserted["wall_image_height"]
+        ):
+            fail(f"owner route read did not preserve inserted dimensions: {inserted_read!r}")
         assert_storage_ownership(base, owner, other)
 
         assert_update(
