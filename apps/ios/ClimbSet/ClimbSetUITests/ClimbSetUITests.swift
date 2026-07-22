@@ -18,7 +18,7 @@ final class ClimbSetUITests: XCTestCase {
     }
 
     func testFixtureLaunchRoutesDetailAndSelectors() throws {
-        XCTAssertTrue(app.staticTexts["Routes"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["1 route"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Granite Drift"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["Sort routes"].exists)
         XCTAssertTrue(app.buttons["Filter by grade"].exists)
@@ -28,7 +28,7 @@ final class ClimbSetUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Route"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Close"].exists)
         app.buttons["Close"].tap()
-        XCTAssertTrue(app.staticTexts["Routes"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["1 route"].waitForExistence(timeout: 5))
 
         let wallFilter = app.buttons["Filter by wall"]
         XCTAssertEqual(wallFilter.value as? String, "Fixture Slab")
@@ -50,7 +50,7 @@ final class ClimbSetUITests: XCTestCase {
     }
 
     func testFixtureTabsProfileSettingsAppearanceAndOrientation() throws {
-        XCTAssertTrue(app.staticTexts["Routes"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["1 route"].waitForExistence(timeout: 10))
 
         app.tabBars.buttons["Profile"].tap()
         app.buttons["Edit profile"].tap()
@@ -80,7 +80,7 @@ final class ClimbSetUITests: XCTestCase {
     }
 
     func testFixtureEditorWallAndHoldControlsAreDeterministic() throws {
-        XCTAssertTrue(app.staticTexts["Routes"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["1 route"].waitForExistence(timeout: 10))
         app.tabBars.buttons["Editor"].tap()
         XCTAssertTrue(app.staticTexts["Hold count"].waitForExistence(timeout: 10))
 
@@ -99,7 +99,7 @@ final class ClimbSetUITests: XCTestCase {
     }
     func testFixtureWallCreateAndDeleteStayInMemory() throws {
         let name = "UI Fixture Wall \(UUID().uuidString)"
-        XCTAssertTrue(app.staticTexts["Routes"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["1 route"].waitForExistence(timeout: 10))
         app.tabBars.buttons["Profile"].tap()
         app.staticTexts["Settings"].tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
@@ -146,7 +146,7 @@ final class ClimbSetUITests: XCTestCase {
     }
     func testFixtureEditorHoldGesturesAndRouteCreate() throws {
         let routeName = "UI Fixture Route \(UUID().uuidString)"
-        XCTAssertTrue(app.staticTexts["Routes"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["1 route"].waitForExistence(timeout: 10))
         app.tabBars.buttons["Editor"].tap()
         let canvas = app.descendants(matching: .any)["Editor canvas surface"]
         XCTAssertTrue(canvas.waitForExistence(timeout: 10))
@@ -302,7 +302,7 @@ final class ClimbSetUITests: XCTestCase {
 
     func testFixtureRouteReadUpdateReopenAndDelete() throws {
         let updatedName = "Granite Drift Updated"
-        XCTAssertTrue(app.staticTexts["Routes"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["1 route"].waitForExistence(timeout: 10))
         app.staticTexts["Granite Drift"].tap()
         XCTAssertTrue(app.navigationBars["Route"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Granite Drift"].exists)
@@ -333,7 +333,7 @@ final class ClimbSetUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts[updatedName].waitForNonExistence(timeout: 8))
     }
     func testFixtureLogoutAndSignInStayLocal() throws {
-        XCTAssertTrue(app.staticTexts["Routes"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["1 route"].waitForExistence(timeout: 10))
         app.tabBars.buttons["Profile"].tap()
         app.staticTexts["Settings"].tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))

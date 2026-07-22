@@ -139,7 +139,7 @@ struct RoutesView: View {
     private var header: some View {
         let theme = BoardedTheme(colorScheme: colorScheme)
         return VStack(alignment: .leading, spacing: 12) {
-            Text("\(viewModel.filteredRoutes.count) routes")
+            Text("\(viewModel.filteredRoutes.count) \(viewModel.filteredRoutes.count == 1 ? "route" : "routes")")
                 .font(AppTypography.title)
                 .foregroundStyle(theme.primaryText)
                 .accessibilityAddTraits(.isHeader)
@@ -395,7 +395,7 @@ struct RoutesView: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        ForEach(viewModel.filteredRoutes) { route in
+                        ForEach(Array(viewModel.filteredRoutes.enumerated()), id: \.element.id) { index, route in
                             RouteRow(
                                 route: route,
                                 onLike: {
@@ -418,9 +418,11 @@ struct RoutesView: View {
                                 selectedRoute = route
                             }
 
-                            Divider()
-                                .overlay(theme.border)
-                                .padding(.leading, theme.pagePadding)
+                            if index < viewModel.filteredRoutes.count - 1 {
+                                theme.primaryText.opacity(0.12)
+                                    .frame(height: 1)
+                                    .padding(.leading, theme.pagePadding)
+                            }
                         }
                     }
                     .safeAreaPadding(.bottom, 12)
