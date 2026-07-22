@@ -332,7 +332,7 @@ export default function ProfilePage() {
                 >
                   <div className={cn(
                     "size-8 rounded-xl flex items-center justify-center shrink-0 border border-border/10",
-                    activity.flashed ? "bg-primary/15 text-primary" : "bg-muted/40 text-muted-foreground"
+                    activity.flashed ? "bg-amber-500/10 text-amber-500" : "bg-muted/40 text-muted-foreground"
                   )}>
                     {activity.flashed ? (
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

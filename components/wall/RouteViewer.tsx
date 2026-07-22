@@ -532,7 +532,7 @@ export function RouteViewer({
           )}
         </div>
 
-        <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-end p-3">
+        <div className="pointer-events-none absolute inset-x-0 top-14 flex justify-end p-3">
           <div className="pointer-events-auto flex items-center gap-1 rounded-xl border border-foreground/[0.12] bg-card/75 p-1 backdrop-blur-md">
             <button
               type="button"

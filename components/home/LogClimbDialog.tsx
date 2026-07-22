@@ -174,7 +174,7 @@ function LogClimbDialogContent({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLogging}>
             Cancel
           </Button>
-          <Button onClick={handleLogClimb} disabled={isLogging} className="bg-secondary hover:bg-secondary/90">
+          <Button onClick={handleLogClimb} disabled={isLogging} className="bg-primary hover:bg-primary/90">
             {isLogging ? 'Logging...' : 'Log Climb'}
           </Button>
         </DialogFooter>

@@ -13,8 +13,8 @@ interface TransitionState {
 export const useTransitionStore = create<TransitionState>((set) => ({
   isTransitioning: false,
   origin: null,
-  color: 'var(--accent-primary)',
-  startTransition: (x: number, y: number, color = 'var(--accent-primary)') => {
+  color: 'var(--primary)',
+  startTransition: (x: number, y: number, color = 'var(--primary)') => {
     set({ isTransitioning: true, origin: { x, y }, color });
   },
   endTransition: () => {

@@ -48,117 +48,118 @@
 }
 
 /*
- * ClimbSet Dark Glass Design System
- * Base Tokens:
- * #09090B - Background
- * #141417 - Surface
- * #FFFFFF - Text
- * #00E599 - Primary Accent
- * #FF5C00 - Secondary Accent
+ * ClimbSet Design System
+ * Warm, earthy, friendly climbing vibes
+ * Primary: Warm brown - natural, grounded, like wood holds
+ * Secondary: Forest green - growth, nature, outdoor vibes
+ * Base: Warm cream/tan - cozy, inviting
  */
 
 :root {
-  --bg-main: #09090B;
-  --bg-surface: #141417;
-  --text-main: #FFFFFF;
-  --accent-primary: #00E599;
-  --accent-secondary: #FF5C00;
-
   --radius: 1rem;
-  --shadow-soft: none;
-  --shadow-float: none;
+  --shadow-soft: 0 1px 2px oklch(0.25 0.03 55 / 0.04), 0 12px 36px oklch(0.25 0.03 55 / 0.08);
+  --shadow-float: 0 20px 60px oklch(0.2 0.03 55 / 0.14);
+  --surface-glass: oklch(0.99 0.005 85 / 0.78);
+  --surface-raised: oklch(0.99 0.005 85 / 0.94);
 
-  --background: var(--bg-main);
-  --foreground: var(--text-main);
+  /* Light mode - warm cream/tan base */
+  --background: oklch(0.97 0.01 85);
+  --foreground: oklch(0.25 0.03 55);
 
-  --card: var(--bg-surface);
-  --card-foreground: var(--text-main);
+  --card: oklch(0.99 0.005 85);
+  --card-foreground: oklch(0.25 0.03 55);
 
-  --popover: var(--bg-surface);
-  --popover-foreground: var(--text-main);
+  --popover: oklch(0.99 0.005 85);
+  --popover-foreground: oklch(0.25 0.03 55);
 
-  --primary: var(--accent-primary);
-  --primary-foreground: var(--bg-main);
+  /* Warm brown primary */
+  --primary: oklch(0.5 0.1 55);
+  --primary-foreground: oklch(0.99 0.005 85);
 
-  --secondary: var(--accent-secondary);
-  --secondary-foreground: var(--text-main);
+  /* Forest green secondary */
+  --secondary: oklch(0.55 0.12 155);
+  --secondary-foreground: oklch(0.99 0.005 85);
 
-  --muted: color-mix(in srgb, var(--text-main) 8%, var(--bg-surface));
-  --muted-foreground: color-mix(in srgb, var(--text-main) 70%, transparent);
+  --muted: oklch(0.94 0.015 85);
+  --muted-foreground: oklch(0.45 0.03 55);
 
-  --accent: color-mix(in srgb, var(--accent-primary) 15%, var(--bg-surface));
-  --accent-foreground: var(--text-main);
+  /* Green accent for highlights */
+  --accent: oklch(0.6 0.14 150);
+  --accent-foreground: oklch(0.99 0.005 85);
 
-  --destructive: var(--accent-secondary);
+  --destructive: oklch(0.55 0.2 25);
 
-  --border: color-mix(in srgb, var(--text-main) 12%, transparent);
-  --input: color-mix(in srgb, var(--text-main) 12%, transparent);
-  --ring: var(--accent-primary);
+  --border: oklch(0.9 0.02 85);
+  --input: oklch(0.94 0.015 85);
+  --ring: oklch(0.5 0.1 55);
 
-  --chart-1: var(--accent-primary);
-  --chart-2: var(--accent-secondary);
-  --chart-3: color-mix(in srgb, var(--accent-primary) 70%, va--accent-secondaryry));
-  --chart-4: color-mix(in srgb, var(--accent-secondary) 70%, var(--text-main));
-  --chart-5: color-mix(in srgb, var(--accent-primary) 40%, var(--text-main));
+  /* Chart colors */
+  --chart-1: oklch(0.5 0.1 55);
+  --chart-2: oklch(0.55 0.12 155);
+  --chart-3: oklch(0.65 0.12 80);
+  --chart-4: oklch(0.6 0.14 150);
+  --chart-5: oklch(0.7 0.1 35);
 
-  --sidebar: var(--bg-surface);
-  --sidebar-foreground: var(--text-main);
-  --sidebar-primary: var(--accent-primary);
-  --sidebar-primary-foreground: var(--bg-main);
-  --sidebar-accent: var(--accent-secondary);
-  --sidebar-accent-foreground: var(--text-main);
-  --sidebar-border: color-mix(in srgb, var(--text-main) 12%, transparent);
-  --sidebar-ring: var(--accent-primary);
-
-  --surface-glass: color-mix(in srgb, var(--bg-surface) 80%, transparent);
-  --surface-raised: var(--bg-surface);
+  --sidebar: oklch(0.96 0.015 85);
+  --sidebar-foreground: oklch(0.25 0.03 55);
+  --sidebar-primary: oklch(0.5 0.1 55);
+  --sidebar-primary-foreground: oklch(0.99 0.005 85);
+  --sidebar-accent: oklch(0.55 0.12 155);
+  --sidebar-accent-foreground: oklch(0.99 0.005 85);
+  --sidebar-border: oklch(0.9 0.02 85);
+  --sidebar-ring: oklch(0.5 0.1 55);
 }
 
 .dark {
-  --background: var(--bg-main);
-  --foreground: var(--text-main);
+  /* Dark mode - modern neutral base with earthy accents */
+  --background: oklch(0.14 0.01 80);
+  --foreground: oklch(0.96 0.01 85);
 
-  --card: var(--bg-surface);
-  --card-foreground: var(--text-main);
+  --card: oklch(0.18 0.01 80);
+  --card-foreground: oklch(0.96 0.01 85);
 
-  --popover: var(--bg-surface);
-  --popover-foreground: var(--text-main);
+  --popover: oklch(0.18 0.01 80);
+  --popover-foreground: oklch(0.96 0.01 85);
 
-  --primary: var(--accent-primary);
-  --primary-foreground: var(--bg-main);
+  /* Earthy green primary */
+  --primary: oklch(0.68 0.12 140);
+  --primary-foreground: oklch(0.14 0.01 80);
 
-  --secondary: var(--accent-secondary);
-  --secondary-foreground: var(--text-main);
+  /* Warm brown secondary */
+  --secondary: oklch(0.6 0.09 60);
+  --secondary-foreground: oklch(0.96 0.01 85);
 
-  --muted: color-mix(in srgb, var(--text-main) 8%, var(--bg-surface));
-  --muted-foreground: color-mix(in srgb, var(--text-main) 70%, transparent);
+  --muted: oklch(0.24 0.01 80);
+  --muted-foreground: oklch(0.7 0.02 85);
 
-  --accent: color-mix(in srgb, var(--accent-primary) 15%, var(--bg-surface));
-  --accent-foreground: var(--text-main);
+  /* Earth accent */
+  --accent: oklch(0.62 0.1 115);
+  --accent-foreground: oklch(0.96 0.01 85);
 
-  --destructive: var(--accent-secondary);
+  --destructive: oklch(0.6 0.19 25);
 
-  --border: color-mix(in srgb, var(--text-main) 12%, transparent);
-  --input: color-mix(in srgb, var(--text-main) 12%, transparent);
-  --ring: var(--accent-primary);
+  --border: oklch(0.28 0.01 80);
+  --input: oklch(0.24 0.01 80);
+  --ring: oklch(0.68 0.12 140);
 
-  --chart-1: var(--accent-primary);
-  --chart-2: var(--accent-secondary);
-  --chart-3: color-mix(in srgb, var(--accent-primary) 70%, va--accent-secondaryry));
-  --chart-4: color-mix(in srgb, var(--accent-secondary) 70%, var(--text-main));
-  --chart-5: color-mix(in srgb, var(--accent-primary) 40%, var(--text-main));
+  --chart-1: oklch(0.68 0.12 140);
+  --chart-2: oklch(0.6 0.09 60);
+  --chart-3: oklch(0.7 0.1 90);
+  --chart-4: oklch(0.62 0.1 115);
+  --chart-5: oklch(0.74 0.08 35);
 
-  --sidebar: var(--bg-surface);
-  --sidebar-foreground: var(--text-main);
-  --sidebar-primary: var(--accent-primary);
-  --sidebar-primary-foreground: var(--bg-main);
-  --sidebar-accent: var(--accent-secondary);
-  --sidebar-accent-foreground: var(--text-main);
-  --sidebar-border: color-mix(in srgb, var(--text-main) 12%, transparent);
-  --sidebar-ring: var(--accent-primary);
-
-  --surface-glass: color-mix(in srgb, var(--bg-surface) 80%, transparent);
-  --surface-raised: var(--bg-surface);
+  --sidebar: oklch(0.18 0.01 80);
+  --sidebar-foreground: oklch(0.96 0.01 85);
+  --sidebar-primary: oklch(0.68 0.12 140);
+  --sidebar-primary-foreground: oklch(0.14 0.01 80);
+  --sidebar-accent: oklch(0.6 0.09 60);
+  --sidebar-accent-foreground: oklch(0.96 0.01 85);
+  --sidebar-border: oklch(0.28 0.01 80);
+  --sidebar-ring: oklch(0.68 0.12 140);
+  --shadow-soft: 0 1px 2px oklch(0 0 0 / 0.18), 0 16px 44px oklch(0 0 0 / 0.28);
+  --shadow-float: 0 24px 72px oklch(0 0 0 / 0.42);
+  --surface-glass: oklch(0.18 0.01 80 / 0.78);
+  --surface-raised: oklch(0.2 0.012 80 / 0.95);
 }
 
 @layer base {
@@ -167,7 +168,6 @@
   }
   html {
     background-color: var(--background);
-    color-scheme: dark;
   }
   body {
     @apply bg-background text-foreground;
@@ -175,12 +175,17 @@
     font-feature-settings: "rlig" 1, "calt" 1;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+  body {
     min-height: 100dvh;
-    background-color: var(--background);
+    background-image:
+      radial-gradient(circle at 8% -10%, oklch(0.82 0.08 78 / 0.3), transparent 34rem),
+      radial-gradient(circle at 92% 12%, oklch(0.76 0.09 150 / 0.18), transparent 30rem);
+    background-attachment: fixed;
   }
 
   ::selection {
-    background: color-mix(in srgb, var(--primary) 28%, transparent);
+    background: color-mix(in oklch, var(--primary) 28%, transparent);
   }
 
   :where(h1, h2, h3, [data-slot="dialog-title"], [data-slot="card-title"]) {
@@ -242,7 +247,18 @@
     position: relative;
     isolation: isolate;
     min-height: 100dvh;
-    background: var(--background);
+    background: transparent;
+  }
+
+  .app-shell::before {
+    content: "";
+    position: fixed;
+    z-index: -1;
+    inset: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(115deg, transparent 0 45%, color-mix(in oklch, var(--secondary) 5%, transparent) 100%),
+      radial-gradient(circle at 50% 120%, color-mix(in oklch, var(--primary) 9%, transparent), transparent 42rem);
   }
 
   .page-frame {
@@ -255,27 +271,39 @@
     top: 0;
     z-index: 40;
     background: var(--surface-glass);
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
     backdrop-filter: blur(18px) saturate(1.15);
+    box-shadow: 0 1px 0 oklch(1 0 0 / 0.08);
   }
 
   .surface-panel {
     background: var(--surface-raised);
-    border: 1px solid var(--border);
+    border: 1px solid color-mix(in oklch, var(--border) 80%, transparent);
     border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-soft);
   }
 
   .auth-shell {
     position: relative;
     isolation: isolate;
-    background: var(--background);
+  }
+
+  .auth-shell::after {
+    content: "";
+    position: fixed;
+    z-index: -1;
+    inset: 0;
+    background:
+      radial-gradient(circle at 20% 25%, color-mix(in oklch, var(--primary) 18%, transparent), transparent 28rem),
+      radial-gradient(circle at 82% 78%, color-mix(in oklch, var(--secondary) 14%, transparent), transparent 32rem);
   }
 
   .auth-card {
     padding: 2rem;
     background: var(--surface-glass);
-    border: 1px solid var(--border);
+    border: 1px solid color-mix(in oklch, var(--border) 72%, transparent);
     border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-float);
     backdrop-filter: blur(18px) saturate(1.1);
   }
 
