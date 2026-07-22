@@ -4,8 +4,8 @@
   "description": "Set, save, and share climbing routes.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f7f3ea",
-  "theme_color": "#6b7d4e",
+  "background_color": "#09090B",
+  "theme_color": "#09090B",
   "icons": [
     {
       "src": "/icons/icon-192.png",

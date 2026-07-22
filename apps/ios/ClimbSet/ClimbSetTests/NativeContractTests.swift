@@ -197,7 +197,7 @@ final class NativeContractTests: XCTestCase {
         {
           "id":"route-1","user_id":"user-1","wall_id":"wall-1","name":"Legacy Route",
           "description":null,"grade_v":"V4","grade_font":null,
-          "holds":[{"id":"hold-1","x":20,"y":30,"type":"hand","color":"#fff","size":"medium","notes":null}],
+          "holds":[{"id":"hold-1","x":20,"y":30,"type":"hand","color":"#FFFFFF","size":"medium","notes":null}],
           "created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z",
           "wall_image_url":"https://cdn/wall.jpg",
           "ascents":[{"id":"ascent-1","route_id":"route-1","user_id":"user-1","user_name":"Climber","grade_v":0,"rating":null,"notes":null,"flashed":true,"created_at":"2026-01-02T00:00:00Z"}]\(extra)
