@@ -67,7 +67,7 @@ export function BottomNav() {
 
   return (
     <nav aria-label="Primary navigation" className="fixed bottom-0 left-0 right-0 z-50 px-3 pb-2 md:hidden">
-      <div className="absolute inset-x-3 inset-y-0 rounded-2xl border border-border/70 bg-card/85 shadow-[var(--shadow-float)] backdrop-blur-xl" />
+      <div className="absolute inset-x-3 inset-y-0 rounded-2xl border border-border bg-card/80 backdrop-blur-xl" />
 
       <div className="relative flex items-center justify-evenly px-2 py-2 pb-safe">
         {navItems.map((item) => {

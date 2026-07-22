@@ -44,7 +44,7 @@ export function SearchFilterBar({
     <>
       {/* Mobile */}
       <div className="mb-4 md:hidden">
-        <div className="flex flex-col gap-2 p-2.5 rounded-xl bg-card border border-border/50">
+        <div className="flex flex-col gap-2 p-2.5 rounded-xl bg-card border border-border">
           {/* Search Row */}
           <div className="relative flex-1">
             <svg
@@ -66,7 +66,7 @@ export function SearchFilterBar({
           </div>
 
           {/* Divider */}
-          <div className="h-px bg-border/50" />
+          <div className="h-px bg-border" />
 
           {/* Filters Row */}
           <div className="flex items-center gap-2">
@@ -87,7 +87,7 @@ export function SearchFilterBar({
               </SelectContent>
             </Select>
 
-            <div className="w-px h-5 bg-border/50" />
+            <div className="w-px h-5 bg-border" />
 
             <Select value={filterGrade} onValueChange={onFilterGradeChange}>
               <SelectTrigger className="flex-1 h-8 text-xs border-none bg-transparent shadow-none px-2">
@@ -105,7 +105,7 @@ export function SearchFilterBar({
 
             {hasFilters && (
               <>
-                <div className="w-px h-5 bg-border/50" />
+                <div className="w-px h-5 bg-border" />
                 <button
                   onClick={clearFilters}
                   className="text-xs text-muted-foreground active:text-foreground transition-colors px-2"
@@ -126,7 +126,7 @@ export function SearchFilterBar({
 
       {/* Desktop */}
       <div className="hidden md:block mb-6">
-        <div className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border/50">
+        <div className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border">
           <div className="relative flex-1">
             <svg
               className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground"

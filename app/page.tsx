@@ -199,7 +199,7 @@ export default function Home() {
       {/* Header */}
       <header className="page-header px-4 md:px-8 pt-5 pb-4">
         {isOfflineMode && (
-          <div className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-700 dark:text-amber-300">
+          <div className="mb-3 rounded-xl border border-secondary/30 bg-secondary/10 px-4 py-2 text-sm text-secondary">
             Local-only mode. Cloud sync is unavailable.
           </div>
         )}
@@ -223,8 +223,8 @@ export default function Home() {
               onClick={() => setShowWallPicker(true)}
               className="flex items-center gap-2 text-foreground hover:text-primary transition-colors group"
             >
-              <span className="font-medium">{selectedWall?.name || 'Select Wall'}</span>
-              <span className="text-muted-foreground text-sm">({wallRoutes.length})</span>
+              <span className="font-medium">{wallRoutes.length} routes</span>
+              <span className="text-muted-foreground text-sm">· {selectedWall?.name || 'Select Wall'}</span>
               <svg className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
               </svg>
@@ -276,8 +276,8 @@ export default function Home() {
               onClick={() => setShowWallPicker(true)}
               className="flex items-center gap-1.5 text-foreground active:text-primary transition-colors"
             >
-              <span className="font-medium text-sm">{selectedWall?.name || 'Select Wall'}</span>
-              <span className="text-muted-foreground text-xs">({wallRoutes.length})</span>
+              <span className="font-medium text-sm">{wallRoutes.length} routes</span>
+              <span className="text-muted-foreground text-xs">· {selectedWall?.name || 'Select Wall'}</span>
               <svg className="w-3.5 h-3.5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
               </svg>
@@ -315,7 +315,7 @@ export default function Home() {
       <main className="page-frame px-4 md:px-8 mt-5 md:mt-8">
         {!selectedWall ? (
           <div className="py-12 text-center max-w-sm mx-auto">
-            <div className="size-20 rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/20 mx-auto mb-6 flex items-center justify-center">
+            <div className="size-20 rounded-2xl bg-primary/10 mx-auto mb-6 flex items-center justify-center">
               <svg className="w-10 h-10 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
               </svg>
@@ -367,7 +367,7 @@ export default function Home() {
               </div>
             ) : wallRoutes.length === 0 ? (
               <div className="py-12 text-center max-w-sm mx-auto">
-                <div className="size-20 rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/20 mx-auto mb-6 flex items-center justify-center">
+                <div className="size-20 rounded-2xl bg-primary/10 mx-auto mb-6 flex items-center justify-center">
                   <svg className="w-10 h-10 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                   </svg>
@@ -386,22 +386,21 @@ export default function Home() {
                   <p className="text-xs text-muted-foreground mb-3">Quick tips</p>
                   <div className="flex justify-center gap-4 text-xs text-muted-foreground">
                     <div className="flex items-center gap-1.5">
-                      <div className="size-2.5 rounded-full bg-green-500" />
+                      <div className="size-2.5 rounded-full bg-primary" />
                       <span>Start</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <div className="size-2.5 rounded-full bg-red-500" />
+                      <div className="size-2.5 rounded-full bg-secondary" />
                       <span>Hands</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <div className="size-2.5 rounded-full bg-blue-500" />
+                      <div className="size-2.5 rounded-full bg-primary/50" />
                       <span>Feet</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <div className="size-2.5 rounded-full bg-yellow-500" />
+                      <div className="size-2.5 rounded-full bg-secondary/50" />
                       <span>Finish</span>
                     </div>
-                  </div>
                 </div>
               </div>
             ) : (
