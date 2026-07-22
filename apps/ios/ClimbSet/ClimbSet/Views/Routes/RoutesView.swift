@@ -33,16 +33,17 @@ struct RoutesView: View {
         )
     }
     var body: some View {
-        ZStack {
-            Color.clear
+        let theme = BoardedTheme(colorScheme: colorScheme)
+        return ZStack {
+            theme.background.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 header
-                Divider().background(BoardedTheme(colorScheme: colorScheme).border)
+                Divider()
+                    .overlay(theme.border)
                 content
             }
         }
-        .boardedPageBackground()
         .task(id: session.userId) {
             selectedRoute = nil
             viewModel.resetForSessionChange()
@@ -138,10 +139,10 @@ struct RoutesView: View {
     private var header: some View {
         let theme = BoardedTheme(colorScheme: colorScheme)
         return VStack(alignment: .leading, spacing: 12) {
-            BoardedSectionHeading(
-                title: "Routes",
-                subtitle: "\(viewModel.filteredRoutes.count) routes"
-            )
+            Text("\(viewModel.filteredRoutes.count) routes")
+                .font(AppTypography.title)
+                .foregroundStyle(theme.primaryText)
+                .accessibilityAddTraits(.isHeader)
 
             SearchField(text: $viewModel.searchText, placeholder: "Search routes, setters...")
 
@@ -161,12 +162,12 @@ struct RoutesView: View {
                 .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
-        .boardedPanel(elevated: false)
         .padding(.horizontal, theme.pagePadding)
         .padding(.top, 12)
         .padding(.bottom, 10)
         .frame(maxWidth: AppLayout.contentMaxWidth)
         .frame(maxWidth: .infinity)
+        .background(theme.background)
     }
 
     private var compactSelectors: some View {
@@ -393,7 +394,7 @@ struct RoutesView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
-                    LazyVStack(spacing: 10) {
+                    LazyVStack(spacing: 0) {
                         ForEach(viewModel.filteredRoutes) { route in
                             RouteRow(
                                 route: route,
@@ -408,19 +409,23 @@ struct RoutesView: View {
                                     }
                                 }
                             )
+                            .padding(.horizontal, theme.pagePadding)
+                            .padding(.vertical, 12)
+                            .frame(maxWidth: AppLayout.contentMaxWidth)
+                            .frame(maxWidth: .infinity)
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 selectedRoute = route
                             }
-                                .boardedPanel()
-                                .frame(maxWidth: AppLayout.contentMaxWidth)
-                                .frame(maxWidth: .infinity)
+
+                            Divider()
+                                .overlay(theme.border)
+                                .padding(.leading, theme.pagePadding)
                         }
                     }
-                    .padding(.horizontal, theme.pagePadding)
-                    .padding(.vertical, 12)
                     .safeAreaPadding(.bottom, 12)
                 }
+                .background(theme.background)
             }
         }
     }

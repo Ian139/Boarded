@@ -57,8 +57,10 @@ struct RouteDetailView: View {
     let onRouteDeleted: (String) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject var session: AppSession
     @EnvironmentObject var routesViewModel: RoutesViewModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var commentsViewModel: CommentsViewModel
     @StateObject private var wallsViewModel: WallsViewModel
     @State private var isLiked = false
@@ -79,6 +81,11 @@ struct RouteDetailView: View {
     @State private var wallImageUrl: String?
     @State private var wallUpdateError: String? = nil
     @State private var isCommentsExpanded = false
+    @State private var isLogSheetPresented = false
+    @State private var wallScale: CGFloat = 1
+    @State private var lastWallScale: CGFloat = 1
+    @State private var wallOffset: CGSize = .zero
+    @State private var lastWallOffset: CGSize = .zero
 
     init(
         route: Route,
@@ -114,58 +121,68 @@ struct RouteDetailView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        let theme = BoardedTheme(colorScheme: colorScheme)
+        return NavigationStack {
             ZStack {
-                AppColor.background.ignoresSafeArea()
+                theme.background.ignoresSafeArea()
+
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 0) {
                         wallHeader
-                        detailsSection
-                        statsSection
-                        operationFeedback
-                        Divider().background(AppColor.border)
-                        commentsSection
+
+                        VStack(alignment: .leading, spacing: 16) {
+                            metadataBar
+                            routeActions
+                            detailsSection
+                            operationFeedback
+                            commentsSection
+                        }
+                        .padding(.horizontal, AppLayout.horizontalPadding)
+                        .padding(.top, 16)
+                        .padding(.bottom, 24)
                     }
-                    .padding(AppLayout.horizontalPadding)
-                    .padding(.bottom, 24)
                 }
+                .scrollIndicators(.hidden)
             }
             .navigationTitle("Route")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
-                        .foregroundColor(AppColor.primary)
+                        .foregroundStyle(theme.primary)
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
-                        Button(action: {
+                        Button {
                             shareError = nil
                             if isOwner && !route.isPublic {
                                 isShareConfirmationPresented = true
                             } else {
                                 Task { await shareRoute() }
                             }
-                        }) {
+                        } label: {
                             Label("Share Route", systemImage: "square.and.arrow.up")
                         }
                         .disabled(isSharing)
 
-                        Button(action: {
+                        Button {
                             wallUpdateError = nil
                             isWallPickerPresented = true
-                        }) {
+                        } label: {
                             Label(wallImageURL == nil ? "Set Wall" : "Change Wall", systemImage: "photo")
                         }
 
                         if isOwner {
-                            Button(action: { isEditPresented = true }) {
+                            Button {
+                                isEditPresented = true
+                            } label: {
                                 Label("Edit Route", systemImage: "pencil")
                             }
 
-                            Button(role: .destructive, action: {
+                            Button(role: .destructive) {
                                 deleteError = nil
                                 isDeleteConfirmationPresented = true
-                            }) {
+                            } label: {
                                 Label("Delete Route", systemImage: "trash")
                             }
                             .disabled(isDeleting)
@@ -173,7 +190,7 @@ struct RouteDetailView: View {
                     } label: {
                         Image(systemName: "ellipsis.circle")
                             .font(.system(size: 20))
-                            .foregroundColor(AppColor.primary)
+                            .foregroundStyle(theme.primary)
                     }
                     .accessibilityLabel("Route actions")
                 }
@@ -184,6 +201,16 @@ struct RouteDetailView: View {
             }
             .task {
                 await commentsViewModel.load()
+            }
+            .sheet(isPresented: $isLogSheetPresented) {
+                LogClimbSheet(route: latestRoute) { grade, rating, notes, flashed in
+                    try await saveAscent(
+                        grade: grade,
+                        rating: rating,
+                        notes: notes,
+                        flashed: flashed
+                    )
+                }
             }
             .sheet(isPresented: $isWallPickerPresented) {
                 WallPickerView(viewModel: wallsViewModel) { wall in
@@ -230,10 +257,13 @@ struct RouteDetailView: View {
                 Text("This will list the route publicly and make it viewable by anyone with the link.")
             }
         }
+        .presentationBackground(.ultraThinMaterial)
+        .presentationDragIndicator(.visible)
     }
 
     private var wallHeader: some View {
-        GeometryReader { proxy in
+        let theme = BoardedTheme(colorScheme: colorScheme)
+        return GeometryReader { proxy in
             let container = CGRect(origin: .zero, size: proxy.size)
             let imageRect = RouteDetailGeometry.imageRect(
                 imageWidth: wallImageWidth,
@@ -241,74 +271,246 @@ struct RouteDetailView: View {
                 in: container
             )
 
-            ZStack {
-                RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                    .fill(AppColor.surface)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                            .stroke(AppColor.border, lineWidth: 1)
-                    )
+            ZStack(alignment: .topLeading) {
+                ZStack {
+                    theme.background
+                    wallImage(in: imageRect)
 
-                wallImage(in: imageRect)
-
-                ForEach(route.holds) { hold in
-                    routeHoldMarker(for: hold)
-                        .position(
-                            x: imageRect.minX + hold.normalizedX * imageRect.width,
-                            y: imageRect.minY + hold.normalizedY * imageRect.height
-                        )
+                    ForEach(route.holds) { hold in
+                        routeHoldMarker(for: hold)
+                            .position(
+                                x: imageRect.minX + hold.normalizedX * imageRect.width,
+                                y: imageRect.minY + hold.normalizedY * imageRect.height
+                            )
+                    }
                 }
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .scaleEffect(wallScale)
+                .offset(wallOffset)
+                .contentShape(Rectangle())
+                .simultaneousGesture(
+                    SimultaneousGesture(
+                        MagnificationGesture()
+                            .onChanged { value in
+                                wallScale = min(max(lastWallScale * value, 1), 3)
+                            }
+                            .onEnded { _ in
+                                lastWallScale = wallScale
+                                if wallScale <= 1 {
+                                    resetWallZoom(animated: false)
+                                }
+                            },
+                        DragGesture()
+                            .onChanged { value in
+                                guard wallScale > 1 else { return }
+                                wallOffset = CGSize(
+                                    width: lastWallOffset.width + value.translation.width,
+                                    height: lastWallOffset.height + value.translation.height
+                                )
+                            }
+                            .onEnded { _ in
+                                lastWallOffset = wallOffset
+                            }
+                    )
+                )
+                .clipped()
 
-                VStack {
+                VStack(alignment: .leading, spacing: 10) {
                     HStack(spacing: 8) {
                         Text(route.name)
                             .font(AppTypography.headline)
-                            .foregroundColor(.white)
-                            .shadow(color: .black.opacity(0.8), radius: 3, x: 0, y: 1)
+                            .foregroundStyle(theme.primaryText)
                             .lineLimit(1)
+
                         if let grade = route.gradeV {
                             Text(grade)
                                 .font(AppTypography.label)
-                                .foregroundColor(.white)
+                                .foregroundStyle(theme.secondary)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 5)
-                                .background(AppColor.primary.opacity(0.9))
-                                .clipShape(Capsule())
+                                .background(theme.secondary.opacity(0.15), in: Capsule())
                         }
-                        Spacer()
+                        Spacer(minLength: 0)
                     }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(theme.panelBackground, in: Capsule())
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(route.gradeV.map { "\(route.name), \($0)" } ?? route.name)
+
                     Spacer()
                 }
-                .padding(12)
+                .padding(16)
+
+                if wallScale > 1 {
+                    Button {
+                        resetWallZoom()
+                    } label: {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .font(AppTypography.label)
+                            .foregroundStyle(theme.primaryText)
+                            .frame(width: 44, height: 44)
+                            .background(theme.panelBackground, in: Circle())
+                    }
+                    .accessibilityLabel("Reset wall zoom")
+                    .padding(16)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                }
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .clipped()
+        }
+        .frame(height: 340)
+        .frame(maxWidth: .infinity)
+        .background(theme.background)
+        .ignoresSafeArea(edges: .horizontal)
+    }
+
+    private var metadataBar: some View {
+        let theme = BoardedTheme(colorScheme: colorScheme)
+        let shape = RoundedRectangle(cornerRadius: AppLayout.controlCornerRadius, style: .continuous)
+
+        return HStack(spacing: 0) {
+            metadataItem(
+                systemImage: isLiked ? "heart.fill" : "heart",
+                title: "Likes",
+                value: "\(max(likeCount, 0))",
+                tint: theme.primary
+            )
+
+            Divider()
+                .overlay(theme.border)
+                .frame(height: 32)
+
+            metadataItem(
+                systemImage: "checkmark.circle.fill",
+                title: "Sends",
+                value: "\(ascents.count)",
+                tint: theme.secondary
+            )
+
+            Divider()
+                .overlay(theme.border)
+                .frame(height: 32)
+
+            metadataItem(
+                systemImage: "bubble.left.fill",
+                title: "Comments",
+                value: "\(commentsViewModel.comments.count)",
+                tint: theme.primary
+            )
+
+            if let grade = route.gradeV {
+                Divider()
+                    .overlay(theme.border)
+                    .frame(height: 32)
+
+                metadataItem(
+                    systemImage: "seal.fill",
+                    title: "Grade",
+                    value: grade,
+                    tint: theme.secondary
+                )
             }
         }
-        .frame(height: 260)
-        .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
+        .frame(maxWidth: .infinity)
+        .padding(10)
+        .background(theme.panelBackground, in: shape)
+        .background(.ultraThinMaterial, in: shape)
+        .overlay {
+            shape.stroke(theme.border, lineWidth: 1)
+        }
+    }
+
+    private func metadataItem(
+        systemImage: String,
+        title: String,
+        value: String,
+        tint: Color
+    ) -> some View {
+        VStack(spacing: 3) {
+            HStack(spacing: 5) {
+                Image(systemName: systemImage)
+                Text(value)
+            }
+            .font(AppTypography.headline)
+            .foregroundStyle(tint)
+            Text(title)
+                .font(AppTypography.caption)
+                .foregroundStyle(BoardedTheme(colorScheme: colorScheme).secondaryText)
+        }
+        .frame(maxWidth: .infinity, minHeight: 48)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title): \(value)")
+    }
+
+    private var routeActions: some View {
+        let theme = BoardedTheme(colorScheme: colorScheme)
+        return HStack(spacing: 8) {
+            routeActionButton(
+                title: isLiked ? "Liked" : "Like",
+                systemImage: isLiked ? "heart.fill" : "heart",
+                tint: theme.primary
+            ) {
+                toggleLike()
+            }
+
+            routeActionButton(
+                title: "Share",
+                systemImage: "square.and.arrow.up",
+                tint: theme.primary
+            ) {
+                Task { await shareRoute() }
+            }
+            .disabled(isSharing)
+
+            routeActionButton(
+                title: "Log Send",
+                systemImage: "checkmark.circle",
+                tint: theme.primary
+            ) {
+                guard session.userId != nil else { return }
+                isLogSheetPresented = true
+            }
+            .disabled(session.userId == nil)
+        }
+    }
+
+    private func routeActionButton(
+        title: String,
+        systemImage: String,
+        tint: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(AppTypography.label)
+                .foregroundStyle(tint)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(
+                    tint.opacity(0.15),
+                    in: RoundedRectangle(cornerRadius: AppLayout.controlCornerRadius, style: .continuous)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
     }
 
     private var detailsSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Text(route.name)
-                    .font(AppTypography.title)
-                    .foregroundColor(AppColor.text)
-                if let grade = route.gradeV {
-                    Text(grade)
-                        .font(AppTypography.label)
-                        .foregroundColor(AppColor.primary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(AppColor.primary.opacity(0.12))
-                        .clipShape(Capsule())
-                }
-            }
+        let theme = BoardedTheme(colorScheme: colorScheme)
+        return VStack(alignment: .leading, spacing: 6) {
+            Text(route.name)
+                .font(AppTypography.title)
+                .foregroundStyle(theme.primaryText)
+
             Text(route.userName ?? "Setter")
                 .font(AppTypography.label)
-                .foregroundColor(AppColor.muted)
+                .foregroundStyle(theme.secondaryText)
+
             if let description = route.description, !description.isEmpty {
                 Text(description)
                     .font(AppTypography.body)
-                    .foregroundColor(AppColor.text)
+                    .foregroundStyle(theme.primaryText)
                     .padding(.top, 6)
             }
         }
@@ -358,48 +560,41 @@ struct RouteDetailView: View {
         isDisabled: Bool = false,
         retry: @escaping () -> Void
     ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        let theme = BoardedTheme(colorScheme: colorScheme)
+        let shape = RoundedRectangle(cornerRadius: AppLayout.controlCornerRadius, style: .continuous)
+
+        return VStack(alignment: .leading, spacing: 6) {
             Text(message)
                 .font(AppTypography.label)
-                .foregroundColor(AppColor.destructive)
+                .foregroundStyle(theme.destructive)
             Button(retryTitle, action: retry)
                 .font(AppTypography.label)
-                .foregroundColor(AppColor.destructive)
+                .foregroundStyle(theme.destructive)
                 .disabled(isDisabled)
         }
-        .padding(10)
+        .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppColor.destructive.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
-    }
-
-
-
-    private var statsSection: some View {
-        HStack(spacing: 16) {
-            statItem(title: "Holds", value: "\(route.holds.count)")
-            statItem(title: "Likes", value: "\(max(likeCount, 0))")
-            statItem(title: "Sends", value: "\(ascents.count)")
+        .background(theme.destructive.opacity(0.15), in: shape)
+        .overlay {
+            shape.stroke(theme.border, lineWidth: 1)
         }
-        .padding(.vertical, 12)
-        .padding(.horizontal, 12)
-        .background(AppColor.surface)
-        .overlay(
-            RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                .stroke(AppColor.border, lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
     }
+
+
+
 
     private var commentsSection: some View {
-        DisclosureGroup(
+        let theme = BoardedTheme(colorScheme: colorScheme)
+        let shape = RoundedRectangle(cornerRadius: AppLayout.cornerRadius, style: .continuous)
+
+        return DisclosureGroup(
             isExpanded: $isCommentsExpanded,
             content: {
                 VStack(alignment: .leading, spacing: 12) {
                     if commentsViewModel.comments.isEmpty {
                         Text("No comments yet")
                             .font(AppTypography.label)
-                            .foregroundColor(AppColor.muted)
+                            .foregroundStyle(theme.secondaryText)
                             .padding(.vertical, 4)
                     } else {
                         ForEach(commentsViewModel.comments) { comment in
@@ -412,17 +607,14 @@ struct RouteDetailView: View {
                     if session.userId == nil {
                         Text("Sign in to add a comment")
                             .font(AppTypography.label)
-                            .foregroundColor(AppColor.muted)
+                            .foregroundStyle(theme.secondaryText)
                     } else {
                         VStack(spacing: 10) {
                             TextEditor(text: $commentsViewModel.newComment)
                                 .frame(minHeight: 80)
                                 .padding(8)
-                                .background(AppColor.surface)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                                        .stroke(AppColor.border, lineWidth: 1)
-                                )
+                                .foregroundStyle(theme.primaryText)
+                                .scrollContentBackground(.hidden)
 
                             HStack {
                                 Button {
@@ -430,13 +622,24 @@ struct RouteDetailView: View {
                                 } label: {
                                     Text(commentsViewModel.isBeta ? "Beta" : "Mark Beta")
                                         .font(AppTypography.label)
-                                        .foregroundColor(commentsViewModel.isBeta ? AppColor.primary : AppColor.text)
+                                        .foregroundStyle(
+                                            commentsViewModel.isBeta
+                                                ? theme.primary
+                                                : theme.primaryText
+                                        )
                                         .padding(.horizontal, 10)
                                         .padding(.vertical, 6)
-                                        .background(commentsViewModel.isBeta ? AppColor.primary.opacity(0.12) : AppColor.surface)
-                                        .clipShape(Capsule())
+                                        .background(
+                                            commentsViewModel.isBeta
+                                                ? theme.primary.opacity(0.15)
+                                                : Color.clear,
+                                            in: Capsule()
+                                        )
                                 }
+                                .buttonStyle(.plain)
+
                                 Spacer()
+
                                 Button {
                                     Task {
                                         await commentsViewModel.postComment(
@@ -447,14 +650,18 @@ struct RouteDetailView: View {
                                 } label: {
                                     Text("Post")
                                         .font(AppTypography.label)
-                                        .foregroundColor(.white)
+                                        .foregroundStyle(theme.background)
                                         .padding(.horizontal, 14)
-                                        .padding(.vertical, 8)
-                                        .background(AppColor.primary)
-                                        .clipShape(Capsule())
+                                        .frame(minHeight: 44)
+                                        .background(theme.primary, in: Capsule())
                                 }
+                                .buttonStyle(.plain)
                                 .disabled(commentsViewModel.newComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                                .opacity(commentsViewModel.newComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.5 : 1)
+                                .opacity(
+                                    commentsViewModel.newComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                        ? 0.5
+                                        : 1
+                                )
                             }
                         }
                     }
@@ -465,50 +672,28 @@ struct RouteDetailView: View {
                 HStack {
                     Text("Comments")
                         .font(AppTypography.headline)
-                        .foregroundColor(AppColor.text)
+                        .foregroundStyle(theme.primaryText)
                     Spacer()
                     Text("\(commentsViewModel.comments.count)")
                         .font(AppTypography.label)
-                        .foregroundColor(AppColor.primary)
+                        .foregroundStyle(theme.primary)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 2)
-                        .background(AppColor.primary.opacity(0.12))
-                        .clipShape(Capsule())
+                        .background(theme.primary.opacity(0.15), in: Capsule())
                 }
             }
         )
         .padding(12)
-        .background(AppColor.surface)
-        .overlay(
-            RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                .stroke(AppColor.border, lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
+        .background(theme.panelBackground, in: shape)
+        .background(.ultraThinMaterial, in: shape)
+        .overlay {
+            shape.stroke(theme.border, lineWidth: 1)
+        }
     }
 
-    private func actionButton(
-        title: String,
-        role: ButtonRole? = nil,
-        isDestructive: Bool = false,
-        isDisabled: Bool = false,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(role: role, action: action) {
-            Text(title)
-                .font(AppTypography.label)
-                .foregroundColor(isDestructive ? AppColor.destructive : AppColor.primary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(
-                    (isDestructive ? AppColor.destructive : AppColor.primary)
-                        .opacity(0.1)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-        }
-        .disabled(isDisabled)
-    }
 
     private func routeHoldMarker(for hold: Hold) -> some View {
+        let theme = BoardedTheme(colorScheme: colorScheme)
         let size: CGFloat
         let borderWidth: CGFloat
         switch hold.size {
@@ -523,19 +708,20 @@ struct RouteDetailView: View {
             borderWidth = 4
         }
 
+        let holdColor = theme.holdColor(for: hold.type)
         return ZStack {
             Circle()
-                .stroke(Color.hex(hold.type.colorHex), lineWidth: borderWidth)
-                .background(Circle().fill(Color.hex(hold.type.colorHex).opacity(0.25)))
-                .shadow(color: Color.hex(hold.type.colorHex).opacity(0.45), radius: 6)
+                .stroke(holdColor, lineWidth: borderWidth)
+                .background(Circle().fill(holdColor.opacity(0.15)))
                 .frame(width: size, height: size)
+
             if hold.type == .start || hold.type == .finish {
                 Text(hold.type.shortLabel)
                     .font(.system(size: size * 0.34, weight: .bold))
-                    .foregroundColor(.white)
-                    .shadow(color: .black.opacity(0.9), radius: 2)
+                    .foregroundStyle(theme.primaryText)
             }
         }
+        .accessibilityHidden(true)
     }
     @ViewBuilder
     private func wallImage(in rect: CGRect) -> some View {
@@ -574,6 +760,76 @@ struct RouteDetailView: View {
         Image("DefaultWall")
             .resizable()
             .scaledToFill()
+    }
+
+    private func resetWallZoom(animated: Bool = true) {
+        let reset = {
+            wallScale = 1
+            lastWallScale = 1
+            wallOffset = .zero
+            lastWallOffset = .zero
+        }
+
+        if animated && !reduceMotion {
+            withAnimation(.easeOut(duration: 0.2), reset)
+        } else {
+            reset()
+        }
+    }
+
+    private func toggleLike() {
+        guard let userId = session.userId else { return }
+
+        isLiked.toggle()
+        likeCount = isLiked ? likeCount + 1 : max(0, likeCount - 1)
+        onRouteChanged(routeWithLikeState())
+
+        Task {
+            await routesViewModel.toggleLike(routeId: route.id, userId: userId)
+            guard let updated = routesViewModel.routes.first(where: { $0.id == route.id }) else { return }
+            likeCount = updated.likeCount ?? likeCount
+            isLiked = updated.isLiked ?? isLiked
+            onRouteChanged(updated)
+        }
+    }
+
+    private func saveAscent(
+        grade: String?,
+        rating: Int?,
+        notes: String?,
+        flashed: Bool
+    ) async throws {
+        guard let userId = session.userId else { return }
+
+        let ascent = Ascent(
+            id: UUID().uuidString,
+            routeId: route.id,
+            userId: userId.uuidString,
+            userName: session.displayName,
+            gradeV: grade,
+            rating: rating,
+            notes: notes,
+            flashed: flashed,
+            createdAt: ISO8601DateFormatter().string(from: Date())
+        )
+        try await routesViewModel.addAscent(routeId: route.id, ascent: ascent)
+
+        let currentRoute = latestRoute
+        let updatedAscents = currentRoute.ascents.contains(where: { $0.id == ascent.id })
+            ? currentRoute.ascents
+            : currentRoute.ascents + [ascent]
+        ascents = updatedAscents
+        onRouteChanged(
+            routeWithState(
+                base: currentRoute,
+                likeCount: likeCount,
+                isLiked: isLiked,
+                ascents: updatedAscents,
+                wallImageUrl: wallImageUrl,
+                wallImageWidth: wallImageWidth,
+                wallImageHeight: wallImageHeight
+            )
+        )
     }
 
     private func routeWithLikeState() -> Route {
@@ -763,17 +1019,6 @@ struct RouteDetailView: View {
         }
     }
 
-    private func statItem(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(value)
-                .font(AppTypography.headline)
-                .foregroundColor(AppColor.text)
-            Text(title)
-                .font(AppTypography.label)
-                .foregroundColor(AppColor.muted)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
 }
 private struct ShareItem: Identifiable {
     let id = UUID()
@@ -797,24 +1042,29 @@ private struct CommentRow: View {
     let canDelete: Bool
     let onDelete: () -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        let theme = BoardedTheme(colorScheme: colorScheme)
+        let shape = RoundedRectangle(cornerRadius: AppLayout.controlCornerRadius, style: .continuous)
+
+        return VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(comment.userName ?? "Climber")
                     .font(AppTypography.label)
-                    .foregroundColor(AppColor.text)
+                    .foregroundStyle(theme.primaryText)
                 Spacer()
                 Text(formatTime(comment.createdAt))
                     .font(AppTypography.label)
-                    .foregroundColor(AppColor.muted)
+                    .foregroundStyle(theme.secondaryText)
             }
             Text(comment.content)
                 .font(AppTypography.body)
-                .foregroundColor(AppColor.text)
+                .foregroundStyle(theme.primaryText)
             if comment.isBeta {
                 Text("Beta")
                     .font(AppTypography.label)
-                    .foregroundColor(AppColor.primary)
+                    .foregroundStyle(theme.primary)
             }
             if canDelete {
                 Button(role: .destructive) {
@@ -822,16 +1072,16 @@ private struct CommentRow: View {
                 } label: {
                     Text("Delete")
                         .font(AppTypography.label)
+                        .foregroundStyle(theme.destructive)
                 }
             }
         }
         .padding(12)
-        .background(AppColor.surface)
-        .overlay(
-            RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                .stroke(AppColor.border, lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
+        .background(theme.panelBackground, in: shape)
+        .background(.ultraThinMaterial, in: shape)
+        .overlay {
+            shape.stroke(theme.border, lineWidth: 1)
+        }
     }
 
     private func formatTime(_ value: String) -> String {

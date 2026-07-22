@@ -10,21 +10,26 @@ struct RouteRow: View {
     private var theme: BoardedTheme {
         BoardedTheme(colorScheme: colorScheme)
     }
+
     var body: some View {
-        HStack(alignment: .center, spacing: 10) {
+        HStack(alignment: .center, spacing: 12) {
             Text(displayGrade)
                 .font(.system(size: 18, weight: .bold, design: .rounded))
-                .foregroundColor(route.gradeV == nil ? theme.secondaryText : theme.primary)
+                .foregroundStyle(route.gradeV == nil ? theme.secondaryText : theme.secondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
-                .frame(width: 42, alignment: .leading)
+                .frame(width: 46, minHeight: 40)
+                .background(route.gradeV == nil ? theme.panelBackground : theme.secondary.opacity(0.15))
+                .clipShape(Capsule())
+                .accessibilityLabel("Grade")
+                .accessibilityValue(displayGrade)
 
             wallThumbnail
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(route.name)
                     .font(AppTypography.headline)
-                    .foregroundColor(theme.primaryText)
+                    .foregroundStyle(theme.primaryText)
                     .lineLimit(1)
                     .truncationMode(.tail)
 
@@ -37,33 +42,32 @@ struct RouteRow: View {
                         .fixedSize()
                 }
                 .font(AppTypography.label)
-                .foregroundColor(theme.secondaryText)
+                .foregroundStyle(theme.secondaryText)
 
                 HStack(spacing: 8) {
                     Text(metricsText)
                         .lineLimit(1)
                         .truncationMode(.tail)
                     Text(timeAgo)
-                        .foregroundColor(theme.secondaryText.opacity(0.7))
                         .fixedSize()
                 }
                 .font(AppTypography.label)
-                .foregroundColor(theme.secondaryText)
+                .foregroundStyle(theme.secondaryText)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .layoutPriority(1)
 
             actionGlyphs
-                .frame(width: 82, alignment: .trailing)
                 .fixedSize()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
     }
 
     private var wallThumbnail: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(theme.border.opacity(0.7))
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(theme.border)
 
             if let url = route.wallImageURL {
                 AsyncImage(url: url) { phase in
@@ -85,59 +89,68 @@ struct RouteRow: View {
                 defaultWallThumbnail
             }
         }
-        .frame(width: 48, height: 48)
+        .frame(width: 52, height: 52)
         .fixedSize()
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(theme.border.opacity(0.65), lineWidth: 1)
-        )
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(theme.border, lineWidth: 1)
+        }
+        .accessibilityHidden(true)
     }
 
     private var holdDots: some View {
         HStack(spacing: 2) {
             ForEach(Array(route.holds.prefix(4))) { hold in
                 Circle()
-                    .fill(Color.hex(hold.type.colorHex))
+                    .fill(theme.holdColor(for: hold.type))
                     .frame(width: 6, height: 6)
             }
         }
+        .accessibilityHidden(true)
     }
 
     private var actionGlyphs: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 2) {
             Button(action: { onLike?() }) {
                 Image(systemName: (route.isLiked ?? false) ? "heart.fill" : "heart")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor((route.isLiked ?? false) ? theme.destructive : theme.secondaryText)
-                    .frame(width: 32, height: 32)
+                    .foregroundStyle((route.isLiked ?? false) ? theme.primary : theme.secondaryText)
+                    .frame(width: 40, height: 40)
                     .background(
                         (route.isLiked ?? false)
-                            ? theme.destructive.opacity(0.12)
+                            ? theme.primary.opacity(0.15)
                             : Color.clear
                     )
                     .clipShape(Circle())
             }
             .buttonStyle(.plain)
+            .disabled(onLike == nil)
+            .accessibilityLabel((route.isLiked ?? false) ? "Unlike \(route.name)" : "Like \(route.name)")
+            .accessibilityValue("\(route.likeCount ?? 0) likes")
 
             Button(action: { onLogClimb?() }) {
                 Image(systemName: route.ascents.isEmpty ? "checkmark.circle" : "checkmark.circle.fill")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(route.ascents.isEmpty ? theme.secondaryText : theme.secondary)
-                    .frame(width: 32, height: 32)
+                    .foregroundStyle(route.ascents.isEmpty ? theme.secondaryText : theme.secondary)
+                    .frame(width: 40, height: 40)
                     .background(
                         route.ascents.isEmpty
                             ? Color.clear
-                            : theme.secondary.opacity(0.12)
+                            : theme.secondary.opacity(0.15)
                     )
                     .clipShape(Circle())
             }
             .buttonStyle(.plain)
+            .disabled(onLogClimb == nil)
+            .accessibilityLabel("Log Send for \(route.name)")
+            .accessibilityValue("\(route.ascents.count) sends")
 
             Image(systemName: "chevron.right")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(theme.secondaryText.opacity(0.55))
-                .frame(width: 18, height: 32)
+                .foregroundStyle(theme.secondaryText)
+                .frame(width: 18, height: 40)
+                .accessibilityHidden(true)
         }
     }
 
