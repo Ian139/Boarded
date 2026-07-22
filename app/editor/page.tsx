@@ -581,7 +581,7 @@ function EditorContent({ editRouteId }: { editRouteId: string | null }) {
             <button
               onClick={() => setShowSaveDialog(true)}
               disabled={holds.length === 0 || (isEditMode && editResolution !== 'ready')}
-              className="h-10 px-5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:opacity-95 active:scale-95"
+              className="h-10 px-5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:opacity-95 active:scale-95"
             >
               {isEditMode ? 'Update' : 'Save'}
             </button>
@@ -590,7 +590,7 @@ function EditorContent({ editRouteId }: { editRouteId: string | null }) {
       </header>
 
       {/* Floating instructional hint pill */}
-      <p className="pointer-events-none fixed left-1/2 top-20 z-30 -translate-x-1/2 rounded-full border border-border/20 bg-card/60 px-4 py-1.5 text-center text-xs font-medium text-muted-foreground shadow-lg backdrop-blur-xl">
+      <p className="pointer-events-none fixed left-1/2 top-20 z-30 -translate-x-1/2 rounded-full border border-border/20 bg-card/60 px-4 py-1.5 text-center text-xs font-medium text-muted-foreground backdrop-blur-xl">
         Tap the wall to place holds · tap a hold to change its type
       </p>
 
@@ -598,7 +598,7 @@ function EditorContent({ editRouteId }: { editRouteId: string | null }) {
       <div className="fixed bottom-0 left-0 right-0 z-40 pointer-events-none">
         {/* Mobile: Bottom controls elevated above fixed bottom nav */}
         <div className="md:hidden pb-[84px] px-4 pointer-events-auto">
-          <div className="bg-card/75 backdrop-blur-2xl border border-border/20 rounded-2xl p-3 shadow-2xl">
+          <div className="bg-card/75 backdrop-blur-2xl border border-border/20 rounded-2xl p-3">
             <div className="flex items-center justify-between gap-2">
               <button
                 onClick={cycleHoldType}
@@ -609,7 +609,7 @@ function EditorContent({ editRouteId }: { editRouteId: string | null }) {
                 }}
               >
                 <div
-                  className="size-4 rounded-full shadow-sm"
+                  className="size-4 rounded-full"
                   style={{ backgroundColor: HOLD_COLORS[selectedType] }}
                 />
                 <span className="text-sm font-semibold text-foreground capitalize">
@@ -686,12 +686,12 @@ function EditorContent({ editRouteId }: { editRouteId: string | null }) {
         <div className="hidden md:block pb-safe p-4 pointer-events-auto">
           <div className="relative max-w-5xl mx-auto">
             <div className="absolute -top-10 left-1/2 -translate-x-1/2">
-              <span className="text-xs font-medium text-foreground bg-card/80 backdrop-blur-xl border border-border/20 px-3 py-1.5 rounded-lg shadow-lg">
+              <span className="text-xs font-medium text-foreground bg-card/80 backdrop-blur-xl border border-border/20 px-3 py-1.5 rounded-lg">
                 {holds.length} holds
               </span>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/20 bg-card/80 backdrop-blur-2xl p-2 shadow-2xl">
+            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/20 bg-card/80 backdrop-blur-2xl p-2">
               <div className="flex min-w-[22rem] flex-1 gap-1 max-lg:basis-full">
                 {holdTypes.map((type) => (
                   <button
@@ -700,7 +700,7 @@ function EditorContent({ editRouteId }: { editRouteId: string | null }) {
                     className={cn(
                       'flex-1 py-2 rounded-xl flex items-center justify-center gap-2 transition-all border-2',
                       selectedType === type
-                        ? 'bg-muted/80 shadow-inner'
+                        ? 'bg-muted/80'
                         : 'border-transparent hover:bg-muted/40'
                     )}
                     style={selectedType === type ? {
@@ -710,7 +710,7 @@ function EditorContent({ editRouteId }: { editRouteId: string | null }) {
                   >
                     <div
                       className={cn(
-                        'size-4 rounded-full shadow-sm transition-transform',
+                        'size-4 rounded-full transition-transform',
                         selectedType === type && 'scale-110'
                       )}
                       style={{ backgroundColor: HOLD_COLORS[type] }}

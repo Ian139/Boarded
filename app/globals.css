@@ -58,107 +58,107 @@
  */
 
 :root {
-  --base-bg: #09090B;
-  --base-surface: #141417;
-  --base-text: #FFFFFF;
-  --base-primary: #00E599;
-  --base-secondary: #FF5C00;
+  --bg-main: #09090B;
+  --bg-surface: #141417;
+  --text-main: #FFFFFF;
+  --accent-primary: #00E599;
+  --accent-secondary: #FF5C00;
 
   --radius: 1rem;
   --shadow-soft: none;
   --shadow-float: none;
 
-  --background: var(--base-bg);
-  --foreground: var(--base-text);
+  --background: var(--bg-main);
+  --foreground: var(--text-main);
 
-  --card: var(--base-surface);
-  --card-foreground: var(--base-text);
+  --card: var(--bg-surface);
+  --card-foreground: var(--text-main);
 
-  --popover: var(--base-surface);
-  --popover-foreground: var(--base-text);
+  --popover: var(--bg-surface);
+  --popover-foreground: var(--text-main);
 
-  --primary: var(--base-primary);
-  --primary-foreground: var(--base-bg);
+  --primary: var(--accent-primary);
+  --primary-foreground: var(--bg-main);
 
-  --secondary: var(--base-secondary);
-  --secondary-foreground: var(--base-text);
+  --secondary: var(--accent-secondary);
+  --secondary-foreground: var(--text-main);
 
-  --muted: color-mix(in srgb, var(--base-text) 8%, var(--base-surface));
-  --muted-foreground: color-mix(in srgb, var(--base-text) 70%, transparent);
+  --muted: color-mix(in srgb, var(--text-main) 8%, var(--bg-surface));
+  --muted-foreground: color-mix(in srgb, var(--text-main) 70%, transparent);
 
-  --accent: color-mix(in srgb, var(--base-primary) 15%, var(--base-surface));
-  --accent-foreground: var(--base-text);
+  --accent: color-mix(in srgb, var(--accent-primary) 15%, var(--bg-surface));
+  --accent-foreground: var(--text-main);
 
-  --destructive: var(--base-secondary);
+  --destructive: var(--accent-secondary);
 
-  --border: color-mix(in srgb, var(--base-text) 12%, transparent);
-  --input: color-mix(in srgb, var(--base-text) 12%, transparent);
-  --ring: var(--base-primary);
+  --border: color-mix(in srgb, var(--text-main) 12%, transparent);
+  --input: color-mix(in srgb, var(--text-main) 12%, transparent);
+  --ring: var(--accent-primary);
 
-  --chart-1: var(--base-primary);
-  --chart-2: var(--base-secondary);
-  --chart-3: color-mix(in srgb, var(--base-primary) 70%, var(--base-secondary));
-  --chart-4: color-mix(in srgb, var(--base-secondary) 70%, var(--base-text));
-  --chart-5: color-mix(in srgb, var(--base-primary) 40%, var(--base-text));
+  --chart-1: var(--accent-primary);
+  --chart-2: var(--accent-secondary);
+  --chart-3: color-mix(in srgb, var(--accent-primary) 70%, va--accent-secondaryry));
+  --chart-4: color-mix(in srgb, var(--accent-secondary) 70%, var(--text-main));
+  --chart-5: color-mix(in srgb, var(--accent-primary) 40%, var(--text-main));
 
-  --sidebar: var(--base-surface);
-  --sidebar-foreground: var(--base-text);
-  --sidebar-primary: var(--base-primary);
-  --sidebar-primary-foreground: var(--base-bg);
-  --sidebar-accent: var(--base-secondary);
-  --sidebar-accent-foreground: var(--base-text);
-  --sidebar-border: color-mix(in srgb, var(--base-text) 12%, transparent);
-  --sidebar-ring: var(--base-primary);
+  --sidebar: var(--bg-surface);
+  --sidebar-foreground: var(--text-main);
+  --sidebar-primary: var(--accent-primary);
+  --sidebar-primary-foreground: var(--bg-main);
+  --sidebar-accent: var(--accent-secondary);
+  --sidebar-accent-foreground: var(--text-main);
+  --sidebar-border: color-mix(in srgb, var(--text-main) 12%, transparent);
+  --sidebar-ring: var(--accent-primary);
 
-  --surface-glass: color-mix(in srgb, var(--base-surface) 80%, transparent);
-  --surface-raised: var(--base-surface);
+  --surface-glass: color-mix(in srgb, var(--bg-surface) 80%, transparent);
+  --surface-raised: var(--bg-surface);
 }
 
 .dark {
-  --background: var(--base-bg);
-  --foreground: var(--base-text);
+  --background: var(--bg-main);
+  --foreground: var(--text-main);
 
-  --card: var(--base-surface);
-  --card-foreground: var(--base-text);
+  --card: var(--bg-surface);
+  --card-foreground: var(--text-main);
 
-  --popover: var(--base-surface);
-  --popover-foreground: var(--base-text);
+  --popover: var(--bg-surface);
+  --popover-foreground: var(--text-main);
 
-  --primary: var(--base-primary);
-  --primary-foreground: var(--base-bg);
+  --primary: var(--accent-primary);
+  --primary-foreground: var(--bg-main);
 
-  --secondary: var(--base-secondary);
-  --secondary-foreground: var(--base-text);
+  --secondary: var(--accent-secondary);
+  --secondary-foreground: var(--text-main);
 
-  --muted: color-mix(in srgb, var(--base-text) 8%, var(--base-surface));
-  --muted-foreground: color-mix(in srgb, var(--base-text) 70%, transparent);
+  --muted: color-mix(in srgb, var(--text-main) 8%, var(--bg-surface));
+  --muted-foreground: color-mix(in srgb, var(--text-main) 70%, transparent);
 
-  --accent: color-mix(in srgb, var(--base-primary) 15%, var(--base-surface));
-  --accent-foreground: var(--base-text);
+  --accent: color-mix(in srgb, var(--accent-primary) 15%, var(--bg-surface));
+  --accent-foreground: var(--text-main);
 
-  --destructive: var(--base-secondary);
+  --destructive: var(--accent-secondary);
 
-  --border: color-mix(in srgb, var(--base-text) 12%, transparent);
-  --input: color-mix(in srgb, var(--base-text) 12%, transparent);
-  --ring: var(--base-primary);
+  --border: color-mix(in srgb, var(--text-main) 12%, transparent);
+  --input: color-mix(in srgb, var(--text-main) 12%, transparent);
+  --ring: var(--accent-primary);
 
-  --chart-1: var(--base-primary);
-  --chart-2: var(--base-secondary);
-  --chart-3: color-mix(in srgb, var(--base-primary) 70%, var(--base-secondary));
-  --chart-4: color-mix(in srgb, var(--base-secondary) 70%, var(--base-text));
-  --chart-5: color-mix(in srgb, var(--base-primary) 40%, var(--base-text));
+  --chart-1: var(--accent-primary);
+  --chart-2: var(--accent-secondary);
+  --chart-3: color-mix(in srgb, var(--accent-primary) 70%, va--accent-secondaryry));
+  --chart-4: color-mix(in srgb, var(--accent-secondary) 70%, var(--text-main));
+  --chart-5: color-mix(in srgb, var(--accent-primary) 40%, var(--text-main));
 
-  --sidebar: var(--base-surface);
-  --sidebar-foreground: var(--base-text);
-  --sidebar-primary: var(--base-primary);
-  --sidebar-primary-foreground: var(--base-bg);
-  --sidebar-accent: var(--base-secondary);
-  --sidebar-accent-foreground: var(--base-text);
-  --sidebar-border: color-mix(in srgb, var(--base-text) 12%, transparent);
-  --sidebar-ring: var(--base-primary);
+  --sidebar: var(--bg-surface);
+  --sidebar-foreground: var(--text-main);
+  --sidebar-primary: var(--accent-primary);
+  --sidebar-primary-foreground: var(--bg-main);
+  --sidebar-accent: var(--accent-secondary);
+  --sidebar-accent-foreground: var(--text-main);
+  --sidebar-border: color-mix(in srgb, var(--text-main) 12%, transparent);
+  --sidebar-ring: var(--accent-primary);
 
-  --surface-glass: color-mix(in srgb, var(--base-surface) 80%, transparent);
-  --surface-raised: var(--base-surface);
+  --surface-glass: color-mix(in srgb, var(--bg-surface) 80%, transparent);
+  --surface-raised: var(--bg-surface);
 }
 
 @layer base {

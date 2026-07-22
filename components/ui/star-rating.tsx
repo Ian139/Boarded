@@ -17,7 +17,7 @@ export function StarRatingInput({ value, onChange }: { value: number; onChange: 
           <svg
             className={cn(
               'w-6 h-6',
-              star <= value ? 'text-yellow-500 fill-yellow-500' : 'text-muted-foreground/30'
+              star <= value ? 'text-secondary fill-secondary' : 'text-muted-foreground/30'
             )}
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -40,7 +40,7 @@ export function StarRating({ rating }: { rating?: number }) {
           key={star}
           className={cn(
             'w-3.5 h-3.5',
-            star <= stars ? 'text-yellow-500 fill-yellow-500' : 'text-muted-foreground/20'
+            star <= stars ? 'text-secondary fill-secondary' : 'text-muted-foreground/20'
           )}
           viewBox="0 0 24 24"
           stroke="currentColor"

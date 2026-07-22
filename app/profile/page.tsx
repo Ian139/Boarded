@@ -172,7 +172,7 @@ export default function ProfilePage() {
 
       <main className="page-frame px-6 py-8 space-y-8">
         {/* User Info Card */}
-        <section className="bg-card/60 backdrop-blur-xl border border-border/20 rounded-2xl p-5 shadow-lg flex items-center gap-4">
+        <section className="bg-card/60 backdrop-blur-xl border border-border/20 rounded-2xl p-5 flex items-center gap-4">
           <div className="size-16 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden border border-border/40 shrink-0">
             {profile?.avatar_url ? (
               <Image
@@ -233,7 +233,7 @@ export default function ProfilePage() {
         </section>
 
         {/* Flighty-Style Grouped Overview Stats */}
-        <section className="bg-card/60 backdrop-blur-xl border border-border/20 rounded-2xl overflow-hidden shadow-lg">
+        <section className="bg-card/60 backdrop-blur-xl border border-border/20 rounded-2xl overflow-hidden">
           <div className="grid grid-cols-4 divide-x divide-border/10">
             <div className="py-4 px-3 text-center">
               <p className="text-2xl font-bold text-primary">{stats.totalSends}</p>
@@ -262,7 +262,7 @@ export default function ProfilePage() {
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
               Setter Analytics
             </h3>
-            <div className="bg-card/60 backdrop-blur-xl border border-border/20 rounded-2xl overflow-hidden shadow-lg divide-y divide-border/10">
+            <div className="bg-card/60 backdrop-blur-xl border border-border/20 rounded-2xl overflow-hidden divide-y divide-border/10">
               <div className="grid grid-cols-2 divide-x divide-border/10">
                 <div className="p-4">
                   <p className="text-xs font-medium text-muted-foreground">Total Likes</p>
@@ -299,7 +299,7 @@ export default function ProfilePage() {
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
               Grade Pyramid
             </h3>
-            <div className="bg-card/60 backdrop-blur-xl border border-border/20 rounded-2xl p-4 shadow-lg">
+            <div className="bg-card/60 backdrop-blur-xl border border-border/20 rounded-2xl p-4">
               <div className="space-y-2.5">
                 {stats.gradeDistribution.map(([grade, count]) => (
                   <div key={grade} className="flex items-center gap-3">
@@ -324,7 +324,7 @@ export default function ProfilePage() {
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
               Recent Activity
             </h3>
-            <div className="bg-card/60 backdrop-blur-xl border border-border/20 rounded-2xl overflow-hidden shadow-lg divide-y divide-border/10">
+            <div className="bg-card/60 backdrop-blur-xl border border-border/20 rounded-2xl overflow-hidden divide-y divide-border/10">
               {stats.recentActivity.map((activity) => (
                 <div
                   key={activity.id}
@@ -371,7 +371,7 @@ export default function ProfilePage() {
 
         {/* Empty State */}
         {stats.totalSends === 0 && stats.routesCreated === 0 && (
-          <section className="bg-card/60 backdrop-blur-xl border border-border/20 rounded-2xl text-center py-12 px-6 shadow-lg">
+          <section className="bg-card/60 backdrop-blur-xl border border-border/20 rounded-2xl text-center py-12 px-6">
             <div className="size-16 rounded-full bg-muted/40 mx-auto mb-4 flex items-center justify-center border border-border/10">
               <svg className="w-8 h-8 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
