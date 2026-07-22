@@ -401,6 +401,7 @@ export default function Home() {
                       <div className="size-2.5 rounded-full bg-secondary/50" />
                       <span>Finish</span>
                     </div>
+                  </div>
                 </div>
               </div>
             ) : (
