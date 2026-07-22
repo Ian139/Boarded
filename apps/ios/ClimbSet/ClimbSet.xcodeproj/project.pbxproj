@@ -24,6 +24,7 @@
 		3CDD08D72F5A06EE00535751 /* Realtime in Frameworks */ = {isa = PBXBuildFile; productRef = 3CDD08D62F5A06EE00535751 /* Realtime */; };
 		3CDD08D92F5A06EE00535751 /* Storage in Frameworks */ = {isa = PBXBuildFile; productRef = 3CDD08D82F5A06EE00535751 /* Storage */; };
 		3CDD08ED2F5A072900535751 /* RouteRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD08E52F5A072900535751 /* RouteRow.swift */; };
+		AA1100302F5B000100535751 /* LogClimbSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1100312F5B000100535751 /* LogClimbSheet.swift */; };
 		3CDD08EE2F5A072900535751 /* SearchField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD08EA2F5A072900535751 /* SearchField.swift */; };
 		3CDD08EF2F5A072900535751 /* RoutesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD08E62F5A072900535751 /* RoutesView.swift */; };
 		3CDD08F02F5A072900535751 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDD08DD2F5A072900535751 /* AuthView.swift */; };
@@ -80,6 +81,7 @@
 		3CDD08E22F5A072900535751 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		3CDD08E42F5A072900535751 /* RouteDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteDetailView.swift; sourceTree = "<group>"; };
 		3CDD08E52F5A072900535751 /* RouteRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteRow.swift; sourceTree = "<group>"; };
+		AA1100312F5B000100535751 /* LogClimbSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogClimbSheet.swift; sourceTree = "<group>"; };
 		3CDD08E62F5A072900535751 /* RoutesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutesView.swift; sourceTree = "<group>"; };
 		3CDD08E82F5A072900535751 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
 		3CDD08EA2F5A072900535751 /* SearchField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchField.swift; sourceTree = "<group>"; };
@@ -212,6 +214,7 @@
 			children = (
 				3CDD08E42F5A072900535751 /* RouteDetailView.swift */,
 				3CDD08E52F5A072900535751 /* RouteRow.swift */,
+				AA1100312F5B000100535751 /* LogClimbSheet.swift */,
 				3CDD08E62F5A072900535751 /* RoutesView.swift */,
 			);
 			path = Routes;
@@ -412,6 +415,7 @@
 				3CDD08CB2F5A067100535751 /* ProfileModels.swift in Sources */,
 				3CDD09042F5A0F8E00535751 /* WallPickerView.swift in Sources */,
 				3CDD08ED2F5A072900535751 /* RouteRow.swift in Sources */,
+				AA1100302F5B000100535751 /* LogClimbSheet.swift in Sources */,
 				3CDD08EE2F5A072900535751 /* SearchField.swift in Sources */,
 				3CDD08EF2F5A072900535751 /* RoutesView.swift in Sources */,
 				3CDD08FC2F5A0A0300535751 /* RoutesViewModel.swift in Sources */,

@@ -4,6 +4,8 @@ import Foundation
 struct RouteRow: View {
     @Environment(\.colorScheme) private var colorScheme
     let route: Route
+    var onLike: (() -> Void)? = nil
+    var onLogClimb: (() -> Void)? = nil
 
     private var theme: BoardedTheme {
         BoardedTheme(colorScheme: colorScheme)
@@ -103,19 +105,40 @@ struct RouteRow: View {
     }
 
     private var actionGlyphs: some View {
-        HStack(spacing: 4) {
-            Image(systemName: (route.isLiked ?? false) ? "heart.fill" : "heart")
-                .foregroundColor((route.isLiked ?? false) ? theme.destructive : theme.secondaryText)
-                .frame(width: 24, height: 32)
-            Image(systemName: route.ascents.isEmpty ? "checkmark.circle" : "checkmark.circle.fill")
-                .foregroundColor(route.ascents.isEmpty ? theme.secondaryText : theme.secondary)
-                .frame(width: 24, height: 32)
+        HStack(spacing: 8) {
+            Button(action: { onLike?() }) {
+                Image(systemName: (route.isLiked ?? false) ? "heart.fill" : "heart")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor((route.isLiked ?? false) ? theme.destructive : theme.secondaryText)
+                    .frame(width: 32, height: 32)
+                    .background(
+                        (route.isLiked ?? false)
+                            ? theme.destructive.opacity(0.12)
+                            : Color.clear
+                    )
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+
+            Button(action: { onLogClimb?() }) {
+                Image(systemName: route.ascents.isEmpty ? "checkmark.circle" : "checkmark.circle.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(route.ascents.isEmpty ? theme.secondaryText : theme.secondary)
+                    .frame(width: 32, height: 32)
+                    .background(
+                        route.ascents.isEmpty
+                            ? Color.clear
+                            : theme.secondary.opacity(0.12)
+                    )
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+
             Image(systemName: "chevron.right")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(theme.secondaryText.opacity(0.55))
                 .frame(width: 18, height: 32)
         }
-        .font(.system(size: 17, weight: .medium))
     }
 
     private var displayGrade: String {

@@ -240,6 +240,27 @@ struct Ascent: Codable, Identifiable, Hashable {
     let notes: String?
     let flashed: Bool?
     let createdAt: String?
+    init(
+        id: String,
+        routeId: String,
+        userId: String? = nil,
+        userName: String? = nil,
+        gradeV: String? = nil,
+        rating: Int? = nil,
+        notes: String? = nil,
+        flashed: Bool? = nil,
+        createdAt: String? = nil
+    ) {
+        self.id = id
+        self.routeId = routeId
+        self.userId = userId
+        self.userName = userName
+        self.gradeV = gradeV
+        self.rating = rating
+        self.notes = notes
+        self.flashed = flashed
+        self.createdAt = createdAt
+    }
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -263,6 +284,27 @@ struct Ascent: Codable, Identifiable, Hashable {
         notes = try container.decodeIfPresent(String.self, forKey: .notes)
         flashed = try container.decodeIfPresent(Bool.self, forKey: .flashed)
         createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
+    }
+}
+struct AscentInsert: Encodable {
+    let id: String
+    let routeId: String
+    let userId: String?
+    let userName: String
+    let gradeV: String?
+    let rating: Int?
+    let notes: String?
+    let flashed: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case routeId = "route_id"
+        case userId = "user_id"
+        case userName = "user_name"
+        case gradeV = "grade_v"
+        case rating
+        case notes
+        case flashed
     }
 }
 

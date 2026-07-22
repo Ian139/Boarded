@@ -8,6 +8,7 @@ import { useRoutesStore } from '@/lib/stores/routes-store';
 import { cn } from '@/lib/utils';
 import { useIsClient } from '@/lib/hooks/useIsClient';
 import { gradeToNumber, calculateDisplayGrade } from '@climbset/shared/utils/grades';
+import { toast } from 'sonner';
 
 export default function ProfilePage() {
   const { user, displayName, userId, isAuthenticated, profile, syncProfile, uploadAvatar } = useUserStore();
@@ -26,12 +27,25 @@ export default function ProfilePage() {
     }
   }, [isAuthenticated, syncProfile]);
 
-  const handleAvatarSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleAvatarSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    if (!file || isUploadingAvatar) return;
+
     setIsUploadingAvatar(true);
-    await uploadAvatar(file);
-    setIsUploadingAvatar(false);
+    try {
+      const avatarUrl = await uploadAvatar(file);
+      if (avatarUrl) {
+        toast.success('Avatar updated');
+      } else {
+        toast.error('Unable to update avatar. Please try again.');
+      }
+    } catch {
+      toast.error('Unable to update avatar. Please try again.');
+    } finally {
+      input.value = '';
+      setIsUploadingAvatar(false);
+    }
   };
 
   // Calculate user stats
@@ -209,10 +223,14 @@ export default function ProfilePage() {
                   accept="image/*"
                   className="hidden"
                   onChange={handleAvatarSelect}
+                  disabled={isUploadingAvatar}
                 />
                 <button
+                  type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="text-xs font-medium text-primary hover:underline"
+                  disabled={isUploadingAvatar}
+                  aria-busy={isUploadingAvatar}
+                  className="text-xs font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isUploadingAvatar ? 'Uploading...' : 'Change avatar'}
                 </button>

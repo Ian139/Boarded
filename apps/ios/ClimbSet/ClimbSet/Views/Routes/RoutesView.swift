@@ -9,6 +9,7 @@ struct RoutesView: View {
     @StateObject private var wallsViewModel: WallsViewModel
     @State private var selectedRoute: Route?
     @State private var sharedRouteError: String?
+    @State private var loggingRoute: Route? = nil
 
     init(
         shareRequest: Binding<NativeShareRequest?> = .constant(nil),
@@ -67,6 +68,23 @@ struct RoutesView: View {
                     reconcileRouteDeletion(routeId)
                 }
             )
+        }
+        .sheet(item: $loggingRoute) { route in
+            LogClimbSheet(route: route) { grade, rating, notes, flashed in
+                let ascent = Ascent(
+                    id: UUID().uuidString,
+                    routeId: route.id,
+                    userId: session.userId?.uuidString,
+                    userName: session.displayName,
+                    gradeV: grade,
+                    rating: rating,
+                    notes: notes,
+                    flashed: flashed,
+                    createdAt: ISO8601DateFormatter().string(from: Date())
+                )
+                try await viewModel.addAscent(routeId: route.id, ascent: ascent)
+                loggingRoute = nil
+            }
         }
         .task(id: shareTaskIdentity) {
             guard let request = shareRequest, !session.isLoading else { return }
@@ -377,11 +395,23 @@ struct RoutesView: View {
                 ScrollView {
                     LazyVStack(spacing: 10) {
                         ForEach(viewModel.filteredRoutes) { route in
-                            RouteRow(route: route)
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    selectedRoute = route
+                            RouteRow(
+                                route: route,
+                                onLike: {
+                                    if let userId = session.userId {
+                                        Task { await viewModel.toggleLike(routeId: route.id, userId: userId) }
+                                    }
+                                },
+                                onLogClimb: {
+                                    if session.userId != nil {
+                                        loggingRoute = route
+                                    }
                                 }
+                            )
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                selectedRoute = route
+                            }
                                 .boardedPanel()
                                 .frame(maxWidth: AppLayout.contentMaxWidth)
                                 .frame(maxWidth: .infinity)

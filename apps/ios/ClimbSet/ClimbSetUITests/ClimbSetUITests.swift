@@ -279,7 +279,8 @@ final class ClimbSetUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts[routeName].waitForExistence(timeout: 10))
         app.staticTexts[routeName].tap()
         XCTAssertTrue(app.navigationBars["Route"].waitForExistence(timeout: 5))
-        app.buttons["Edit"].tap()
+        app.buttons["Route actions"].tap()
+        app.buttons["Edit Route"].tap()
 
         let persistedFirstMarker = app.descendants(matching: .any)["Editor hold 1"]
         let persistedSecondMarker = app.descendants(matching: .any)["Editor hold 2"]
@@ -305,7 +306,8 @@ final class ClimbSetUITests: XCTestCase {
         app.staticTexts["Granite Drift"].tap()
         XCTAssertTrue(app.navigationBars["Route"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Granite Drift"].exists)
-        app.buttons["Edit"].tap()
+        app.buttons["Route actions"].tap()
+        app.buttons["Edit Route"].tap()
         let editorSave = app.buttons["Save"]
         XCTAssertTrue(editorSave.waitForExistence(timeout: 5))
         let editorSaveEnabled = expectation(
@@ -323,7 +325,9 @@ final class ClimbSetUITests: XCTestCase {
         app.staticTexts[updatedName].tap()
         XCTAssertTrue(app.navigationBars["Route"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts[updatedName].exists)
-        app.buttons["Delete"].tap()
+        app.buttons["Route actions"].tap()
+        XCTAssertTrue(app.buttons["Delete Route"].waitForExistence(timeout: 3))
+        app.buttons["Delete Route"].tap()
         XCTAssertTrue(app.buttons["Delete Route"].waitForExistence(timeout: 3))
         app.buttons["Delete Route"].tap()
         XCTAssertTrue(app.staticTexts[updatedName].waitForNonExistence(timeout: 8))

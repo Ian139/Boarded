@@ -1,6 +1,10 @@
 import Foundation
 import SwiftUI
 import Combine
+#if canImport(Supabase)
+import Supabase
+import PostgREST
+#endif
 
 @MainActor
 final class RoutesViewModel: ObservableObject {
@@ -121,6 +125,121 @@ final class RoutesViewModel: ObservableObject {
     func deleteRoute(routeId: String) async throws {
         try await repository.deleteRoute(id: routeId)
         routes.removeAll { $0.id == routeId }
+    }
+    func toggleLike(routeId: String, userId: UUID) async {
+        guard let index = routes.firstIndex(where: { $0.id == routeId }) else { return }
+        let current = routes[index]
+        let currentlyLiked = current.isLiked ?? false
+        let desiredLiked = !currentlyLiked
+        let currentLikeCount = current.likeCount ?? 0
+        let newLikeCount = desiredLiked ? currentLikeCount + 1 : max(0, currentLikeCount - 1)
+
+        // Optimistic update
+        routes[index] = Route(
+            id: current.id,
+            userId: current.userId,
+            wallId: current.wallId,
+            name: current.name,
+            description: current.description,
+            gradeV: current.gradeV,
+            gradeFont: current.gradeFont,
+            holds: current.holds,
+            isPublic: current.isPublic,
+            viewCount: current.viewCount,
+            shareToken: current.shareToken,
+            createdAt: current.createdAt,
+            updatedAt: current.updatedAt,
+            userName: current.userName,
+            wallImageUrl: current.wallImageUrl,
+            wallImageWidth: current.wallImageWidth,
+            wallImageHeight: current.wallImageHeight,
+            likeCount: newLikeCount,
+            isLiked: desiredLiked,
+            ascents: current.ascents,
+            comments: current.comments
+        )
+
+        #if canImport(Supabase)
+        guard !AppLaunchConfiguration.isUITestFixture,
+              let client = SupabaseClientProvider.client else { return }
+        do {
+            if desiredLiked {
+                let payload: [String: AnyEncodable] = [
+                    "route_id": AnyEncodable(routeId),
+                    "user_id": AnyEncodable(userId.uuidString)
+                ]
+                _ = try await client.from("route_likes").insert(payload).execute()
+            } else {
+                _ = try await client.from("route_likes")
+                    .delete()
+                    .eq("route_id", value: routeId)
+                    .eq("user_id", value: userId.uuidString)
+                    .execute()
+            }
+        } catch {
+            // Revert on error
+            if let resetIndex = routes.firstIndex(where: { $0.id == routeId }) {
+                routes[resetIndex] = current
+            }
+        }
+        #endif
+    }
+
+    func addAscent(routeId: String, ascent: Ascent) async throws {
+        guard let index = routes.firstIndex(where: { $0.id == routeId }) else { return }
+        let current = routes[index]
+        let updatedAscents = current.ascents.contains(where: { $0.id == ascent.id })
+            ? current.ascents
+            : current.ascents + [ascent]
+
+        // Optimistic update preserving route's setter grade
+        routes[index] = Route(
+            id: current.id,
+            userId: current.userId,
+            wallId: current.wallId,
+            name: current.name,
+            description: current.description,
+            gradeV: current.gradeV,
+            gradeFont: current.gradeFont,
+            holds: current.holds,
+            isPublic: current.isPublic,
+            viewCount: current.viewCount,
+            shareToken: current.shareToken,
+            createdAt: current.createdAt,
+            updatedAt: current.updatedAt,
+            userName: current.userName,
+            wallImageUrl: current.wallImageUrl,
+            wallImageWidth: current.wallImageWidth,
+            wallImageHeight: current.wallImageHeight,
+            likeCount: current.likeCount,
+            isLiked: current.isLiked,
+            ascents: updatedAscents,
+            comments: current.comments
+        )
+
+        #if canImport(Supabase)
+        guard !AppLaunchConfiguration.isUITestFixture,
+              let client = SupabaseClientProvider.client else { return }
+        do {
+            let payload = AscentInsert(
+                id: ascent.id,
+                routeId: routeId,
+                userId: ascent.userId,
+                userName: ascent.userName ?? "Climber",
+                gradeV: ascent.gradeV,
+                rating: ascent.rating,
+                notes: ascent.notes,
+                flashed: ascent.flashed ?? false
+            )
+            _ = try await client.from("ascents").upsert(payload, onConflict: "id").execute()
+        } catch {
+            // Revert optimistic update on database error
+            if let resetIndex = routes.firstIndex(where: { $0.id == routeId }) {
+                routes[resetIndex] = current
+            }
+            throw error
+        }
+        #endif
     }
 
     private func replaceRoute(_ updatedRoute: Route) -> Route {

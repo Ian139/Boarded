@@ -176,6 +176,41 @@ final class ProfileStatisticsTests: XCTestCase {
         viewModel.syncProfileFromSession(currentUserID: currentID, profile: nil)
         XCTAssertEqual(viewModel.profile?.fullName, "Old")
     }
+#if DEBUG
+    @MainActor
+    func testFixtureUpdateProfileReportsSuccessAndUpdatesSession() async throws {
+        let session = AppSession(fixture: true)
+        await session.load()
+
+        try await session.updateProfile(
+            fullName: " Updated Climber ",
+            username: " updated ",
+            bio: " Updated bio "
+        )
+
+        XCTAssertEqual(session.profile?.fullName, "Updated Climber")
+        XCTAssertEqual(session.profile?.username, "updated")
+        XCTAssertEqual(session.profile?.bio, "Updated bio")
+        XCTAssertNil(session.errorMessage)
+    }
+
+    @MainActor
+    func testFixtureUpdateProfileWithoutUserReportsFailure() async {
+        let session = AppSession(fixture: true)
+
+        do {
+            try await session.updateProfile(fullName: "Name", username: "user", bio: nil)
+            XCTFail("Expected profile update to fail without a signed-in user")
+        } catch let error as ProfileRepositoryError {
+            guard case .invalidUserID = error else {
+                return XCTFail("Unexpected profile update error: \(error)")
+            }
+        } catch {
+            XCTFail("Unexpected profile update error: \(error)")
+        }
+        XCTAssertEqual(session.errorMessage, ProfileRepositoryError.invalidUserID.localizedDescription)
+    }
+#endif
 }
 
 private final class DelayedMetricsRepository: ProfileRepository, @unchecked Sendable {

@@ -6,6 +6,7 @@ struct ProfileView: View {
     @StateObject private var viewModel: ProfileViewModel
     @StateObject private var routeDetailsViewModel = RoutesViewModel(repository: AppServices.routesRepository)
     @State private var selectedRoute: Route?
+    @State private var profileRefreshID = 0
     @State private var isEditPresented = false
     @State private var editFullName = ""
     @State private var editUsername = ""
@@ -39,14 +40,18 @@ struct ProfileView: View {
         .task(id: session.userId) {
             await viewModel.load(userID: session.userId)
         }
+        .task(id: profileRefreshID) {
+            guard profileRefreshID > 0 else { return }
+            await viewModel.refreshCurrentProfile()
+        }
         .refreshable {
             await viewModel.load(userID: session.userId)
         }
         .sheet(item: $selectedRoute) { route in
             RouteDetailView(
                 route: route,
-                onRouteChanged: { _ in },
-                onRouteDeleted: { _ in }
+                onRouteChanged: { _ in profileRefreshID += 1 },
+                onRouteDeleted: { _ in profileRefreshID += 1 }
             )
             .environmentObject(session)
             .environmentObject(routeDetailsViewModel)
@@ -57,11 +62,10 @@ struct ProfileView: View {
                 username: $editUsername,
                 bio: $editBio,
                 onSave: {
-                    Task {
-                        await session.updateProfile(fullName: editFullName, username: editUsername, bio: editBio)
-                        viewModel.syncProfileFromSession(currentUserID: session.userId, profile: session.profile)
-                        isEditPresented = false
-                    }
+                    try await session.updateProfile(fullName: editFullName, username: editUsername, bio: editBio)
+                    guard !Task.isCancelled else { return }
+                    viewModel.syncProfileFromSession(currentUserID: session.userId, profile: session.profile)
+                    isEditPresented = false
                 },
                 onCancel: { isEditPresented = false }
             )
@@ -271,8 +275,11 @@ private struct EditProfileSheet: View {
     @Binding var fullName: String
     @Binding var username: String
     @Binding var bio: String
-    let onSave: () -> Void
+    let onSave: () async throws -> Void
     let onCancel: () -> Void
+
+    @State private var isSaving = false
+    @State private var errorMessage: String?
 
     var body: some View {
         NavigationStack {
@@ -282,11 +289,54 @@ private struct EditProfileSheet: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                 Section("Bio") { TextEditor(text: $bio).frame(minHeight: 100) }
+                if let errorMessage, !errorMessage.isEmpty {
+                    Section {
+                        Text(errorMessage)
+                            .font(AppTypography.caption)
+                            .foregroundStyle(AppColor.destructive)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             }
             .navigationTitle("Edit Profile")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: onCancel) }
-                ToolbarItem(placement: .confirmationAction) { Button("Save", action: onSave) }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                        .disabled(isSaving)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(action: save) {
+                        HStack(spacing: 4) {
+                            if isSaving {
+                                ProgressView()
+                            }
+                            Text(isSaving ? "Saving..." : "Save")
+                        }
+                    }
+                    .disabled(isSaving)
+                }
+            }
+        }
+        .interactiveDismissDisabled(isSaving)
+    }
+
+    private func save() {
+        guard !isSaving else { return }
+        isSaving = true
+        errorMessage = nil
+        Task {
+            do {
+                try await onSave()
+                if Task.isCancelled {
+                    isSaving = false
+                    return
+                }
+                isSaving = false
+            } catch is CancellationError {
+                isSaving = false
+            } catch {
+                errorMessage = error.localizedDescription
+                isSaving = false
             }
         }
     }

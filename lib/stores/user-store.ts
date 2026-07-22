@@ -35,7 +35,7 @@ interface UserState {
   setDisplayName: (name: string) => void;
   initializeAuth: () => Promise<void>;
   syncProfile: () => Promise<void>;
-  updateProfile: (updates: Partial<Profile>) => Promise<void>;
+  updateProfile: (updates: Partial<Profile>) => Promise<boolean>;
   uploadAvatar: (file: File) => Promise<string | null>;
 }
 
@@ -357,7 +357,7 @@ export const useUserStore = create<UserState>()(
 
       updateProfile: async (updates) => {
         const state = get();
-        if (!state.user) return;
+        if (!state.user) return false;
         const supabase = createClient();
 
         try {
@@ -370,13 +370,15 @@ export const useUserStore = create<UserState>()(
 
           if (error) {
             console.error('Failed to update profile:', error);
-            return;
+            return false;
           }
 
-          if (get().user?.id !== state.user.id) return;
+          if (get().user?.id !== state.user.id) return false;
           set({ profile: data as Profile });
+          return true;
         } catch (error) {
           console.error('Failed to update profile:', error);
+          return false;
         }
       },
 
@@ -400,8 +402,8 @@ export const useUserStore = create<UserState>()(
           if (get().user?.id !== state.user.id) return null;
           const { data } = supabase.storage.from('avatars').getPublicUrl(path);
           const publicUrl = data.publicUrl;
-          await get().updateProfile({ avatar_url: publicUrl });
-          return publicUrl;
+          const updated = await get().updateProfile({ avatar_url: publicUrl });
+          return updated ? publicUrl : null;
         } catch (error) {
           console.error('Avatar upload failed:', error);
           return null;

@@ -35,9 +35,13 @@ final class ProfileViewModel: ObservableObject {
         selectedUserID = userID
         isLoading = true
         errorMessage = nil
+        defer {
+            if request == generation {
+                isLoading = false
+            }
+        }
         guard let userID else {
             applyEmptyState()
-            isLoading = false
             return
         }
         do {
@@ -58,7 +62,6 @@ final class ProfileViewModel: ObservableObject {
         } catch {
             guard request == generation else { return }
             errorMessage = error.localizedDescription
-            isLoading = false
         }
     }
 
@@ -68,6 +71,11 @@ final class ProfileViewModel: ObservableObject {
         selectedUserID = userID
         isLoading = true
         errorMessage = nil
+        defer {
+            if request == generation {
+                isLoading = false
+            }
+        }
         do {
             async let fetchedProfile = repository.fetchProfile(userID: userID)
             async let fetchedHistory = repository.fetchClimbHistory(userID: userID)
@@ -84,11 +92,14 @@ final class ProfileViewModel: ObservableObject {
         } catch {
             guard request == generation else { return }
             errorMessage = error.localizedDescription
-            isLoading = false
         }
     }
 
     func retry() async { await load(userID: selectedUserID) }
+    func refreshCurrentProfile() async {
+        guard let selectedUserID else { return }
+        await load(userID: selectedUserID)
+    }
 
     func myProfile(currentUserID: UUID?) async {
         guard let currentUserID else { return }

@@ -179,9 +179,14 @@ final class AppSession: ObservableObject {
         }
     }
 
-    func updateProfile(fullName: String?, username: String?, bio: String?) async {
+    func updateProfile(fullName: String?, username: String?, bio: String?) async throws {
         #if DEBUG
-        if fixture, let userId {
+        if fixture {
+            guard let userId else {
+                let error = ProfileRepositoryError.invalidUserID
+                errorMessage = error.localizedDescription
+                throw error
+            }
             profile = Profile(
                 id: userId.uuidString,
                 username: username?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -190,13 +195,30 @@ final class AppSession: ObservableObject {
                 bio: bio?.trimmingCharacters(in: .whitespacesAndNewlines),
                 createdAt: profile?.createdAt
             )
+            errorMessage = nil
             return
         }
         #endif
-        guard let client = SupabaseClientProvider.client, let userId else { return }
+        guard let client = SupabaseClientProvider.client else {
+            let error = ProfileRepositoryError.unavailable
+            errorMessage = error.localizedDescription
+            throw error
+        }
+        guard let userId else {
+            let error = ProfileRepositoryError.invalidUserID
+            errorMessage = error.localizedDescription
+            throw error
+        }
+
+        sessionGeneration += 1
+        let generation = sessionGeneration
         isLoading = true
         errorMessage = nil
-        defer { isLoading = false }
+        defer {
+            if generation == sessionGeneration {
+                isLoading = false
+            }
+        }
 
         let payload = ProfileUpdate(
             id: userId.uuidString,
@@ -209,9 +231,23 @@ final class AppSession: ObservableObject {
             _ = try await client.from("profiles")
                 .upsert(payload)
                 .execute()
-            await fetchProfile(userId: userId)
+            try Task.checkCancellation()
+            guard generation == sessionGeneration, self.userId == userId else {
+                throw CancellationError()
+            }
+            profile = Profile(
+                id: userId.uuidString,
+                username: payload.username,
+                fullName: payload.fullName,
+                avatarUrl: profile?.avatarUrl,
+                bio: payload.bio,
+                createdAt: profile?.createdAt
+            )
         } catch {
-            errorMessage = error.localizedDescription
+            if generation == sessionGeneration, !(error is CancellationError) {
+                errorMessage = error.localizedDescription
+            }
+            throw error
         }
     }
 }

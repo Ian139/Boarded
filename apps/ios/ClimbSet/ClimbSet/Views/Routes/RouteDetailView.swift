@@ -63,16 +63,11 @@ struct RouteDetailView: View {
     @StateObject private var wallsViewModel: WallsViewModel
     @State private var isLiked = false
     @State private var likeCount: Int = 0
-    @State private var likeError: String? = nil
-    @State private var isLiking = false
     @State private var isSharing = false
     @State private var shareError: String? = nil
     @State private var shareItem: ShareItem?
     @State private var pendingShareToken: String?
     @State private var ascents: [Ascent]
-    @State private var isLoggingSend = false
-    @State private var logSendError: String? = nil
-    @State private var pendingLogSendID: String? = nil
     @State private var isShareConfirmationPresented = false
     @State private var isWallPickerPresented = false
     @State private var isEditPresented = false
@@ -83,6 +78,7 @@ struct RouteDetailView: View {
     @State private var deleteError: String? = nil
     @State private var wallImageUrl: String?
     @State private var wallUpdateError: String? = nil
+    @State private var isCommentsExpanded = false
 
     init(
         route: Route,
@@ -125,8 +121,8 @@ struct RouteDetailView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         wallHeader
                         detailsSection
-                        actionRow
                         statsSection
+                        operationFeedback
                         Divider().background(AppColor.border)
                         commentsSection
                     }
@@ -139,6 +135,47 @@ struct RouteDetailView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
                         .foregroundColor(AppColor.primary)
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Button(action: {
+                            shareError = nil
+                            if isOwner && !route.isPublic {
+                                isShareConfirmationPresented = true
+                            } else {
+                                Task { await shareRoute() }
+                            }
+                        }) {
+                            Label("Share Route", systemImage: "square.and.arrow.up")
+                        }
+                        .disabled(isSharing)
+
+                        Button(action: {
+                            wallUpdateError = nil
+                            isWallPickerPresented = true
+                        }) {
+                            Label(wallImageURL == nil ? "Set Wall" : "Change Wall", systemImage: "photo")
+                        }
+
+                        if isOwner {
+                            Button(action: { isEditPresented = true }) {
+                                Label("Edit Route", systemImage: "pencil")
+                            }
+
+                            Button(role: .destructive, action: {
+                                deleteError = nil
+                                isDeleteConfirmationPresented = true
+                            }) {
+                                Label("Delete Route", systemImage: "trash")
+                            }
+                            .disabled(isDeleting)
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.system(size: 20))
+                            .foregroundColor(AppColor.primary)
+                    }
+                    .accessibilityLabel("Route actions")
                 }
             }
             .onAppear {
@@ -276,163 +313,67 @@ struct RouteDetailView: View {
             }
         }
     }
-
-    private var actionRow: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            LazyVGrid(
-                columns: [
-                    GridItem(.flexible(), spacing: 10),
-                    GridItem(.flexible(), spacing: 10)
-                ],
-                spacing: 10
+    @ViewBuilder
+    private var operationFeedback: some View {
+        if let shareError, !shareError.isEmpty {
+            operationError(
+                message: shareError,
+                retryTitle: "Retry Share",
+                isDisabled: isSharing
             ) {
-                actionButton(
-                    title: isLiking ? "Liking..." : (isLiked ? "Liked" : "Like"),
-                    isDisabled: isLiking
-                        || session.userId == nil
-                        || AppLaunchConfiguration.isUITestFixture
-                ) {
-                    Task { await toggleLike() }
-                }
-                actionButton(title: wallImageURL == nil ? "Set Wall" : "Change Wall") {
-                    wallUpdateError = nil
-                    isWallPickerPresented = true
-                }
-                actionButton(
-                    title: isLoggingSend ? "Logging..." : "Log Send",
-                    isDisabled: isLoggingSend
-                        || session.userId == nil
-                        || AppLaunchConfiguration.isUITestFixture
-                ) {
-                    logSendError = nil
-                    Task { await logSend() }
-                }
-                actionButton(
-                    title: isSharing ? "Preparing..." : "Share",
-                    isDisabled: isSharing
-                ) {
-                    shareError = nil
-                    if isOwner && !route.isPublic {
-                        isShareConfirmationPresented = true
-                    } else {
-                        Task { await shareRoute() }
-                    }
-                }
-
-                if isOwner {
-                    actionButton(title: "Edit") {
-                        isEditPresented = true
-                    }
-                    actionButton(
-                        title: isDeleting ? "Deleting..." : "Delete",
-                        role: .destructive,
-                        isDestructive: true,
-                        isDisabled: isDeleting
-                    ) {
-                        deleteError = nil
-                        isDeleteConfirmationPresented = true
-                    }
-                }
-            }
-            if session.userId == nil {
-                Text("Sign in to like")
-                    .font(AppTypography.label)
-                    .foregroundColor(AppColor.muted)
-                Text("Sign in to log a send")
-                    .font(AppTypography.label)
-                    .foregroundColor(AppColor.muted)
-            }
-
-            if let likeError, !likeError.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(likeError)
-                        .font(AppTypography.label)
-                        .foregroundColor(AppColor.destructive)
-                    Button("Retry Like") {
-                        Task { await toggleLike() }
-                    }
-                    .font(AppTypography.label)
-                    .foregroundColor(AppColor.destructive)
-                    .disabled(isLiking || session.userId == nil)
-                }
-            }
-            if isSharing {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .tint(AppColor.primary)
-                    Text("Preparing share link...")
-                        .font(AppTypography.label)
-                        .foregroundColor(AppColor.muted)
-                }
-            }
-
-            if let shareError, !shareError.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(shareError)
-                        .font(AppTypography.label)
-                        .foregroundColor(AppColor.destructive)
-                    Button("Retry Share") {
-                        if isOwner && !route.isPublic {
-                            isShareConfirmationPresented = true
-                        } else {
-                            Task { await shareRoute() }
-                        }
-                    }
-                    .font(AppTypography.label)
-                    .foregroundColor(AppColor.destructive)
-                    .disabled(isSharing)
-                }
-            }
-
-            if isLoggingSend {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .tint(AppColor.primary)
-                    Text("Logging send...")
-                        .font(AppTypography.label)
-                        .foregroundColor(AppColor.muted)
-                }
-            }
-
-            if let logSendError, !logSendError.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(logSendError)
-                        .font(AppTypography.label)
-                        .foregroundColor(AppColor.destructive)
-                    Button("Retry Log Send") {
-                        Task { await logSend() }
-                    }
-                    .font(AppTypography.label)
-                    .foregroundColor(AppColor.destructive)
-                    .disabled(isLoggingSend || session.userId == nil)
-                }
-            }
-
-            if isDeleting {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .tint(AppColor.primary)
-                    Text("Deleting route...")
-                        .font(AppTypography.label)
-                        .foregroundColor(AppColor.muted)
-                }
-            }
-
-            if let deleteError, !deleteError.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(deleteError)
-                        .font(AppTypography.label)
-                        .foregroundColor(AppColor.destructive)
-                    Button("Retry Delete") {
-                        isDeleteConfirmationPresented = true
-                    }
-                    .font(AppTypography.label)
-                    .foregroundColor(AppColor.destructive)
-                    .disabled(isDeleting)
+                self.shareError = nil
+                if isOwner && !route.isPublic {
+                    isShareConfirmationPresented = true
+                } else {
+                    Task { await shareRoute() }
                 }
             }
         }
+
+        if let deleteError, !deleteError.isEmpty {
+            operationError(
+                message: deleteError,
+                retryTitle: "Retry Delete",
+                isDisabled: isDeleting
+            ) {
+                self.deleteError = nil
+                isDeleteConfirmationPresented = true
+            }
+        }
+
+        if let wallUpdateError, !wallUpdateError.isEmpty {
+            operationError(
+                message: wallUpdateError,
+                retryTitle: "Retry Wall Update"
+            ) {
+                self.wallUpdateError = nil
+                isWallPickerPresented = true
+            }
+        }
     }
+
+    private func operationError(
+        message: String,
+        retryTitle: String,
+        isDisabled: Bool = false,
+        retry: @escaping () -> Void
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(message)
+                .font(AppTypography.label)
+                .foregroundColor(AppColor.destructive)
+            Button(retryTitle, action: retry)
+                .font(AppTypography.label)
+                .foregroundColor(AppColor.destructive)
+                .disabled(isDisabled)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppColor.destructive.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
+    }
+
+
 
     private var statsSection: some View {
         HStack(spacing: 16) {
@@ -451,79 +392,98 @@ struct RouteDetailView: View {
     }
 
     private var commentsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Comments")
-                .font(AppTypography.headline)
-                .foregroundColor(AppColor.text)
-
-            if commentsViewModel.comments.isEmpty {
-                Text("No comments yet")
-                    .font(AppTypography.label)
-                    .foregroundColor(AppColor.muted)
-            } else {
-                ForEach(commentsViewModel.comments) { comment in
-                    CommentRow(comment: comment, canDelete: comment.userId == session.userId?.uuidString) {
-                        Task { await commentsViewModel.deleteComment(id: comment.id) }
-                    }
-                }
-            }
-
-            if let wallUpdateError, !wallUpdateError.isEmpty {
-                Text(wallUpdateError)
-                    .font(AppTypography.label)
-                    .foregroundColor(AppColor.destructive)
-            }
-
-            if session.userId == nil {
-                Text("Sign in to add a comment")
-                    .font(AppTypography.label)
-                    .foregroundColor(AppColor.muted)
-            } else {
-                VStack(spacing: 10) {
-                    TextEditor(text: $commentsViewModel.newComment)
-                        .frame(minHeight: 80)
-                        .padding(8)
-                        .background(AppColor.surface)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                                .stroke(AppColor.border, lineWidth: 1)
-                        )
-
-                    HStack {
-                        Button {
-                            commentsViewModel.isBeta.toggle()
-                        } label: {
-                            Text(commentsViewModel.isBeta ? "Beta" : "Mark Beta")
-                                .font(AppTypography.label)
-                                .foregroundColor(commentsViewModel.isBeta ? AppColor.primary : AppColor.text)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(commentsViewModel.isBeta ? AppColor.primary.opacity(0.12) : AppColor.surface)
-                                .clipShape(Capsule())
-                        }
-                        Spacer()
-                        Button {
-                            Task {
-                                await commentsViewModel.postComment(
-                                    userId: session.userId,
-                                    userName: session.displayName
-                                )
+        DisclosureGroup(
+            isExpanded: $isCommentsExpanded,
+            content: {
+                VStack(alignment: .leading, spacing: 12) {
+                    if commentsViewModel.comments.isEmpty {
+                        Text("No comments yet")
+                            .font(AppTypography.label)
+                            .foregroundColor(AppColor.muted)
+                            .padding(.vertical, 4)
+                    } else {
+                        ForEach(commentsViewModel.comments) { comment in
+                            CommentRow(comment: comment, canDelete: comment.userId == session.userId?.uuidString) {
+                                Task { await commentsViewModel.deleteComment(id: comment.id) }
                             }
-                        } label: {
-                            Text("Post")
-                                .font(AppTypography.label)
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 8)
-                                .background(AppColor.primary)
-                                .clipShape(Capsule())
                         }
-                        .disabled(commentsViewModel.newComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        .opacity(commentsViewModel.newComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.5 : 1)
+                    }
+
+                    if session.userId == nil {
+                        Text("Sign in to add a comment")
+                            .font(AppTypography.label)
+                            .foregroundColor(AppColor.muted)
+                    } else {
+                        VStack(spacing: 10) {
+                            TextEditor(text: $commentsViewModel.newComment)
+                                .frame(minHeight: 80)
+                                .padding(8)
+                                .background(AppColor.surface)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
+                                        .stroke(AppColor.border, lineWidth: 1)
+                                )
+
+                            HStack {
+                                Button {
+                                    commentsViewModel.isBeta.toggle()
+                                } label: {
+                                    Text(commentsViewModel.isBeta ? "Beta" : "Mark Beta")
+                                        .font(AppTypography.label)
+                                        .foregroundColor(commentsViewModel.isBeta ? AppColor.primary : AppColor.text)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 6)
+                                        .background(commentsViewModel.isBeta ? AppColor.primary.opacity(0.12) : AppColor.surface)
+                                        .clipShape(Capsule())
+                                }
+                                Spacer()
+                                Button {
+                                    Task {
+                                        await commentsViewModel.postComment(
+                                            userId: session.userId,
+                                            userName: session.displayName
+                                        )
+                                    }
+                                } label: {
+                                    Text("Post")
+                                        .font(AppTypography.label)
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 8)
+                                        .background(AppColor.primary)
+                                        .clipShape(Capsule())
+                                }
+                                .disabled(commentsViewModel.newComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                                .opacity(commentsViewModel.newComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.5 : 1)
+                            }
+                        }
                     }
                 }
+                .padding(.top, 8)
+            },
+            label: {
+                HStack {
+                    Text("Comments")
+                        .font(AppTypography.headline)
+                        .foregroundColor(AppColor.text)
+                    Spacer()
+                    Text("\(commentsViewModel.comments.count)")
+                        .font(AppTypography.label)
+                        .foregroundColor(AppColor.primary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(AppColor.primary.opacity(0.12))
+                        .clipShape(Capsule())
+                }
             }
-        }
+        )
+        .padding(12)
+        .background(AppColor.surface)
+        .overlay(
+            RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
+                .stroke(AppColor.border, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
     }
 
     private func actionButton(
@@ -616,119 +576,6 @@ struct RouteDetailView: View {
             .scaledToFill()
     }
 
-    private func toggleLike() async {
-        guard !AppLaunchConfiguration.isUITestFixture else { return }
-        guard !isLiking else { return }
-        guard let client = SupabaseClientProvider.client, let userId = session.userId else {
-            likeError = "Sign in to like routes."
-            return
-        }
-
-        isLiking = true
-        likeError = nil
-        defer { isLiking = false }
-
-        let priorIsLiked = isLiked
-        let priorLikeCount = likeCount
-        let desiredIsLiked = !priorIsLiked
-
-        do {
-            if desiredIsLiked {
-                let payload: [String: AnyEncodable] = [
-                    "route_id": AnyEncodable(route.id),
-                    "user_id": AnyEncodable(userId.uuidString)
-                ]
-                _ = try await client.from("route_likes")
-                    .insert(payload)
-                    .execute()
-            } else {
-                _ = try await client.from("route_likes")
-                    .delete()
-                    .eq("route_id", value: route.id)
-                    .eq("user_id", value: userId.uuidString)
-                    .execute()
-            }
-
-            _ = await reconcileLikeState(
-                client: client,
-                userId: userId,
-                desiredIsLiked: desiredIsLiked,
-                priorIsLiked: priorIsLiked,
-                priorLikeCount: priorLikeCount,
-                mutationError: nil
-            )
-            onRouteChanged(routeWithLikeState())
-        } catch {
-            let reconciled = await reconcileLikeState(
-                client: client,
-                userId: userId,
-                desiredIsLiked: desiredIsLiked,
-                priorIsLiked: priorIsLiked,
-                priorLikeCount: priorLikeCount,
-                mutationError: error
-            )
-            if reconciled {
-                onRouteChanged(routeWithLikeState())
-            }
-        }
-    }
-
-    @discardableResult
-    private func reconcileLikeState(
-        client: SupabaseClient,
-        userId: UUID,
-        desiredIsLiked: Bool,
-        priorIsLiked: Bool,
-        priorLikeCount: Int,
-        mutationError: Error?
-    ) async -> Bool {
-        let userLikes: [RouteLikeFull]
-        do {
-            userLikes = try await client.from("route_likes")
-                .select("route_id, user_id")
-                .eq("route_id", value: route.id)
-                .eq("user_id", value: userId.uuidString)
-                .limit(1)
-                .execute()
-                .value
-        } catch {
-            isLiked = priorIsLiked
-            likeCount = priorLikeCount
-            if let mutationError {
-                likeError = mutationError.localizedDescription
-                return false
-            }
-            isLiked = desiredIsLiked
-            likeCount = desiredIsLiked
-                ? priorLikeCount + 1
-                : max(0, priorLikeCount - 1)
-            return true
-        }
-
-        let authoritativeIsLiked = !userLikes.isEmpty
-        if let mutationError, authoritativeIsLiked != desiredIsLiked {
-            isLiked = priorIsLiked
-            likeCount = priorLikeCount
-            likeError = mutationError.localizedDescription
-            return false
-        }
-
-        isLiked = authoritativeIsLiked
-        if let authoritativeLikes: [RouteLikeFull] = try? await client.from("route_likes")
-            .select("route_id, user_id")
-            .eq("route_id", value: route.id)
-            .execute()
-            .value {
-            likeCount = authoritativeLikes.count
-        } else {
-            likeCount = authoritativeIsLiked == priorIsLiked
-                ? priorLikeCount
-                : (authoritativeIsLiked ? priorLikeCount + 1 : max(0, priorLikeCount - 1))
-        }
-        likeError = nil
-        return true
-    }
-
     private func routeWithLikeState() -> Route {
         let currentRoute = latestRoute
         return routeWithState(
@@ -819,68 +666,7 @@ struct RouteDetailView: View {
         }
         return deepLink
     }
-    private func logSend() async {
-        guard !AppLaunchConfiguration.isUITestFixture else { return }
-        guard !isLoggingSend else { return }
-        guard let client = SupabaseClientProvider.client else {
-            logSendError = "Supabase is not configured for sends."
-            return
-        }
-        guard let userId = session.userId else {
-            logSendError = "Sign in to log a send."
-            return
-        }
 
-        isLoggingSend = true
-        logSendError = nil
-        defer { isLoggingSend = false }
-
-        let ascentId = pendingLogSendID ?? UUID().uuidString
-        pendingLogSendID = ascentId
-        let payload = AscentInsert(
-            id: ascentId,
-            routeId: route.id,
-            userId: userId.uuidString,
-            userName: session.displayName,
-            gradeV: route.gradeV,
-            flashed: false
-        )
-
-        do {
-            let insertedAscents: [Ascent] = try await client.from("ascents")
-                .upsert(payload, onConflict: "id")
-                .select("*")
-                .execute()
-                .value
-
-            guard let ascent = insertedAscents.first else {
-                logSendError = "The send was not returned after saving."
-                return
-            }
-            let currentAscents = routesViewModel.routes.first(where: { $0.id == route.id })?.ascents ?? ascents
-            let updatedAscents = currentAscents.contains(where: { $0.id == ascent.id })
-                ? currentAscents
-                : currentAscents + [ascent]
-            ascents = updatedAscents
-            pendingLogSendID = nil
-            onRouteChanged(routeWithAscents(updatedAscents))
-        } catch {
-            logSendError = error.localizedDescription
-        }
-    }
-
-    private func routeWithAscents(_ updatedAscents: [Ascent]) -> Route {
-        let currentRoute = latestRoute
-        return routeWithState(
-            base: currentRoute,
-            likeCount: likeCount,
-            isLiked: isLiked,
-            ascents: updatedAscents,
-            wallImageUrl: wallImageUrl,
-            wallImageWidth: wallImageWidth,
-            wallImageHeight: wallImageHeight
-        )
-    }
 
     private func routeWithSharing(_ sharedRoute: Route) -> Route {
         let currentRoute = latestRoute
@@ -1005,23 +791,6 @@ private struct ActivityView: UIViewControllerRepresentable {
 }
 
 
-private struct AscentInsert: Encodable {
-    let id: String
-    let routeId: String
-    let userId: String
-    let userName: String
-    let gradeV: String?
-    let flashed: Bool
-
-    enum CodingKeys: String, CodingKey {
-        case id
-        case routeId = "route_id"
-        case userId = "user_id"
-        case userName = "user_name"
-        case gradeV = "grade_v"
-        case flashed
-    }
-}
 
 private struct CommentRow: View {
     let comment: Comment
