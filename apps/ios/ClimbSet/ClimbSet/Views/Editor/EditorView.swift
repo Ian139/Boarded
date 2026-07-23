@@ -108,6 +108,31 @@ enum EditorHoldInteraction {
         }
     }
 }
+private struct EditorHeaderHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+private struct EditorCanvasInteractionShape: Shape {
+    let topInset: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let inset = min(max(topInset, 0), rect.height)
+        guard inset < rect.height else { return Path() }
+        return Path(
+            CGRect(
+                x: rect.minX,
+                y: rect.minY + inset,
+                width: rect.width,
+                height: rect.height - inset
+            )
+        )
+    }
+}
+
 
 
 struct EditorView: View {
@@ -149,6 +174,8 @@ struct EditorView: View {
     @State private var wallMetadataRefreshGeneration = 0
     @State private var loadedWallAspectRatio: CGFloat? = nil
     @State private var wallAspectRequestID: UUID? = nil
+    @State private var headerHeight: CGFloat = 0
+
     @State private var markerMagnificationSession: MarkerMagnificationSession?
 
     private struct MarkerMagnificationSession {
@@ -191,7 +218,7 @@ struct EditorView: View {
         let theme = BoardedTheme(colorScheme: colorScheme)
         ZStack {
             GeometryReader { proxy in
-                canvasSurface(size: proxy.size)
+                canvasSurface(size: proxy.size, headerHeight: headerHeight)
             }
             .ignoresSafeArea(.container, edges: .bottom)
 
@@ -201,9 +228,19 @@ struct EditorView: View {
                         theme.panelBackground
                             .background(.ultraThinMaterial)
                     )
+                    .background(
+                        GeometryReader { proxy in
+                            Color.clear
+                                .preference(
+                                    key: EditorHeaderHeightPreferenceKey.self,
+                                    value: proxy.size.height
+                                )
+                        }
+                    )
                     .overlay(alignment: .bottom) {
                         theme.primaryText.opacity(0.12).frame(height: 1)
                     }
+                    .zIndex(2000)
                 Spacer()
             }
         }
@@ -258,6 +295,12 @@ struct EditorView: View {
             announce("Wall image changed. Holds cleared.")
             resetZoom(animated: false)
             refreshWallMetadata()
+        }
+        .onPreferenceChange(EditorHeaderHeightPreferenceKey.self) { measuredHeight in
+            let clampedHeight = max(0, measuredHeight)
+            if abs(headerHeight - clampedHeight) > 0.5 {
+                headerHeight = clampedHeight
+            }
         }
         .task {
             isApplyingWallSelection = routeToEdit != nil
@@ -379,19 +422,30 @@ struct EditorView: View {
         .accessibilityHint("Saves this route.")
     }
 
-    private func canvasSurface(size: CGSize) -> some View {
+    private func canvasSurface(size: CGSize, headerHeight: CGFloat) -> some View {
         let imageRect = EditorHoldGeometry.initialImageRect(imageAspectRatio: wallAspectRatio, in: size)
+        let reservedHeaderHeight = min(max(headerHeight, 0), size.height)
+        let interactionRect = CGRect(
+            x: 0,
+            y: reservedHeaderHeight,
+            width: size.width,
+            height: max(0, size.height - reservedHeaderHeight)
+        )
         let theme = BoardedTheme(colorScheme: colorScheme)
 
         return ZStack {
             Rectangle()
                 .fill(Color.clear)
-                .contentShape(Rectangle())
+                .contentShape(EditorCanvasInteractionShape(topInset: reservedHeaderHeight))
                 .frame(width: size.width, height: size.height)
                 .zIndex(0)
                 .highPriorityGesture(magnificationGesture(in: size, imageRect: imageRect))
                 .simultaneousGesture(
-                    spatialTapGesture(in: size, imageRect: imageRect)
+                    spatialTapGesture(
+                        in: size,
+                        imageRect: imageRect,
+                        headerHeight: reservedHeaderHeight
+                    )
                 )
                 .simultaneousGesture(dragGesture(in: size, imageRect: imageRect))
                 .accessibilityElement()
@@ -401,8 +455,22 @@ struct EditorView: View {
                 .accessibilityHint("Activate to add a Start hold at the wall center. Drag to pan when the wall overflows. Pinch the wall to zoom or a hold to resize it.")
                 .accessibilityAction {
                     guard wallIsUsable else { return }
+                    let viewPoint = CGPoint(
+                        x: size.width / 2,
+                        y: max(reservedHeaderHeight + 1, size.height / 2)
+                    )
+                    guard interactionRect.contains(viewPoint),
+                          let imagePoint = EditorHoldGeometry.imagePoint(
+                              from: viewPoint,
+                              canvasSize: size,
+                              zoomScale: zoomScale,
+                              panOffset: panOffset
+                          ),
+                          imageRect.contains(imagePoint) else {
+                        return
+                    }
                     placeHold(
-                        at: CGPoint(x: imageRect.midX, y: imageRect.midY),
+                        at: imagePoint,
                         in: imageRect,
                         type: EditorHoldInteraction.defaultType
                     )
@@ -412,16 +480,24 @@ struct EditorView: View {
                 wallImage(in: imageRect)
                     .allowsHitTesting(false)
 
-
                 ForEach(Array(holds.enumerated()), id: \.element.id) { index, hold in
                     markerButton(
                         for: hold,
                         index: index,
                         imageRect: imageRect,
-                        canvasSize: size
+                        canvasSize: size,
+                        headerHeight: reservedHeaderHeight
                     )
                     .zIndex(Double(index + 2))
-                    .allowsHitTesting(wallIsUsable)
+                    .allowsHitTesting(
+                        wallIsUsable
+                            && markerCanReceiveInput(
+                                for: hold,
+                                imageRect: imageRect,
+                                canvasSize: size,
+                                headerHeight: reservedHeaderHeight
+                            )
+                    )
                 }
             }
             .frame(width: size.width, height: size.height)
@@ -429,7 +505,13 @@ struct EditorView: View {
             .offset(panOffset)
             .zIndex(1)
 
-
+            if reservedHeaderHeight > 0 {
+                Color.clear
+                    .frame(width: size.width, height: reservedHeaderHeight)
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .contentShape(Rectangle())
+                    .zIndex(100)
+            }
 
             if selectedWall == nil {
                 noWallPanel
@@ -477,11 +559,13 @@ struct EditorView: View {
                     }
                     Spacer()
                 }
-                .padding(10)
+                .padding(.top, reservedHeaderHeight + 10)
+                .padding(.horizontal, 10)
+                .padding(.bottom, 10)
                 .zIndex(2001)
             }
         }
-        .contentShape(Rectangle())
+        .contentShape(EditorCanvasInteractionShape(topInset: reservedHeaderHeight))
         .coordinateSpace(name: "editorCanvas")
     }
 
@@ -637,10 +721,17 @@ struct EditorView: View {
         for hold: Hold,
         index: Int,
         imageRect: CGRect,
-        canvasSize: CGSize
+        canvasSize: CGSize,
+        headerHeight: CGFloat
     ) -> some View {
         let minimumTargetSize = 44 / max(zoomScale, 1)
         let targetSize = max(minimumTargetSize, holdDiameterValue(hold))
+        let canReceiveInput = markerCanReceiveInput(
+            for: hold,
+            imageRect: imageRect,
+            canvasSize: canvasSize,
+            headerHeight: headerHeight
+        )
 
         return Button {
             handleMarkerTap(id: hold.id)
@@ -667,10 +758,30 @@ struct EditorView: View {
         .accessibilityLabel(markerAccessibilityLabel(for: hold))
         .accessibilityValue("\(Int(hold.x.rounded())) percent x, \(Int(hold.y.rounded())) percent y, \(Int(holdRadiusValue(hold).rounded())) image points")
         .accessibilityHint("Tap to cycle type. Pinch to resize. Drag to pan the wall.")
-        .accessibilityHidden(!wallIsUsable)
+        .accessibilityHidden(!wallIsUsable || !canReceiveInput)
         .accessibilityAdjustableAction { direction in
             adjustHoldRadius(id: hold.id, direction: direction)
         }
+    }
+
+    private func markerCanReceiveInput(
+        for hold: Hold,
+        imageRect: CGRect,
+        canvasSize: CGSize,
+        headerHeight: CGFloat
+    ) -> Bool {
+        let markerCenter = CGPoint(
+            x: imageRect.minX + hold.normalizedX * imageRect.width,
+            y: imageRect.minY + hold.normalizedY * imageRect.height
+        )
+        let canvasCenter = CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2)
+        let transformedCenter = CGPoint(
+            x: (markerCenter.x - canvasCenter.x) * zoomScale + canvasCenter.x + panOffset.width,
+            y: (markerCenter.y - canvasCenter.y) * zoomScale + canvasCenter.y + panOffset.height
+        )
+        let targetSize = max(44 / max(zoomScale, 1), holdDiameterValue(hold))
+        let targetRadius = targetSize * zoomScale / 2
+        return transformedCenter.y - targetRadius >= max(0, headerHeight)
     }
 
     private func handleMarkerTap(id: String) {
@@ -865,24 +976,42 @@ struct EditorView: View {
         scheduleCanvasTapSuppressionClear()
     }
 
-    private func spatialTapGesture(in size: CGSize, imageRect: CGRect) -> some Gesture {
+    private func spatialTapGesture(
+        in size: CGSize,
+        imageRect: CGRect,
+        headerHeight: CGFloat
+    ) -> some Gesture {
         SpatialTapGesture()
             .onEnded { value in
-                handleCanvasTap(at: value.location, in: size, imageRect: imageRect)
+                handleCanvasTap(
+                    at: value.location,
+                    in: size,
+                    imageRect: imageRect,
+                    headerHeight: headerHeight
+                )
             }
     }
 
-    private func handleCanvasTap(at location: CGPoint, in size: CGSize, imageRect: CGRect) {
+    private func handleCanvasTap(
+        at location: CGPoint,
+        in size: CGSize,
+        imageRect: CGRect,
+        headerHeight: CGFloat
+    ) {
         guard !isGestureInProgress else { return }
         if suppressNextCanvasTap {
             suppressNextCanvasTap = false
             return
         }
 
-        guard wallIsUsable else { return }
+        guard wallIsUsable, location.y >= max(0, headerHeight) else { return }
 
-
-        if hold(at: location, in: size, imageRect: imageRect) != nil {
+        if hold(
+            at: location,
+            in: size,
+            imageRect: imageRect,
+            headerHeight: headerHeight
+        ) != nil {
             return
         }
 
@@ -897,15 +1026,30 @@ struct EditorView: View {
         placeHold(at: imagePoint, in: imageRect, type: EditorHoldInteraction.defaultType)
     }
 
-
-    private func hold(at location: CGPoint, in size: CGSize, imageRect: CGRect) -> Hold? {
-        guard let point = EditorHoldGeometry.imagePoint(
-            from: location,
-            canvasSize: size,
-            zoomScale: zoomScale,
-            panOffset: panOffset
-        ) else { return nil }
+    private func hold(
+        at location: CGPoint,
+        in size: CGSize,
+        imageRect: CGRect,
+        headerHeight: CGFloat
+    ) -> Hold? {
+        guard location.y >= max(0, headerHeight),
+              let point = EditorHoldGeometry.imagePoint(
+                  from: location,
+                  canvasSize: size,
+                  zoomScale: zoomScale,
+                  panOffset: panOffset
+              ) else {
+            return nil
+        }
         func isHit(_ hold: Hold) -> Bool {
+            guard markerCanReceiveInput(
+                for: hold,
+                imageRect: imageRect,
+                canvasSize: size,
+                headerHeight: headerHeight
+            ) else {
+                return false
+            }
             let markerPoint = CGPoint(
                 x: imageRect.minX + hold.normalizedX * imageRect.width,
                 y: imageRect.minY + hold.normalizedY * imageRect.height

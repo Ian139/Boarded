@@ -71,7 +71,8 @@ function FullBleedCanvas({
 }: FullBleedCanvasProps) {
   const imageWidth = wallImageWidth && wallImageWidth > 0 ? wallImageWidth : 1920;
   const imageHeight = wallImageHeight && wallImageHeight > 0 ? wallImageHeight : 1080;
-  const aspectRatio = imageWidth / imageHeight;
+  const metadataAspectRatio = imageWidth / imageHeight;
+  const [aspectRatio, setAspectRatio] = useState(metadataAspectRatio);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -80,17 +81,23 @@ function FullBleedCanvas({
   const isLongPressRef = useRef(false);
   const ignoreNextClickRef = useRef(false);
 
-  useEffect(() => {
-    const updateDimensions = () => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        setDimensions({ width: rect.width, height: rect.height });
-      }
-    };
 
+  useEffect(() => {
+    setAspectRatio(metadataAspectRatio);
+  }, [metadataAspectRatio]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const updateDimensions = () => {
+      const rect = container.getBoundingClientRect();
+      setDimensions({ width: rect.width, height: rect.height });
+    };
+    const observer = new ResizeObserver(updateDimensions);
+    observer.observe(container);
     updateDimensions();
-    window.addEventListener('resize', updateDimensions);
-    return () => window.removeEventListener('resize', updateDimensions);
+    return () => observer.disconnect();
   }, []);
 
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -207,10 +214,10 @@ function FullBleedCanvas({
           className="w-full h-full max-w-full max-h-full object-contain select-none pointer-events-none"
           priority
           draggable={false}
-          onLoad={() => {
-            if (containerRef.current) {
-              const rect = containerRef.current.getBoundingClientRect();
-              setDimensions({ width: rect.width, height: rect.height });
+          onLoad={(event) => {
+            const { naturalWidth, naturalHeight } = event.currentTarget;
+            if (naturalWidth > 0 && naturalHeight > 0) {
+              setAspectRatio(naturalWidth / naturalHeight);
             }
           }}
         />
@@ -600,7 +607,7 @@ function EditorContent({ editRouteId }: { editRouteId: string | null }) {
       {/* Bottom Controls - translucent blurred overlay above fixed bottom nav safe area */}
       <div className="fixed bottom-0 left-0 right-0 z-40 pointer-events-none">
         {/* Mobile: Bottom controls elevated above fixed bottom nav */}
-        <div className="md:hidden pb-[84px] px-4 pointer-events-auto">
+        <div className="md:hidden pb-[calc(84px+env(safe-area-inset-bottom))] px-4 pointer-events-auto">
           <div className="bg-card/75 backdrop-blur-2xl border border-border/20 rounded-2xl p-3">
             <div className="flex items-center justify-between gap-2">
               <button

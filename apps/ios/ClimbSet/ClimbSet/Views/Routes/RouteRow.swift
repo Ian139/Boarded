@@ -15,11 +15,11 @@ struct RouteRow: View {
         HStack(alignment: .center, spacing: 12) {
             Text(displayGrade)
                 .font(.system(size: 18, weight: .bold, design: .rounded))
-                .foregroundStyle(route.gradeV == nil ? theme.secondaryText : theme.secondary)
+                .foregroundStyle(route.gradeV == nil ? theme.secondaryText : theme.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
                 .frame(width: 46, height: 40)
-                .background(route.gradeV == nil ? theme.panelBackground : theme.secondary.opacity(0.15))
+                .background(route.gradeV == nil ? theme.panelBackground : theme.primary.opacity(0.15))
                 .clipShape(Capsule())
                 .accessibilityLabel("Grade")
                 .accessibilityValue(displayGrade)

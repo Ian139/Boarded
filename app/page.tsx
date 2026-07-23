@@ -7,7 +7,6 @@ import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { useWallsStore, DEFAULT_WALL } from '@/lib/stores/walls-store';
 import { useRoutesStore } from '@/lib/stores/routes-store';
-import { useTransitionStore } from '@/lib/stores/transition-store';
 import { useIsClient } from '@/lib/hooks/useIsClient';
 import { gradeToNumber, calculateDisplayGrade } from '@climbset/shared/utils/grades';
 import { Button } from '@/components/ui/button';
@@ -37,7 +36,6 @@ export default function Home() {
   const { theme, setTheme } = useTheme();
   const { walls, selectedWall, setSelectedWall, addWall } = useWallsStore();
   const { routes, deleteRoute, isLoading: routesLoading, incrementViewCount, isOfflineMode } = useRoutesStore();
-  const startTransition = useTransitionStore((state) => state.startTransition);
   const isClient = useIsClient();
 
   // Dialog trigger state
@@ -181,15 +179,12 @@ export default function Home() {
     router.push(`/editor?edit=${route.id}`);
   };
 
-  // Navigate to editor with transition
-  const handleNewRoute = (e: React.MouseEvent) => {
-    e.preventDefault();
+  // Navigate directly to the editor.
+  const handleNewRoute = () => {
     if (allWallsSelected) {
       setSelectedWall(DEFAULT_WALL);
     }
-    const rect = e.currentTarget.getBoundingClientRect();
-    startTransition(rect.left + rect.width / 2, rect.top + rect.height / 2);
-    setTimeout(() => router.push('/editor'), 100);
+    router.push('/editor');
   };
 
   if (!isClient) return null;

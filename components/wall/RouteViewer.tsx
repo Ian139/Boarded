@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type SyntheticEvent } from 'react';
 import Image from 'next/image';
-import { motion, useReducedMotion } from 'motion/react';
+import { nanoid } from 'nanoid';
 import { HOLD_BORDER_WIDTH, HOLD_COLORS, type Comment, type Hold, type Route } from '@climbset/shared/types';
+import { calculateDisplayGrade } from '@climbset/shared/utils/grades';
 import { CommentsSection } from '@/components/route/CommentsSection';
 import { LogClimbDialog } from '@/components/home/LogClimbDialog';
 import { useRoutesStore } from '@/lib/stores/routes-store';
@@ -40,7 +41,12 @@ type Gesture =
 
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 4;
+const PAN_STEP = 48;
 
+type RouteWithSyncState = Route & { _createSyncPending?: boolean };
+
+const hasPendingCreate = (candidate?: Route) =>
+  Boolean(candidate && (candidate as RouteWithSyncState)._createSyncPending);
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
@@ -83,10 +89,9 @@ export function RouteViewer({
   const panRef = useRef<Pan>({ x: 0, y: 0 });
   const pointerMapRef = useRef(new Map<number, Point>());
   const gestureRef = useRef<Gesture | null>(null);
-  const reducedMotion = useReducedMotion();
 
-  const { routes, toggleLike, isLikedByUser, getLikeCount } = useRoutesStore();
-  const { userId } = useUserStore();
+  const { routes, toggleLike, isLikedByUser, getLikeCount, updateRoute, syncLocalRoutes, fetchRouteById } = useRoutesStore();
+  const { userId, isModerator } = useUserStore();
 
   const updateViewportSize = useCallback(() => {
     const viewport = viewportRef.current;
@@ -189,7 +194,10 @@ export function RouteViewer({
       const nextZoom = clamp(requestedZoom, MIN_ZOOM, MAX_ZOOM);
       const currentZoom = zoomRef.current;
       const currentPan = panRef.current;
-      let nextPan: Pan = { x: 0, y: 0 };
+      let nextPan: Pan = {
+        x: currentPan.x * (nextZoom / currentZoom),
+        y: currentPan.y * (nextZoom / currentZoom),
+      };
 
       if (anchor && viewportSize.width && viewportSize.height) {
         const center = {
@@ -388,13 +396,39 @@ export function RouteViewer({
       } else if (event.key === '-') {
         event.preventDefault();
         applyZoom(zoomRef.current / 1.2);
+      } else if (
+        zoomRef.current > MIN_ZOOM &&
+        (event.key === 'ArrowLeft' ||
+          event.key === 'ArrowRight' ||
+          event.key === 'ArrowUp' ||
+          event.key === 'ArrowDown')
+      ) {
+        event.preventDefault();
+        const delta =
+          event.key === 'ArrowLeft'
+            ? { x: -PAN_STEP, y: 0 }
+            : event.key === 'ArrowRight'
+              ? { x: PAN_STEP, y: 0 }
+              : event.key === 'ArrowUp'
+                ? { x: 0, y: -PAN_STEP }
+                : { x: 0, y: PAN_STEP };
+        commitPan(
+          clampPan(
+            {
+              x: panRef.current.x + delta.x,
+              y: panRef.current.y + delta.y,
+            },
+            zoomRef.current
+          )
+        );
       }
     },
-    [applyZoom, resetView]
+    [applyZoom, clampPan, commitPan, resetView]
   );
 
   const currentRoute = routeId ? routes.find((candidate) => candidate.id === routeId) : undefined;
   const routeForActions = currentRoute || route;
+  const displayGrade = calculateDisplayGrade(routeForActions?.grade_v, routeForActions?.ascents) || grade;
   const visibleComments = currentRoute?.comments ?? comments;
   const likeCount = routeId ? getLikeCount(routeId) : routeForActions?.liked_by?.length || 0;
   const sendCount = routeForActions?.ascents?.length || 0;
@@ -402,26 +436,83 @@ export function RouteViewer({
 
   const handleLike = useCallback(async () => {
     if (!routeId) return;
-    if (!userId) {
-      toast.error('Log in to like routes.');
+    if (routeForActions?.user_id === 'local-user' || hasPendingCreate(routeForActions)) {
+      toast.error('Sync this route before liking it.');
       return;
     }
-    if (routeForActions?.user_id === 'local-user') {
-      toast.error('Sync this route before liking it.');
+    if (!userId) {
+      toast.error('Log in to like routes.');
       return;
     }
 
     const saved = await toggleLike(routeId, userId);
     if (!saved) toast.error('Unable to update like. Please try again.');
-  }, [routeForActions?.user_id, routeId, toggleLike, userId]);
+  }, [routeForActions, routeId, toggleLike, userId]);
 
   const handleShare = useCallback(async () => {
+    let shareRoute = routeForActions;
+    if (!shareRoute) {
+      toast.error('Unable to share this route.');
+      return;
+    }
+    const shareRouteId = shareRoute.id;
+
+    if (shareRoute.user_id === 'local-user' || hasPendingCreate(shareRoute)) {
+      if (!userId) {
+        toast.error('Log in to share a route across devices.');
+        return;
+      }
+      try {
+        await syncLocalRoutes();
+      } catch {
+        toast.error('Unable to sync this route before sharing');
+        return;
+      }
+      const syncedRoute = useRoutesStore.getState().routes.find((candidate) => candidate.id === shareRouteId);
+      if (!syncedRoute || syncedRoute.user_id === 'local-user' || hasPendingCreate(syncedRoute)) {
+        toast.error('Unable to sync this route before sharing');
+        return;
+      }
+      let verifiedRoute: Route | null;
+      try {
+        verifiedRoute = await fetchRouteById(shareRouteId);
+      } catch {
+        toast.error('Unable to verify this route before sharing');
+        return;
+      }
+      if (!verifiedRoute || verifiedRoute.user_id !== userId || hasPendingCreate(verifiedRoute)) {
+        toast.error('Unable to verify this route before sharing');
+        return;
+      }
+      shareRoute = verifiedRoute;
+    }
+
+    const canManageSharing = isModerator || shareRoute.user_id === userId;
+    if (!canManageSharing && !shareRoute.is_public) {
+      toast.error('Only the route owner can enable sharing for this route');
+      return;
+    }
+    if (!canManageSharing && !shareRoute.share_token) {
+      toast.error('Only the route owner can enable sharing for this route');
+      return;
+    }
+
+    const token = shareRoute.share_token || nanoid(10);
+    if (canManageSharing && (!shareRoute.is_public || shareRoute.share_token !== token)) {
+      let persisted = false;
+      try {
+        persisted = await updateRoute(shareRoute.id, { share_token: token, is_public: true });
+      } catch {
+        persisted = false;
+      }
+      if (!persisted) {
+        toast.error('Unable to persist a share link right now');
+        return;
+      }
+    }
+
     const shareUrl =
-      routeForActions?.share_token && typeof window !== 'undefined'
-        ? `${window.location.origin}/share/${routeForActions.share_token}`
-        : typeof window !== 'undefined'
-          ? window.location.href
-          : '';
+      typeof window !== 'undefined' ? `${window.location.origin}/share/${token}` : '';
     if (!shareUrl) return;
 
     try {
@@ -436,14 +527,22 @@ export function RouteViewer({
       if (error instanceof DOMException && error.name === 'AbortError') return;
       toast.error('Unable to share this route.');
     }
-  }, [routeForActions?.share_token, routeName]);
+  }, [
+    fetchRouteById,
+    isModerator,
+    routeForActions,
+    routeName,
+    syncLocalRoutes,
+    updateRoute,
+    userId,
+  ]);
+
 
   const viewportStyle =
     fitToContent && displaySize
       ? { width: displaySize.width, height: displaySize.height }
       : undefined;
   const rootStyle = fitToContent && displaySize ? { width: displaySize.width } : undefined;
-  const transition = reducedMotion ? { duration: 0 } : { duration: 0.24, ease: 'easeOut' as const };
 
   return (
     <div
@@ -570,21 +669,16 @@ export function RouteViewer({
       </div>
 
       {routeId && (
-        <motion.section
-          initial={reducedMotion ? false : { opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={transition}
-          className="w-full shrink-0 border-t border-foreground/[0.12] bg-card/80 backdrop-blur-xl motion-reduce:transition-none"
-        >
+        <section className="w-full shrink-0 border-t border-foreground/[0.12] bg-card/80 backdrop-blur-xl">
           <div className="space-y-4 p-4 sm:p-5">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <h3 className="truncate text-lg font-semibold text-foreground">{routeName}</h3>
                 {setterName && <p className="mt-0.5 text-sm text-muted-foreground">by {setterName}</p>}
               </div>
-              {grade && (
+              {displayGrade && (
                 <span className="shrink-0 rounded-full bg-primary/90 px-3 py-1 text-xs font-bold text-primary-foreground">
-                  {grade}
+                  {displayGrade}
                 </span>
               )}
             </div>
@@ -649,7 +743,7 @@ export function RouteViewer({
 
             <CommentsSection routeId={routeId} comments={visibleComments} />
           </div>
-        </motion.section>
+        </section>
       )}
 
       {isLogOpen && routeForActions && (

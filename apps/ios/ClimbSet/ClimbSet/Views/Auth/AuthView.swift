@@ -55,7 +55,7 @@ struct AuthView: View {
                 } label: {
                     Text(mode == .signIn ? "Sign In" : "Sign Up")
                         .font(AppTypography.headline)
-                        .foregroundColor(.white)
+                        .foregroundColor(AppColor.actionForeground)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
                         .background(AppColor.primary)

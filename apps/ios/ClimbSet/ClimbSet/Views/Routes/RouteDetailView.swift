@@ -49,6 +49,41 @@ enum RouteDetailGeometry {
             height: fittedSize.height
         )
     }
+    static func clampedOffset(
+        _ offset: CGSize,
+        scale: CGFloat,
+        in container: CGSize
+    ) -> CGSize {
+        let bounds = offsetBounds(scale: scale, in: container)
+        return CGSize(
+            width: clampedValue(offset.width, bound: bounds.width),
+            height: clampedValue(offset.height, bound: bounds.height)
+        )
+    }
+
+    static func offsetBounds(scale: CGFloat, in container: CGSize) -> CGSize {
+        guard scale.isFinite,
+              scale >= 1,
+              container.width.isFinite,
+              container.height.isFinite,
+              container.width >= 0,
+              container.height >= 0 else {
+            return .zero
+        }
+
+        let width = container.width * (scale - 1) / 2
+        let height = container.height * (scale - 1) / 2
+        guard width.isFinite, height.isFinite else {
+            return .zero
+        }
+        return CGSize(width: max(0, width), height: max(0, height))
+    }
+
+    private static func clampedValue(_ value: CGFloat, bound: CGFloat) -> CGFloat {
+        guard value.isFinite, bound.isFinite, bound >= 0 else { return 0 }
+        return min(max(value, -bound), bound)
+    }
+
 }
 
 struct RouteDetailView: View {
@@ -154,16 +189,16 @@ struct RouteDetailView: View {
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
                         Button {
-                            shareError = nil
-                            if isOwner && !route.isPublic {
-                                isShareConfirmationPresented = true
-                            } else {
-                                Task { await shareRoute() }
-                            }
+                            requestShare()
                         } label: {
                             Label("Share Route", systemImage: "square.and.arrow.up")
                         }
                         .disabled(isSharing)
+                        .accessibilityHint(
+                            isOwner && !route.isPublic
+                                ? "This route is private and requires confirmation before sharing."
+                                : ""
+                        )
 
                         Button {
                             wallUpdateError = nil
@@ -292,28 +327,42 @@ struct RouteDetailView: View {
                     SimultaneousGesture(
                         MagnificationGesture()
                             .onChanged { value in
-                                wallScale = min(max(lastWallScale * value, 1), 3)
+                                let proposedScale = lastWallScale * value
+                                guard proposedScale.isFinite else { return }
+                                wallScale = min(max(proposedScale, 1), 3)
                             }
                             .onEnded { _ in
                                 lastWallScale = wallScale
-                                if wallScale <= 1 {
+                                if wallScale <= 1 || !wallScale.isFinite {
                                     resetWallZoom(animated: false)
+                                } else {
+                                    clampWallOffset(in: proxy.size)
                                 }
                             },
                         DragGesture()
                             .onChanged { value in
                                 guard wallScale > 1 else { return }
-                                wallOffset = CGSize(
-                                    width: lastWallOffset.width + value.translation.width,
-                                    height: lastWallOffset.height + value.translation.height
+                                wallOffset = RouteDetailGeometry.clampedOffset(
+                                    CGSize(
+                                        width: lastWallOffset.width + value.translation.width,
+                                        height: lastWallOffset.height + value.translation.height
+                                    ),
+                                    scale: wallScale,
+                                    in: proxy.size
                                 )
                             }
                             .onEnded { _ in
-                                lastWallOffset = wallOffset
+                                clampWallOffset(in: proxy.size)
                             }
                     )
                 )
                 .clipped()
+                .onChange(of: wallScale) { _, _ in
+                    clampWallOffset(in: proxy.size)
+                }
+                .onChange(of: proxy.size) { _, newSize in
+                    clampWallOffset(in: newSize)
+                }
 
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(spacing: 8) {
@@ -409,7 +458,7 @@ struct RouteDetailView: View {
                     systemImage: "seal.fill",
                     title: "Grade",
                     value: grade,
-                    tint: theme.secondary
+                    tint: theme.primary
                 )
             }
         }
@@ -446,11 +495,14 @@ struct RouteDetailView: View {
 
     private var routeActions: some View {
         let theme = BoardedTheme(colorScheme: colorScheme)
+        let canLike = session.userId != nil
         return HStack(spacing: 8) {
             routeActionButton(
                 title: isLiked ? "Liked" : "Like",
                 systemImage: isLiked ? "heart.fill" : "heart",
-                tint: theme.primary
+                tint: theme.primary,
+                isEnabled: canLike,
+                accessibilityHint: canLike ? nil : "Sign in to like routes."
             ) {
                 toggleLike()
             }
@@ -460,7 +512,7 @@ struct RouteDetailView: View {
                 systemImage: "square.and.arrow.up",
                 tint: theme.primary
             ) {
-                Task { await shareRoute() }
+                requestShare()
             }
             .disabled(isSharing)
 
@@ -480,6 +532,8 @@ struct RouteDetailView: View {
         title: String,
         systemImage: String,
         tint: Color,
+        isEnabled: Bool = true,
+        accessibilityHint: String? = nil,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
@@ -493,7 +547,10 @@ struct RouteDetailView: View {
                 )
         }
         .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.5)
         .accessibilityLabel(title)
+        .accessibilityHint(accessibilityHint ?? "")
     }
 
     private var detailsSection: some View {
@@ -524,11 +581,7 @@ struct RouteDetailView: View {
                 isDisabled: isSharing
             ) {
                 self.shareError = nil
-                if isOwner && !route.isPublic {
-                    isShareConfirmationPresented = true
-                } else {
-                    Task { await shareRoute() }
-                }
+                requestShare()
             }
         }
 
@@ -650,7 +703,7 @@ struct RouteDetailView: View {
                                 } label: {
                                     Text("Post")
                                         .font(AppTypography.label)
-                                        .foregroundStyle(theme.background)
+                                        .foregroundStyle(theme.actionForeground)
                                         .padding(.horizontal, 14)
                                         .frame(minHeight: 44)
                                         .background(theme.primary, in: Capsule())
@@ -776,17 +829,37 @@ struct RouteDetailView: View {
             reset()
         }
     }
+    private func clampWallOffset(in containerSize: CGSize) {
+        let clampedOffset = RouteDetailGeometry.clampedOffset(
+            wallOffset,
+            scale: wallScale,
+            in: containerSize
+        )
+        let clampedLastOffset = RouteDetailGeometry.clampedOffset(
+            lastWallOffset,
+            scale: wallScale,
+            in: containerSize
+        )
+
+        if wallOffset != clampedOffset {
+            wallOffset = clampedOffset
+        }
+        if lastWallOffset != clampedLastOffset {
+            lastWallOffset = clampedLastOffset
+        }
+    }
+
 
     private func toggleLike() {
         guard let userId = session.userId else { return }
 
-        isLiked.toggle()
-        likeCount = isLiked ? likeCount + 1 : max(0, likeCount - 1)
-        onRouteChanged(routeWithLikeState())
-
         Task {
-            await routesViewModel.toggleLike(routeId: route.id, userId: userId)
-            guard let updated = routesViewModel.routes.first(where: { $0.id == route.id }) else { return }
+            guard let updated = await routesViewModel.toggleLike(
+                routeId: route.id,
+                userId: userId
+            ) else {
+                return
+            }
             likeCount = updated.likeCount ?? likeCount
             isLiked = updated.isLiked ?? isLiked
             onRouteChanged(updated)
@@ -832,17 +905,14 @@ struct RouteDetailView: View {
         )
     }
 
-    private func routeWithLikeState() -> Route {
-        let currentRoute = latestRoute
-        return routeWithState(
-            base: currentRoute,
-            likeCount: likeCount,
-            isLiked: isLiked,
-            ascents: currentRoute.ascents,
-            wallImageUrl: wallImageUrl,
-            wallImageWidth: wallImageWidth,
-            wallImageHeight: wallImageHeight
-        )
+
+    private func requestShare() {
+        shareError = nil
+        if isOwner && !route.isPublic {
+            isShareConfirmationPresented = true
+        } else {
+            Task { await shareRoute() }
+        }
     }
 
     private func shareRoute() async {

@@ -120,7 +120,7 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
   return (
     <>
       {/* Mobile Routes List */}
-      <div className="md:hidden -mx-4 bg-background divide-y divide-border">
+      <div className="md:hidden -mx-4 bg-transparent divide-y divide-border/50">
         {routes.map((route) => {
           const ascents = route.ascents || [];
           const avgRating = ascents.length > 0
@@ -393,7 +393,7 @@ export function RouteList({ routes, onViewRoute, onLogClimb, onDeleteRoute, onEd
 
       {/* Desktop Routes List */}
       <div className="hidden md:block">
-        <div className="divide-y divide-border bg-background">
+        <div className="divide-y divide-border/50 bg-transparent">
           {routes.map((route) => {
             const ascents = route.ascents || [];
             const avgRating = ascents.length > 0

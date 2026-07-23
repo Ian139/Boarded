@@ -26,6 +26,7 @@ struct BoardedTheme {
     var border: Color { AppColor.text.opacity(0.12) }
     var subtleBorder: Color { border }
     var destructive: Color { AppColor.secondary }
+    var actionForeground: Color { AppColor.actionForeground }
 
     let pagePadding: CGFloat = 16
     let panelPadding: CGFloat = 16
@@ -48,15 +49,30 @@ struct BoardedTheme {
 }
 
 enum AppColor {
-    static let background = Color.hex("#09090B")
-    static let surface = Color.hex("#141417")
-    static let text = Color.hex("#FFFFFF")
+    private static let backgroundToken = Color.hex("#09090B")
+    private static let surfaceToken = Color.hex("#141417")
+    private static let textToken = Color.hex("#FFFFFF")
+
+    static let background = adaptive(light: textToken, dark: backgroundToken)
+    static let surface = adaptive(light: textToken, dark: surfaceToken)
+    static let text = adaptive(light: backgroundToken, dark: textToken)
     static let muted = text.opacity(0.7)
     static let primary = Color.hex("#00E599")
     static let secondary = Color.hex("#FF5C00")
+    static let actionForeground = backgroundToken
     static let accent = primary
     static let border = text.opacity(0.12)
     static let destructive = secondary
+
+    private static func adaptive(light: Color, dark: Color) -> Color {
+        #if canImport(UIKit)
+        Color(uiColor: UIColor { traits in
+            UIColor(traits.userInterfaceStyle == .dark ? dark : light)
+        })
+        #else
+        dark
+        #endif
+    }
 }
 
 enum AppTypography {
@@ -184,7 +200,7 @@ struct BoardedButtonStyle: ButtonStyle {
         let theme = BoardedTheme(colorScheme: colorScheme)
         configuration.label
             .font(AppTypography.headline)
-            .foregroundStyle(kind == .primary ? theme.background : theme.primary)
+            .foregroundStyle(kind == .primary ? theme.actionForeground : theme.primary)
             .frame(minHeight: 44)
             .padding(.horizontal, 16)
             .background(kind == .primary ? theme.primary : theme.primary.opacity(0.15))

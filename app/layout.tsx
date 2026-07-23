@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Manrope } from "next/font/google";
 import "./globals.css";
 import { BottomNav } from "@/components/shared/BottomNav";
-import { LiquidTransition } from "@/components/shared/LiquidTransition";
 import { Toaster } from "@/components/ui/sonner";
 import { Providers } from "@/components/providers/Providers";
 import { Analytics } from "@vercel/analytics/next";
@@ -52,7 +51,6 @@ export default function RootLayout({
         <Providers>
           {children}
           <BottomNav />
-          <LiquidTransition />
           <Toaster />
           <Analytics />
           <Script id="sw-register" strategy="afterInteractive">{`

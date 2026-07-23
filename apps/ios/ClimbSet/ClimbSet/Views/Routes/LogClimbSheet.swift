@@ -63,6 +63,7 @@ struct LogClimbSheet: View {
                     .frame(minWidth: 52, minHeight: 44)
                     .background(theme.secondary.opacity(0.15), in: Capsule())
                     .accessibilityLabel("Route grade")
+                    .accessibilityValue(route.gradeV ?? "No grade")
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(route.name)
@@ -152,7 +153,9 @@ struct LogClimbSheet: View {
                     .font(AppTypography.label)
                     .foregroundStyle(theme.destructive)
                     .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityElement(children: .ignore)
                     .accessibilityLabel("Unable to save send")
+                    .accessibilityValue(errorMessage)
             }
 
             Button {
@@ -177,14 +180,14 @@ struct LogClimbSheet: View {
                 HStack(spacing: 8) {
                     if isSaving {
                         ProgressView()
-                            .tint(theme.background)
+                            .tint(theme.actionForeground)
                     } else {
                         Image(systemName: "checkmark.circle.fill")
                         Text("Log Send")
                     }
                 }
                 .font(AppTypography.headline)
-                .foregroundStyle(theme.background)
+                .foregroundStyle(theme.actionForeground)
                 .frame(maxWidth: .infinity, minHeight: 48)
                 .background(theme.primary, in: RoundedRectangle(cornerRadius: AppLayout.controlCornerRadius, style: .continuous))
             }

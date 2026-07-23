@@ -22,6 +22,14 @@ final class RoutesViewModel: ObservableObject {
     init(repository: RoutesRepository) {
         self.repository = repository
     }
+    func upsertRoute(_ route: Route) {
+        if routes.contains(where: { $0.id == route.id }) {
+            _ = replaceRoute(route)
+        } else {
+            routes.append(route)
+        }
+    }
+
     func resetForSessionChange() {
         loadGeneration += 1
         routes = []
@@ -126,8 +134,9 @@ final class RoutesViewModel: ObservableObject {
         try await repository.deleteRoute(id: routeId)
         routes.removeAll { $0.id == routeId }
     }
-    func toggleLike(routeId: String, userId: UUID) async {
-        guard let index = routes.firstIndex(where: { $0.id == routeId }) else { return }
+    @discardableResult
+    func toggleLike(routeId: String, userId: UUID) async -> Route? {
+        guard let index = routes.firstIndex(where: { $0.id == routeId }) else { return nil }
         let current = routes[index]
         let currentlyLiked = current.isLiked ?? false
         let desiredLiked = !currentlyLiked
@@ -161,7 +170,9 @@ final class RoutesViewModel: ObservableObject {
 
         #if canImport(Supabase)
         guard !AppLaunchConfiguration.isUITestFixture,
-              let client = SupabaseClientProvider.client else { return }
+              let client = SupabaseClientProvider.client else {
+            return routes[index]
+        }
         do {
             if desiredLiked {
                 let payload: [String: AnyEncodable] = [
@@ -181,12 +192,17 @@ final class RoutesViewModel: ObservableObject {
             if let resetIndex = routes.firstIndex(where: { $0.id == routeId }) {
                 routes[resetIndex] = current
             }
+            return nil
         }
         #endif
+
+        return routes.first(where: { $0.id == routeId })
     }
 
     func addAscent(routeId: String, ascent: Ascent) async throws {
-        guard let index = routes.firstIndex(where: { $0.id == routeId }) else { return }
+        guard let index = routes.firstIndex(where: { $0.id == routeId }) else {
+            throw RoutesViewModelError.routeNotLoaded(routeId)
+        }
         let current = routes[index]
         let updatedAscents = current.ascents.contains(where: { $0.id == ascent.id })
             ? current.ascents
@@ -361,6 +377,17 @@ final class RoutesViewModel: ObservableObject {
         }
         guard !ratings.isEmpty else { return 0 }
         return Double(ratings.reduce(0, +)) / Double(ratings.count)
+    }
+}
+
+private enum RoutesViewModelError: LocalizedError {
+    case routeNotLoaded(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .routeNotLoaded(let routeId):
+            return "Route \(routeId) is not loaded."
+        }
     }
 }
 

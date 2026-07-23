@@ -19,7 +19,7 @@ export function RouteViewerDialog({
   return (
     <Dialog open={Boolean(route)} onOpenChange={onOpenChange}>
       <DialogContent
-        className="!w-fit !max-w-[96vw] max-h-[94vh] gap-0 overflow-y-auto overflow-x-hidden rounded-3xl border border-foreground/[0.12] bg-card/80 p-0 shadow-none backdrop-blur-xl motion-reduce:animate-none motion-reduce:transition-none"
+        className="!w-fit !max-w-[96vw] max-h-[94vh] gap-0 overflow-y-auto overflow-x-hidden rounded-3xl border border-foreground/[0.12] bg-card/80 p-0 shadow-none backdrop-blur-xl !animate-none !transition-none"
         showCloseButton={false}
         aria-describedby={undefined}
       >

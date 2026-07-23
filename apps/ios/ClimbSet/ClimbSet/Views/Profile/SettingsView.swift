@@ -2,6 +2,12 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var session: AppSession
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var theme: BoardedTheme {
+        BoardedTheme(colorScheme: colorScheme)
+    }
+
     @AppStorage("appearanceMode") private var appearanceModeRaw = AppAppearanceMode.system.rawValue
     @StateObject private var metrics = ProfileViewModel(repository: AppServices.profileRepository)
     @StateObject private var wallsViewModel = WallsViewModel(repository: AppServices.wallsRepository)
@@ -13,7 +19,7 @@ struct SettingsView: View {
 
     var body: some View {
         ZStack {
-            AppColor.background.ignoresSafeArea()
+            theme.background.ignoresSafeArea()
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     accountSection
@@ -41,34 +47,34 @@ struct SettingsView: View {
         } label: {
             HStack(spacing: 12) {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(AppColor.primary.opacity(0.12))
+                    .fill(theme.primary.opacity(0.12))
                     .frame(width: 42, height: 42)
                     .overlay(
                         Image(systemName: session.userId == nil ? "person.badge.key" : "person.crop.circle.badge.checkmark")
                             .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(AppColor.primary)
+                            .foregroundColor(theme.primary)
                     )
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Account Access")
                         .font(AppTypography.headline)
-                        .foregroundColor(AppColor.text)
+                        .foregroundColor(theme.primaryText)
                     Text(accountSubtitle)
                         .font(AppTypography.label)
-                        .foregroundColor(AppColor.muted)
+                        .foregroundColor(theme.secondaryText)
                         .lineLimit(1)
                 }
 
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(AppColor.muted.opacity(0.65))
+                    .foregroundColor(theme.secondaryText.opacity(0.65))
             }
             .padding(12)
-            .background(AppColor.surface)
+            .background(theme.panelBackground)
             .overlay(
                 RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                    .stroke(AppColor.border.opacity(0.75), lineWidth: 1)
+                    .stroke(theme.border.opacity(0.75), lineWidth: 1)
             )
             .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
         }
@@ -88,23 +94,23 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Data")
                 .font(AppTypography.headline)
-                .foregroundColor(AppColor.text)
+                .foregroundColor(theme.primaryText)
             Text(supabaseStatus)
                 .font(AppTypography.label)
-                .foregroundColor(AppColor.muted)
+                .foregroundColor(theme.secondaryText)
             HStack(spacing: 12) {
                 Text("Routes: \(metrics.routesCount)")
                 Text("Sends: \(metrics.sendsCount)")
                 Text("Likes: \(metrics.likesCount)")
             }
             .font(AppTypography.label)
-            .foregroundColor(AppColor.muted)
+            .foregroundColor(theme.secondaryText)
         }
         .padding(12)
-        .background(AppColor.surface)
+        .background(theme.panelBackground)
         .overlay(
             RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                .stroke(AppColor.border, lineWidth: 1)
+                .stroke(theme.border, lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
     }
@@ -113,21 +119,21 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(AppColor.primary.opacity(0.12))
+                    .fill(theme.primary.opacity(0.12))
                     .frame(width: 42, height: 42)
                     .overlay(
                         Image(systemName: appearanceMode == .dark ? "moon.fill" : "sun.max.fill")
                             .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(AppColor.primary)
+                            .foregroundColor(theme.primary)
                     )
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Appearance")
                         .font(AppTypography.headline)
-                        .foregroundColor(AppColor.text)
+                        .foregroundColor(theme.primaryText)
                     Text(appearanceSubtitle)
                         .font(AppTypography.label)
-                        .foregroundColor(AppColor.muted)
+                        .foregroundColor(theme.secondaryText)
                 }
 
                 Spacer()
@@ -139,16 +145,17 @@ struct SettingsView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .tint(theme.primary)
 
             Text(appVersion)
                 .font(AppTypography.label)
-                .foregroundColor(AppColor.muted)
+                .foregroundColor(theme.secondaryText)
         }
         .padding(12)
-        .background(AppColor.surface)
+        .background(theme.panelBackground)
         .overlay(
             RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                .stroke(AppColor.border.opacity(0.75), lineWidth: 1)
+                .stroke(theme.border.opacity(0.75), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
     }
@@ -168,21 +175,21 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Walls")
                 .font(AppTypography.headline)
-                .foregroundColor(AppColor.text)
+                .foregroundColor(theme.primaryText)
             Text("\(wallsViewModel.walls.count) walls")
                 .font(AppTypography.label)
-                .foregroundColor(AppColor.muted)
+                .foregroundColor(theme.secondaryText)
             Button("Manage Walls") {
                 isWallPickerPresented = true
             }
             .font(AppTypography.label)
-            .foregroundColor(AppColor.primary)
+            .foregroundColor(theme.primary)
         }
         .padding(12)
-        .background(AppColor.surface)
+        .background(theme.panelBackground)
         .overlay(
             RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                .stroke(AppColor.border, lineWidth: 1)
+                .stroke(theme.border, lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
         .sheet(isPresented: $isWallPickerPresented) {
@@ -204,13 +211,19 @@ struct SettingsView: View {
 
 private struct AccountAccessView: View {
     @EnvironmentObject var session: AppSession
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var theme: BoardedTheme {
+        BoardedTheme(colorScheme: colorScheme)
+    }
+
     @State private var email = ""
     @State private var password = ""
     @State private var authMode: AuthMode = .signIn
 
     var body: some View {
         ZStack {
-            AppColor.background.ignoresSafeArea()
+            theme.background.ignoresSafeArea()
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
@@ -236,10 +249,10 @@ private struct AccountAccessView: View {
             VStack(alignment: .leading, spacing: 5) {
                 Text(authMode == .signIn ? "Welcome back" : "Create account")
                     .font(AppTypography.title)
-                    .foregroundColor(AppColor.text)
+                    .foregroundColor(theme.primaryText)
                 Text(authMode == .signIn ? "Log in to sync climbs and comments." : "Create an account to save routes to Supabase.")
                     .font(AppTypography.body)
-                    .foregroundColor(AppColor.muted)
+                    .foregroundColor(theme.secondaryText)
             }
             .padding(.bottom, 4)
 
@@ -258,7 +271,7 @@ private struct AccountAccessView: View {
             if let error = session.errorMessage, !error.isEmpty {
                 Text(error)
                     .font(AppTypography.label)
-                    .foregroundColor(AppColor.destructive)
+                    .foregroundColor(theme.destructive)
                     .padding(.top, 2)
             }
 
@@ -274,15 +287,15 @@ private struct AccountAccessView: View {
                 HStack {
                     if session.isLoading {
                         ProgressView()
-                            .tint(.white)
+                            .tint(theme.actionForeground)
                     }
                     Text(authMode == .signIn ? "Log In" : "Create Account")
                 }
                 .font(AppTypography.headline)
-                .foregroundColor(.white)
+                .foregroundColor(theme.actionForeground)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
-                .background(AppColor.primary)
+                .background(theme.primary)
                 .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
             }
             .disabled(email.isEmpty || password.isEmpty || session.isLoading)
@@ -293,16 +306,16 @@ private struct AccountAccessView: View {
             } label: {
                 Text(authMode == .signIn ? "Need an account? Create one" : "Already have an account? Log in")
                     .font(AppTypography.label)
-                    .foregroundColor(AppColor.primary)
+                    .foregroundColor(theme.primary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
             }
         }
         .padding(14)
-        .background(AppColor.surface)
+        .background(theme.panelBackground)
         .overlay(
             RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                .stroke(AppColor.border.opacity(0.75), lineWidth: 1)
+                .stroke(theme.border.opacity(0.75), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
     }
@@ -311,22 +324,22 @@ private struct AccountAccessView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 12) {
                 Circle()
-                    .fill(AppColor.primary.opacity(0.12))
+                    .fill(theme.primary.opacity(0.12))
                     .frame(width: 52, height: 52)
                     .overlay(
                         Image(systemName: "person.crop.circle.badge.checkmark")
                             .font(.system(size: 24, weight: .semibold))
-                            .foregroundColor(AppColor.primary)
+                            .foregroundColor(theme.primary)
                     )
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(session.displayName)
                         .font(AppTypography.headline)
-                        .foregroundColor(AppColor.text)
+                        .foregroundColor(theme.primaryText)
                         .lineLimit(1)
                     Text(session.userEmail ?? "Signed in")
                         .font(AppTypography.label)
-                        .foregroundColor(AppColor.muted)
+                        .foregroundColor(theme.secondaryText)
                         .lineLimit(1)
                 }
             }
@@ -337,25 +350,25 @@ private struct AccountAccessView: View {
                 HStack {
                     if session.isLoading {
                         ProgressView()
-                            .tint(.white)
+                            .tint(theme.actionForeground)
                     }
                     Text("Log Out")
                 }
                 .font(AppTypography.headline)
-                .foregroundColor(.white)
+                .foregroundColor(theme.actionForeground)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
-                .background(AppColor.destructive)
+                .background(theme.destructive)
                 .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
             }
             .disabled(session.isLoading)
             .opacity(session.isLoading ? 0.65 : 1)
         }
         .padding(14)
-        .background(AppColor.surface)
+        .background(theme.panelBackground)
         .overlay(
             RoundedRectangle(cornerRadius: AppLayout.cornerRadius)
-                .stroke(AppColor.border.opacity(0.75), lineWidth: 1)
+                .stroke(theme.border.opacity(0.75), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
     }
@@ -366,6 +379,12 @@ private struct AccountTextField: View {
     let icon: String
     let placeholder: String
     @Binding var text: String
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var theme: BoardedTheme {
+        BoardedTheme(colorScheme: colorScheme)
+    }
+
     var keyboardType: UIKeyboardType = .default
     var autocapitalization: TextInputAutocapitalization = .sentences
     var autocorrectionDisabled = false
@@ -374,50 +393,57 @@ private struct AccountTextField: View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(AppColor.primary)
+                .foregroundColor(theme.primary)
                 .frame(width: 32)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title.uppercased())
                     .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .foregroundColor(AppColor.muted)
+                    .foregroundColor(theme.secondaryText)
                     .tracking(0.6)
                 TextField(placeholder, text: $text)
                     .font(AppTypography.body)
                     .keyboardType(keyboardType)
                     .textInputAutocapitalization(autocapitalization)
                     .autocorrectionDisabled(autocorrectionDisabled)
-                    .foregroundColor(AppColor.text)
+                    .foregroundColor(theme.primaryText)
             }
         }
         .padding(12)
-        .background(AppColor.background.opacity(0.55))
+        .background(theme.background.opacity(0.55))
         .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
     }
 }
 
 private struct AccountSecureField: View {
     @Binding var password: String
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var theme: BoardedTheme {
+        BoardedTheme(colorScheme: colorScheme)
+    }
+
 
     var body: some View {
         HStack(spacing: 12) {
+
             Image(systemName: "lock")
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(AppColor.primary)
+                .foregroundColor(theme.primary)
                 .frame(width: 32)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text("PASSWORD")
                     .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .foregroundColor(AppColor.muted)
+                    .foregroundColor(theme.secondaryText)
                     .tracking(0.6)
                 SecureField("password", text: $password)
                     .font(AppTypography.body)
-                    .foregroundColor(AppColor.text)
+                    .foregroundColor(theme.primaryText)
             }
         }
         .padding(12)
-        .background(AppColor.background.opacity(0.55))
+        .background(theme.background.opacity(0.55))
         .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadius))
     }
 }

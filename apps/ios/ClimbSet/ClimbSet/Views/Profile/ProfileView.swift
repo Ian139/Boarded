@@ -50,7 +50,10 @@ struct ProfileView: View {
         .sheet(item: $selectedRoute) { route in
             RouteDetailView(
                 route: route,
-                onRouteChanged: { _ in profileRefreshID += 1 },
+                onRouteChanged: { updatedRoute in
+                    routeDetailsViewModel.upsertRoute(updatedRoute)
+                    profileRefreshID += 1
+                },
                 onRouteDeleted: { _ in profileRefreshID += 1 }
             )
             .environmentObject(session)
@@ -211,7 +214,10 @@ struct ProfileView: View {
                             theme.primaryText.opacity(0.12).frame(height: 1)
                         }
                         Button {
-                            if let route = climb.route { selectedRoute = route }
+                            if let route = climb.route {
+                                routeDetailsViewModel.upsertRoute(route)
+                                selectedRoute = route
+                            }
                         } label: {
                             HStack(spacing: 12) {
                                 Image(systemName: climb.flashed ? "bolt.fill" : "checkmark.circle.fill")
