@@ -14,18 +14,18 @@ struct BoardedTheme {
     // The redesigned system uses one continuous background instead.
     var backgroundGradient: some View { background }
 
-    // Frosted panels combine the surface token with the system material blur.
-    var panelBackground: Color { AppColor.surface.opacity(0.8) }
-    var elevatedPanelBackground: Color { AppColor.surface.opacity(0.8) }
+    // Neutral panel roles derive from the active adaptive palette.
+    var panelBackground: Color { AppColor.surface }
+    var elevatedPanelBackground: Color { AppColor.surface }
 
     var primaryText: Color { AppColor.text }
     var secondaryText: Color { AppColor.text.opacity(0.7) }
     var primary: Color { AppColor.primary }
     var secondary: Color { AppColor.secondary }
-    var accent: Color { AppColor.primary }
-    var border: Color { AppColor.text.opacity(0.12) }
-    var subtleBorder: Color { border }
-    var destructive: Color { AppColor.secondary }
+    var accent: Color { AppColor.accent }
+    var border: Color { AppColor.border }
+    var subtleBorder: Color { AppColor.border }
+    var destructive: Color { AppColor.destructive }
     var actionForeground: Color { AppColor.actionForeground }
 
     let pagePadding: CGFloat = 16
@@ -39,30 +39,32 @@ struct BoardedTheme {
         case .start:
             return AppColor.primary
         case .finish:
-            return AppColor.secondary
-        case .hand:
             return AppColor.text
+        case .hand:
+            return AppColor.text.opacity(0.75)
         case .foot:
-            return AppColor.text.opacity(0.7)
+            return AppColor.text.opacity(0.45)
         }
     }
 }
 
 enum AppColor {
-    private static let backgroundToken = Color.hex("#09090B")
-    private static let surfaceToken = Color.hex("#141417")
-    private static let textToken = Color.hex("#FFFFFF")
+    private static let blackToken = Color.hex("#000000")
+    private static let whiteToken = Color.hex("#FFFFFF")
+    private static let redToken = Color.hex("#FF3B30")
+    private static let tanToken = Color.hex("#E8DCC8")
 
-    static let background = adaptive(light: textToken, dark: backgroundToken)
-    static let surface = adaptive(light: textToken, dark: surfaceToken)
-    static let text = adaptive(light: backgroundToken, dark: textToken)
+    static let background = adaptive(light: tanToken, dark: blackToken)
+    static let surface = adaptive(light: blackToken.opacity(0.06), dark: whiteToken.opacity(0.1))
+    static let text = adaptive(light: blackToken, dark: whiteToken)
     static let muted = text.opacity(0.7)
-    static let primary = Color.hex("#00E599")
-    static let secondary = Color.hex("#FF5C00")
-    static let actionForeground = backgroundToken
-    static let accent = primary
+    static let primary = redToken
+    static let secondary = redToken
+    static let actionForeground = blackToken
+    static let accent = redToken
     static let border = text.opacity(0.12)
-    static let destructive = secondary
+    static let destructive = redToken
+    static let scrim = blackToken.opacity(0.62)
 
     private static func adaptive(light: Color, dark: Color) -> Color {
         #if canImport(UIKit)
@@ -103,9 +105,62 @@ private struct BoardedPageBackgroundModifier: ViewModifier {
     }
 }
 
+private struct BoardedGlassSurfaceModifier<S: Shape>: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorScheme) private var colorScheme
+
+    let shape: S
+    let interactive: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        let theme = BoardedTheme(colorScheme: colorScheme)
+        if reduceTransparency {
+            content
+                .background(theme.background, in: shape)
+                .overlay {
+                    shape.stroke(theme.primaryText.opacity(0.32), lineWidth: 1)
+                }
+        } else if #available(iOS 26.0, *) {
+            if interactive {
+                content.glassEffect(.regular.interactive(), in: shape)
+            } else {
+                content.glassEffect(.regular, in: shape)
+            }
+        } else {
+            content
+                .background(theme.panelBackground, in: shape)
+                .background(.ultraThinMaterial, in: shape)
+                .overlay {
+                    shape.stroke(theme.border, lineWidth: 1)
+                }
+        }
+    }
+}
+
+struct BoardedGlassContainer<Content: View>: View {
+    private let spacing: CGFloat?
+    private let content: () -> Content
+
+    init(spacing: CGFloat? = nil, @ViewBuilder content: @escaping () -> Content) {
+        self.spacing = spacing
+        self.content = content
+    }
+
+    @ViewBuilder
+    var body: some View {
+        if #available(iOS 26.0, *) {
+            GlassEffectContainer(spacing: spacing) {
+                content()
+            }
+        } else {
+            content()
+        }
+    }
+}
+
 private struct BoardedPanelModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.colorSchemeContrast) private var contrast
     let elevated: Bool
 
     func body(content: Content) -> some View {
@@ -113,14 +168,7 @@ private struct BoardedPanelModifier: ViewModifier {
         let shape = RoundedRectangle(cornerRadius: theme.panelCornerRadius, style: .continuous)
         content
             .padding(theme.panelPadding)
-            .background(theme.panelBackground, in: shape)
-            .background(.ultraThinMaterial, in: shape)
-            .overlay {
-                shape.stroke(
-                    contrast == .increased ? theme.border : theme.subtleBorder,
-                    lineWidth: contrast == .increased ? 2 : 1
-                )
-            }
+            .boardedGlassSurface(in: shape)
     }
 }
 
@@ -131,6 +179,10 @@ extension View {
 
     func boardedPanel(elevated: Bool = true) -> some View {
         modifier(BoardedPanelModifier(elevated: elevated))
+    }
+
+    func boardedGlassSurface<S: Shape>(in shape: S, interactive: Bool = false) -> some View {
+        modifier(BoardedGlassSurfaceModifier(shape: shape, interactive: interactive))
     }
 }
 
@@ -165,18 +217,24 @@ struct BoardedFilterControl: View {
 
     var body: some View {
         let theme = BoardedTheme(colorScheme: colorScheme)
+        let shape = RoundedRectangle(cornerRadius: theme.controlCornerRadius, style: .continuous)
         Button(action: action) {
             Text(title)
                 .font(AppTypography.label)
                 .foregroundStyle(isSelected ? theme.primary : theme.primaryText)
                 .padding(.horizontal, 12)
                 .frame(minHeight: 36)
-                .background(isSelected ? theme.primary.opacity(0.15) : theme.panelBackground)
-                .overlay {
-                    RoundedRectangle(cornerRadius: theme.controlCornerRadius, style: .continuous)
-                        .stroke(isSelected ? theme.primary.opacity(0.5) : theme.border, lineWidth: 1)
+                .background {
+                    if isSelected {
+                        theme.primary.opacity(0.15)
+                    }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: theme.controlCornerRadius, style: .continuous))
+                .boardedGlassSurface(in: shape, interactive: true)
+                .overlay {
+                    if isSelected {
+                        shape.stroke(theme.primary.opacity(0.5), lineWidth: 1)
+                    }
+                }
         }
         .buttonStyle(.plain)
     }

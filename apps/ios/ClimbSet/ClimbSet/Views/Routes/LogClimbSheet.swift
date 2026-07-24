@@ -48,7 +48,6 @@ struct LogClimbSheet: View {
                 }
             }
         }
-        .presentationBackground(.ultraThinMaterial)
         .presentationDragIndicator(.visible)
     }
 
@@ -196,10 +195,6 @@ struct LogClimbSheet: View {
             .accessibilityLabel(isSaving ? "Saving send" : "Log send")
         }
         .padding(20)
-        .background(theme.panelBackground, in: shape)
-        .background(.ultraThinMaterial, in: shape)
-        .overlay {
-            shape.stroke(theme.border, lineWidth: 1)
-        }
+        .boardedGlassSurface(in: shape)
     }
 }

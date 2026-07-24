@@ -2,10 +2,10 @@ import SwiftUI
 
 struct ProfileView: View {
     @EnvironmentObject var session: AppSession
+    @EnvironmentObject var routeDetailPresenter: RouteDetailPresenter
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var viewModel: ProfileViewModel
     @StateObject private var routeDetailsViewModel = RoutesViewModel(repository: AppServices.routesRepository)
-    @State private var selectedRoute: Route?
     @State private var profileRefreshID = 0
     @State private var isEditPresented = false
     @State private var editFullName = ""
@@ -46,18 +46,6 @@ struct ProfileView: View {
         }
         .refreshable {
             await viewModel.load(userID: session.userId)
-        }
-        .sheet(item: $selectedRoute) { route in
-            RouteDetailView(
-                route: route,
-                onRouteChanged: { updatedRoute in
-                    routeDetailsViewModel.upsertRoute(updatedRoute)
-                    profileRefreshID += 1
-                },
-                onRouteDeleted: { _ in profileRefreshID += 1 }
-            )
-            .environmentObject(session)
-            .environmentObject(routeDetailsViewModel)
         }
         .sheet(isPresented: $isEditPresented) {
             EditProfileSheet(
@@ -216,7 +204,7 @@ struct ProfileView: View {
                         Button {
                             if let route = climb.route {
                                 routeDetailsViewModel.upsertRoute(route)
-                                selectedRoute = route
+                                presentRoute(route)
                             }
                         } label: {
                             HStack(spacing: 12) {
@@ -284,6 +272,22 @@ struct ProfileView: View {
 
     private func emptyRow(icon: String, text: String) -> some View {
         Label(text, systemImage: icon).font(AppTypography.body).foregroundStyle(theme.secondaryText)
+    }
+
+    private func presentRoute(_ route: Route) {
+        routeDetailPresenter.present(
+            RouteDetailPresentation(
+                route: route,
+                routesViewModel: routeDetailsViewModel,
+                onRouteChanged: { updatedRoute in
+                    routeDetailsViewModel.upsertRoute(updatedRoute)
+                    profileRefreshID += 1
+                },
+                onRouteDeleted: { _ in
+                    profileRefreshID += 1
+                }
+            )
+        )
     }
 
     private func formattedDate(_ date: Date?) -> String {
@@ -367,5 +371,6 @@ struct ProfileView_Previews: PreviewProvider {
     static var previews: some View {
         ProfileView(repository: MockProfileRepository())
             .environmentObject(AppSession())
+            .environmentObject(RouteDetailPresenter())
     }
 }

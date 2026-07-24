@@ -216,32 +216,46 @@ struct EditorView: View {
 
     var body: some View {
         let theme = BoardedTheme(colorScheme: colorScheme)
-        ZStack {
+        ZStack(alignment: .top) {
             GeometryReader { proxy in
                 canvasSurface(size: proxy.size, headerHeight: headerHeight)
             }
             .ignoresSafeArea(.container, edges: .bottom)
 
-            VStack(spacing: 0) {
-                header
-                    .background(
-                        theme.panelBackground
-                            .background(.ultraThinMaterial)
-                    )
-                    .background(
-                        GeometryReader { proxy in
-                            Color.clear
-                                .preference(
-                                    key: EditorHeaderHeightPreferenceKey.self,
-                                    value: proxy.size.height
-                                )
-                        }
-                    )
-                    .overlay(alignment: .bottom) {
-                        theme.primaryText.opacity(0.12).frame(height: 1)
+            let headerShape = UnevenRoundedRectangle(
+                topLeadingRadius: 0,
+                bottomLeadingRadius: theme.controlCornerRadius,
+                bottomTrailingRadius: theme.controlCornerRadius,
+                topTrailingRadius: 0,
+                style: .continuous
+            )
+
+            header
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear
+                            .preference(
+                                key: EditorHeaderHeightPreferenceKey.self,
+                                value: proxy.size.height
+                            )
                     }
-                    .zIndex(2000)
-                Spacer()
+                )
+                .background {
+                    Color.clear
+                        .boardedGlassSurface(in: headerShape)
+                        .ignoresSafeArea(.container, edges: .top)
+                }
+                .overlay(alignment: .bottom) {
+                    theme.primaryText.opacity(0.12).frame(height: 1)
+                }
+                .zIndex(2000)
+
+            if zoomScale > 1.01 || abs(panOffset.width) > 0.5 || abs(panOffset.height) > 0.5 {
+                zoomControls
+                    .padding(.top, headerHeight + 10)
+                    .padding(.horizontal, 10)
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .zIndex(2001)
             }
         }
         .boardedPageBackground()
@@ -313,6 +327,34 @@ struct EditorView: View {
             }
             isApplyingWallSelection = false
             resetWallImageState(for: acceptedWallID)
+        }
+    }
+
+    private var zoomControls: some View {
+        HStack {
+            Text("\(zoomPercentage)%")
+                .font(AppTypography.label)
+                .foregroundColor(AppColor.text)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .boardedGlassSurface(in: Capsule())
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Wall zoom")
+                .accessibilityValue("\(zoomPercentage) percent")
+
+            Spacer()
+
+            Button("Reset") {
+                resetZoom()
+            }
+            .font(AppTypography.label)
+            .foregroundColor(AppColor.primary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .frame(minWidth: 44, minHeight: 44)
+            .boardedGlassSurface(in: Capsule(), interactive: true)
+            .accessibilityLabel("Reset wall zoom")
+            .accessibilityHint("Returns the wall to 100 percent and centers it.")
         }
     }
 
@@ -439,14 +481,6 @@ struct EditorView: View {
                 .contentShape(EditorCanvasInteractionShape(topInset: reservedHeaderHeight))
                 .frame(width: size.width, height: size.height)
                 .zIndex(0)
-                .highPriorityGesture(magnificationGesture(in: size, imageRect: imageRect))
-                .simultaneousGesture(
-                    spatialTapGesture(
-                        in: size,
-                        imageRect: imageRect,
-                        headerHeight: reservedHeaderHeight
-                    )
-                )
                 .simultaneousGesture(dragGesture(in: size, imageRect: imageRect))
                 .accessibilityElement()
                 .accessibilityIdentifier("Editor canvas surface")
@@ -476,10 +510,24 @@ struct EditorView: View {
                     )
                 }
 
-            ZStack {
-                wallImage(in: imageRect)
-                    .allowsHitTesting(false)
+            wallImage(in: imageRect)
+                .frame(width: size.width, height: size.height)
+                .scaleEffect(zoomScale)
+                .offset(panOffset)
+                .allowsHitTesting(false)
+                .zIndex(1)
 
+            if holds.isEmpty && wallIsUsable {
+                emptyCanvasReadabilityTint
+                    .frame(width: imageRect.width, height: imageRect.height)
+                    .position(x: imageRect.midX, y: imageRect.midY)
+                    .scaleEffect(zoomScale)
+                    .offset(panOffset)
+                    .allowsHitTesting(false)
+                    .zIndex(1.5)
+            }
+
+            ZStack {
                 ForEach(Array(holds.enumerated()), id: \.element.id) { index, hold in
                     markerButton(
                         for: hold,
@@ -503,7 +551,7 @@ struct EditorView: View {
             .frame(width: size.width, height: size.height)
             .scaleEffect(zoomScale)
             .offset(panOffset)
-            .zIndex(1)
+            .zIndex(2)
 
             if reservedHeaderHeight > 0 {
                 Color.clear
@@ -528,44 +576,23 @@ struct EditorView: View {
                     .allowsHitTesting(false)
             }
 
-            if zoomScale > 1.01 || abs(panOffset.width) > 0.5 || abs(panOffset.height) > 0.5 {
-                VStack {
-                    HStack {
-                        Text("\(zoomPercentage)%")
-                            .font(AppTypography.label)
-                            .foregroundColor(AppColor.text)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 5)
-                            .background(theme.panelBackground.background(.ultraThinMaterial))
-                            .clipShape(Capsule())
-                            .accessibilityElement(children: .ignore)
-                            .accessibilityLabel("Wall zoom")
-                            .accessibilityValue("\(zoomPercentage) percent")
 
-                        Spacer()
-
-                        Button("Reset") {
-                            resetZoom()
-                        }
-                        .font(AppTypography.label)
-                        .foregroundColor(AppColor.primary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .frame(minWidth: 44, minHeight: 44)
-                        .background(theme.panelBackground.background(.ultraThinMaterial))
-                        .clipShape(Capsule())
-                        .accessibilityLabel("Reset wall zoom")
-                        .accessibilityHint("Returns the wall to 100 percent and centers it.")
-                    }
-                    Spacer()
-                }
-                .padding(.top, reservedHeaderHeight + 10)
-                .padding(.horizontal, 10)
-                .padding(.bottom, 10)
-                .zIndex(2001)
-            }
         }
         .contentShape(EditorCanvasInteractionShape(topInset: reservedHeaderHeight))
+        .highPriorityGesture(
+            magnificationGesture(
+                in: size,
+                imageRect: imageRect,
+                headerHeight: reservedHeaderHeight
+            )
+        )
+        .simultaneousGesture(
+            spatialTapGesture(
+                in: size,
+                imageRect: imageRect,
+                headerHeight: reservedHeaderHeight
+            )
+        )
         .coordinateSpace(name: "editorCanvas")
     }
 
@@ -647,8 +674,7 @@ struct EditorView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(BoardedTheme(colorScheme: colorScheme).panelBackground.background(.ultraThinMaterial))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .boardedGlassSurface(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     private var loadingPanel: some View {
@@ -661,8 +687,7 @@ struct EditorView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(BoardedTheme(colorScheme: colorScheme).panelBackground.background(.ultraThinMaterial))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .boardedGlassSurface(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     private var failedImagePanel: some View {
@@ -681,14 +706,12 @@ struct EditorView: View {
                 .foregroundColor(AppColor.primary)
                 .frame(minWidth: 44, minHeight: 44)
                 .padding(.horizontal, 10)
-                .background(BoardedTheme(colorScheme: colorScheme).panelBackground.background(.ultraThinMaterial))
-                .clipShape(Capsule())
+                .boardedGlassSurface(in: Capsule(), interactive: true)
                 .accessibilityLabel("Retry wall image")
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(BoardedTheme(colorScheme: colorScheme).panelBackground.background(.ultraThinMaterial))
-            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .boardedGlassSurface(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -708,8 +731,10 @@ struct EditorView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(BoardedTheme(colorScheme: colorScheme).panelBackground.background(.ultraThinMaterial))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .background(
+            BoardedTheme(colorScheme: colorScheme).panelBackground,
+            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+        )
     }
 
 
@@ -745,9 +770,6 @@ struct EditorView: View {
         .position(
             x: imageRect.minX + hold.normalizedX * imageRect.width,
             y: imageRect.minY + hold.normalizedY * imageRect.height
-        )
-        .highPriorityGesture(
-            markerMagnificationGesture(for: hold)
         )
         .simultaneousGesture(
             dragGesture(in: canvasSize, imageRect: imageRect, suppressMarkerTap: true)
@@ -822,40 +844,38 @@ struct EditorView: View {
     }
 
 
-    private func markerMagnificationGesture(for hold: Hold) -> some Gesture {
-        MagnificationGesture()
-            .onChanged { magnification in
-                guard wallIsUsable,
-                      let index = holds.firstIndex(where: { $0.id == hold.id }) else {
-                    return
-                }
-                if markerMagnificationSession == nil {
-                    markerMagnificationSession = MarkerMagnificationSession(
-                        id: hold.id,
-                        originalRadius: holdRadiusValue(holds[index])
-                    )
-                    isGestureInProgress = true
-                    suppressNextCanvasTap = true
-                }
-                guard let session = markerMagnificationSession,
-                      session.id == hold.id,
-                      let radius = EditorHoldGeometry.scaledRadius(
-                        session.originalRadius,
-                        magnification: magnification
-                      ) else {
-                    return
-                }
-                holds[index].radius = Double(radius)
-            }
-            .onEnded { _ in
-                guard markerMagnificationSession?.id == hold.id else { return }
-                markerMagnificationSession = nil
-                isGestureInProgress = false
-                suppressNextCanvasTap = true
-                scheduleCanvasTapSuppressionClear()
-                suppressNextMarkerTap = true
-                scheduleMarkerTapSuppressionClear()
-            }
+    private func updateMarkerMagnification(id: String, magnification: CGFloat) {
+        guard wallIsUsable,
+              let index = holds.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        if markerMagnificationSession == nil {
+            markerMagnificationSession = MarkerMagnificationSession(
+                id: id,
+                originalRadius: holdRadiusValue(holds[index])
+            )
+            isGestureInProgress = true
+            suppressNextCanvasTap = true
+        }
+        guard let session = markerMagnificationSession,
+              session.id == id,
+              let radius = EditorHoldGeometry.scaledRadius(
+                session.originalRadius,
+                magnification: magnification
+              ) else {
+            return
+        }
+        holds[index].radius = Double(radius)
+    }
+
+    private func finishMarkerMagnification(id: String) {
+        guard markerMagnificationSession?.id == id else { return }
+        markerMagnificationSession = nil
+        isGestureInProgress = false
+        suppressNextCanvasTap = true
+        scheduleCanvasTapSuppressionClear()
+        suppressNextMarkerTap = true
+        scheduleMarkerTapSuppressionClear()
     }
 
 
@@ -872,13 +892,42 @@ struct EditorView: View {
         announce("Hold radius \(Int(radius.rounded())) image points.")
     }
 
-    private func magnificationGesture(in size: CGSize, imageRect: CGRect) -> some Gesture {
-        MagnificationGesture()
+    private func magnificationGesture(
+        in size: CGSize,
+        imageRect: CGRect,
+        headerHeight: CGFloat
+    ) -> some Gesture {
+        MagnifyGesture()
             .onChanged { value in
-                updateCanvasMagnification(value, in: size, imageRect: imageRect)
+                if let session = markerMagnificationSession {
+                    updateMarkerMagnification(
+                        id: session.id,
+                        magnification: value.magnification
+                    )
+                } else if let touchedHold = hold(
+                    at: value.startLocation,
+                    in: size,
+                    imageRect: imageRect,
+                    headerHeight: headerHeight
+                ) {
+                    updateMarkerMagnification(
+                        id: touchedHold.id,
+                        magnification: value.magnification
+                    )
+                } else {
+                    updateCanvasMagnification(
+                        value.magnification,
+                        in: size,
+                        imageRect: imageRect
+                    )
+                }
             }
             .onEnded { _ in
-                finishCanvasMagnification(in: size, imageRect: imageRect)
+                if let session = markerMagnificationSession {
+                    finishMarkerMagnification(id: session.id)
+                } else {
+                    finishCanvasMagnification(in: size, imageRect: imageRect)
+                }
             }
     }
 
@@ -927,7 +976,7 @@ struct EditorView: View {
         imageRect: CGRect,
         suppressMarkerTap: Bool = false
     ) -> some Gesture {
-        DragGesture(minimumDistance: 2)
+        DragGesture(minimumDistance: 10)
             .onChanged { value in
                 updateCanvasDrag(
                     translation: value.translation,
@@ -964,11 +1013,11 @@ struct EditorView: View {
     }
 
     private func finishCanvasDrag(suppressMarkerTap: Bool) {
+        guard didPan else { return }
         if suppressMarkerTap {
             suppressNextMarkerTap = true
             scheduleMarkerTapSuppressionClear()
         }
-        guard didPan else { return }
         lastPanOffset = panOffset
         didPan = false
         isGestureInProgress = false
@@ -1006,12 +1055,13 @@ struct EditorView: View {
 
         guard wallIsUsable, location.y >= max(0, headerHeight) else { return }
 
-        if hold(
+        if let tappedHold = hold(
             at: location,
             in: size,
             imageRect: imageRect,
             headerHeight: headerHeight
-        ) != nil {
+        ) {
+            handleMarkerTap(id: tappedHold.id)
             return
         }
 
@@ -1296,6 +1346,12 @@ struct EditorView: View {
             && wallImageState == .ready
             && wallAspectIsReady
             && !isRefreshingWallMetadata
+    }
+
+    private var emptyCanvasReadabilityTint: Color {
+        colorScheme == .dark
+            ? Color.black.opacity(0.32)
+            : Color.white.opacity(0.28)
     }
 
 

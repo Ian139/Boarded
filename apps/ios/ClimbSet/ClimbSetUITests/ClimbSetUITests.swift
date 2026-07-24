@@ -20,33 +20,82 @@ final class ClimbSetUITests: XCTestCase {
     func testFixtureLaunchRoutesDetailAndSelectors() throws {
         XCTAssertTrue(app.staticTexts["1 route"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Granite Drift"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["Sort routes"].exists)
-        XCTAssertTrue(app.buttons["Filter by grade"].exists)
-        XCTAssertTrue(app.buttons["Filter by wall"].exists)
+        let usesDirectSelectorControls = app.buttons["Newest"].exists
+        if usesDirectSelectorControls {
+            XCTAssertTrue(app.buttons["All Grades"].exists)
+            XCTAssertTrue(app.buttons["Fixture Slab"].exists)
+        } else {
+            XCTAssertTrue(app.buttons["Sort routes"].exists)
+            XCTAssertTrue(app.buttons["Filter by grade"].exists)
+            XCTAssertTrue(app.buttons["Filter by wall"].exists)
+        }
 
         app.staticTexts["Granite Drift"].tap()
-        XCTAssertTrue(app.navigationBars["Route"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Close"].exists)
-        app.buttons["Close"].tap()
-        XCTAssertTrue(app.staticTexts["1 route"].waitForExistence(timeout: 5))
+        let popup = app.otherElements["Route detail popup"]
+        XCTAssertTrue(popup.waitForExistence(timeout: 5))
 
-        let wallFilter = app.buttons["Filter by wall"]
-        XCTAssertEqual(wallFilter.value as? String, "Fixture Slab")
-        wallFilter.tap()
-        XCTAssertTrue(app.buttons["All Walls"].waitForExistence(timeout: 3))
-        app.buttons["All Walls"].tap()
-        XCTAssertEqual(wallFilter.value as? String, "All Walls")
+        let routeSections = [
+            app.descendants(matching: .any)["Route wall"],
+            app.descendants(matching: .any)["Route details"],
+            app.descendants(matching: .any)["Route stats"],
+            app.descendants(matching: .any)["Route actions row"],
+            app.descendants(matching: .any)["Comments section"]
+        ]
+        for section in routeSections {
+            XCTAssertTrue(section.waitForExistence(timeout: 5), "Missing route detail section \(section)")
+        }
+        for (upper, lower) in zip(routeSections, routeSections.dropFirst()) {
+            XCTAssertLessThan(
+                upper.frame.minY,
+                lower.frame.minY,
+                "Route detail sections must be vertically ordered."
+            )
+        }
+        XCTAssertTrue(app.buttons["Like"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Log Send"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Share"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.tabBars.buttons["Routes"].exists)
 
-        let gradeFilter = app.buttons["Filter by grade"]
-        gradeFilter.tap()
-        XCTAssertTrue(app.buttons["V4"].waitForExistence(timeout: 3))
-        app.buttons["V4"].tap()
-        XCTAssertEqual(gradeFilter.value as? String, "V4")
+        let commentsButton = app.buttons["Comments"]
+        XCTAssertTrue(commentsButton.waitForExistence(timeout: 3))
+        commentsButton.tap()
+        XCTAssertTrue(app.staticTexts["No comments yet"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.textViews["Comment"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Mark Beta"].waitForExistence(timeout: 3))
+        let postButton = app.buttons["Post"]
+        XCTAssertTrue(postButton.waitForExistence(timeout: 3))
+        XCTAssertFalse(postButton.isEnabled)
 
-        app.buttons["Sort routes"].tap()
-        XCTAssertTrue(app.buttons["Sort: Name"].waitForExistence(timeout: 3))
-        app.buttons["Sort: Name"].tap()
-        XCTAssertEqual(app.buttons["Sort routes"].value as? String, "Sort: Name")
+        XCTAssertTrue(app.buttons["Close route"].waitForExistence(timeout: 3))
+        app.buttons["Close route"].tap()
+        if usesDirectSelectorControls {
+            XCTAssertTrue(app.buttons["Routes"].waitForExistence(timeout: 5))
+        } else {
+            XCTAssertTrue(app.tabBars.buttons["Routes"].waitForExistence(timeout: 5))
+        }
+
+        if usesDirectSelectorControls {
+            app.buttons["Name"].tap()
+            XCTAssertTrue(app.staticTexts["Granite Drift"].waitForExistence(timeout: 3))
+        } else {
+            let wallFilter = app.buttons["Filter by wall"]
+            XCTAssertEqual(wallFilter.value as? String, "Fixture Slab")
+            wallFilter.tap()
+            XCTAssertTrue(app.buttons["All Walls"].waitForExistence(timeout: 3))
+            app.buttons["All Walls"].tap()
+            XCTAssertEqual(wallFilter.value as? String, "All Walls")
+
+            let gradeFilter = app.buttons["Filter by grade"]
+            gradeFilter.tap()
+            XCTAssertTrue(app.buttons["V4"].waitForExistence(timeout: 3))
+            app.buttons["V4"].tap()
+            XCTAssertEqual(gradeFilter.value as? String, "V4")
+
+            app.buttons["Sort routes"].tap()
+            XCTAssertTrue(app.buttons["Sort: Name"].waitForExistence(timeout: 3))
+            app.buttons["Sort: Name"].tap()
+            XCTAssertEqual(app.buttons["Sort routes"].value as? String, "Sort: Name")
+        }
     }
 
     func testFixtureTabsProfileSettingsAppearanceAndOrientation() throws {
@@ -220,7 +269,7 @@ final class ClimbSetUITests: XCTestCase {
         XCTAssertTrue(survivingMarker.label.hasPrefix("Hand"))
 
         // A further empty-canvas tap still defaults to Start.
-        canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75)).tap()
+        canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6)).tap()
         XCTAssertTrue((canvas.value as? String)?.contains("2 holds") == true)
 
         let addedMarker = app.descendants(matching: .any)["Editor hold 2"]
@@ -268,6 +317,19 @@ final class ClimbSetUITests: XCTestCase {
         XCTAssertTrue((canvas.value as? String)?.contains("2 holds") == true)
         XCTAssertTrue(survivingMarker.label.hasPrefix("Hand"))
 
+        // Reset returns canvas zoom to its initial value without creating a hold.
+        canvas.pinch(withScale: 1.4, velocity: 1.0)
+        guard let canvasZoomBeforeReset = zoom(from: canvas.value as? String) else {
+            return XCTFail("Canvas must expose zoom after pinch.")
+        }
+        XCTAssertGreaterThan(canvasZoomBeforeReset, initialCanvasZoom)
+        XCTAssertTrue((canvas.value as? String)?.contains("2 holds") == true)
+        let resetButton = app.buttons["Reset wall zoom"]
+        XCTAssertTrue(resetButton.waitForExistence(timeout: 3))
+        resetButton.tap()
+        XCTAssertEqual(zoom(from: canvas.value as? String), initialCanvasZoom)
+        XCTAssertTrue((canvas.value as? String)?.contains("2 holds") == true)
+
         app.buttons["Save"].tap()
         let routeNameField = app.textFields["Route name"]
         XCTAssertTrue(routeNameField.waitForExistence(timeout: 3))
@@ -278,7 +340,7 @@ final class ClimbSetUITests: XCTestCase {
         app.tabBars.buttons["Routes"].tap()
         XCTAssertTrue(app.staticTexts[routeName].waitForExistence(timeout: 10))
         app.staticTexts[routeName].tap()
-        XCTAssertTrue(app.navigationBars["Route"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.otherElements["Route detail popup"].waitForExistence(timeout: 5))
         app.buttons["Route actions"].tap()
         app.buttons["Edit Route"].tap()
 
@@ -304,7 +366,7 @@ final class ClimbSetUITests: XCTestCase {
         let updatedName = "Granite Drift Updated"
         XCTAssertTrue(app.staticTexts["1 route"].waitForExistence(timeout: 10))
         app.staticTexts["Granite Drift"].tap()
-        XCTAssertTrue(app.navigationBars["Route"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.otherElements["Route detail popup"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Granite Drift"].exists)
         app.buttons["Route actions"].tap()
         app.buttons["Edit Route"].tap()
@@ -323,7 +385,7 @@ final class ClimbSetUITests: XCTestCase {
         app.buttons.matching(identifier: "Save").element(boundBy: 1).tap()
         XCTAssertTrue(app.staticTexts[updatedName].waitForExistence(timeout: 8))
         app.staticTexts[updatedName].tap()
-        XCTAssertTrue(app.navigationBars["Route"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.otherElements["Route detail popup"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts[updatedName].exists)
         app.buttons["Route actions"].tap()
         XCTAssertTrue(app.buttons["Delete Route"].waitForExistence(timeout: 3))

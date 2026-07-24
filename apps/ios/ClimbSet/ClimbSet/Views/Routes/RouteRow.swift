@@ -18,9 +18,7 @@ struct RouteRow: View {
                 .foregroundStyle(route.gradeV == nil ? theme.secondaryText : theme.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
-                .frame(width: 46, height: 40)
-                .background(route.gradeV == nil ? theme.panelBackground : theme.primary.opacity(0.15))
-                .clipShape(Capsule())
+                .frame(width: 40, height: 44)
                 .accessibilityLabel("Grade")
                 .accessibilityValue(displayGrade)
 
@@ -116,13 +114,8 @@ struct RouteRow: View {
                 Image(systemName: (route.isLiked ?? false) ? "heart.fill" : "heart")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle((route.isLiked ?? false) ? theme.primary : theme.secondaryText)
-                    .frame(width: 40, height: 40)
-                    .background(
-                        (route.isLiked ?? false)
-                            ? theme.primary.opacity(0.15)
-                            : Color.clear
-                    )
-                    .clipShape(Circle())
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .disabled(onLike == nil)
@@ -133,13 +126,8 @@ struct RouteRow: View {
                 Image(systemName: route.ascents.isEmpty ? "checkmark.circle" : "checkmark.circle.fill")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(route.ascents.isEmpty ? theme.secondaryText : theme.secondary)
-                    .frame(width: 40, height: 40)
-                    .background(
-                        route.ascents.isEmpty
-                            ? Color.clear
-                            : theme.secondary.opacity(0.15)
-                    )
-                    .clipShape(Circle())
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .disabled(onLogClimb == nil)

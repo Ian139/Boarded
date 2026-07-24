@@ -7,6 +7,7 @@ struct SearchField: View {
 
     var body: some View {
         let theme = BoardedTheme(colorScheme: colorScheme)
+        let shape = RoundedRectangle(cornerRadius: theme.controlCornerRadius, style: .continuous)
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(theme.secondaryText)
@@ -27,11 +28,6 @@ struct SearchField: View {
         }
         .padding(.horizontal, 12)
         .frame(minHeight: 44)
-        .background(theme.panelBackground)
-        .overlay {
-            RoundedRectangle(cornerRadius: theme.controlCornerRadius, style: .continuous)
-                .stroke(theme.border, lineWidth: 1)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: theme.controlCornerRadius, style: .continuous))
+        .boardedGlassSurface(in: shape, interactive: true)
     }
 }

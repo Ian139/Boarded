@@ -1,4 +1,6 @@
 import XCTest
+import UIKit
+import SwiftUI
 @testable import ClimbSet
 #if canImport(Supabase)
 import Supabase
@@ -86,6 +88,49 @@ final class NativeContractTests: XCTestCase {
         XCTAssertEqual(marker, CGPoint(x: 100, y: 200))
         XCTAssertEqual(RouteDetailGeometry.imageRect(imageWidth: nil, imageHeight: nil, in: container), container)
         XCTAssertEqual(RouteDetailGeometry.imageRect(imageWidth: 0, imageHeight: 500, in: container), container)
+    }
+
+    func testAppColorResolvesAdaptivePaletteForDarkAndLightTraits() {
+        let darkTraits = UITraitCollection(userInterfaceStyle: .dark)
+        let lightTraits = UITraitCollection(userInterfaceStyle: .light)
+
+        assertRGB(
+            UIColor(AppColor.background).resolvedColor(with: darkTraits),
+            red: 0,
+            green: 0,
+            blue: 0
+        )
+        assertRGB(
+            UIColor(AppColor.text).resolvedColor(with: darkTraits),
+            red: 1,
+            green: 1,
+            blue: 1
+        )
+        assertRGB(
+            UIColor(AppColor.primary).resolvedColor(with: darkTraits),
+            red: 1,
+            green: 59.0 / 255.0,
+            blue: 48.0 / 255.0
+        )
+
+        assertRGB(
+            UIColor(AppColor.background).resolvedColor(with: lightTraits),
+            red: 232.0 / 255.0,
+            green: 220.0 / 255.0,
+            blue: 200.0 / 255.0
+        )
+        assertRGB(
+            UIColor(AppColor.text).resolvedColor(with: lightTraits),
+            red: 0,
+            green: 0,
+            blue: 0
+        )
+        assertRGB(
+            UIColor(AppColor.primary).resolvedColor(with: lightTraits),
+            red: 1,
+            green: 59.0 / 255.0,
+            blue: 48.0 / 255.0
+        )
     }
 
     func testEditorGeometryUsesModestInitialZoomForMismatchedAspectRatios() {
@@ -177,6 +222,29 @@ final class NativeContractTests: XCTestCase {
         XCTAssertTrue(clearing?["wall_image_height"] is NSNull)
     }
 #endif
+
+    private func assertRGB(
+        _ color: UIColor,
+        red: CGFloat,
+        green: CGFloat,
+        blue: CGFloat,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        var actualRed: CGFloat = 0
+        var actualGreen: CGFloat = 0
+        var actualBlue: CGFloat = 0
+        var actualAlpha: CGFloat = 0
+        XCTAssertTrue(
+            color.getRed(&actualRed, green: &actualGreen, blue: &actualBlue, alpha: &actualAlpha),
+            "Expected an RGB color, got \(color)",
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(actualRed, red, accuracy: 0.001, file: file, line: line)
+        XCTAssertEqual(actualGreen, green, accuracy: 0.001, file: file, line: line)
+        XCTAssertEqual(actualBlue, blue, accuracy: 0.001, file: file, line: line)
+    }
 
     private func decodeRoute(_ json: String) throws -> Route {
         try JSONDecoder().decode(Route.self, from: Data(json.utf8))

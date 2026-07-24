@@ -6,8 +6,8 @@ struct RoutesView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @EnvironmentObject var viewModel: RoutesViewModel
     @EnvironmentObject var session: AppSession
+    @EnvironmentObject var routeDetailPresenter: RouteDetailPresenter
     @StateObject private var wallsViewModel: WallsViewModel
-    @State private var selectedRoute: Route?
     @State private var sharedRouteError: String?
     @State private var loggingRoute: Route? = nil
 
@@ -45,7 +45,6 @@ struct RoutesView: View {
             }
         }
         .task(id: session.userId) {
-            selectedRoute = nil
             viewModel.resetForSessionChange()
             if session.userId == nil {
                 wallsViewModel.walls = []
@@ -58,17 +57,6 @@ struct RoutesView: View {
                let firstWall = wallsViewModel.walls.first {
                 viewModel.selectWall(id: firstWall.id)
             }
-        }
-        .sheet(item: $selectedRoute) { route in
-            RouteDetailView(
-                route: route,
-                onRouteChanged: { updatedRoute in
-                    reconcileRouteChange(updatedRoute)
-                },
-                onRouteDeleted: { routeId in
-                    reconcileRouteDeletion(routeId)
-                }
-            )
         }
         .sheet(item: $loggingRoute) { route in
             LogClimbSheet(route: route) { grade, rating, notes, flashed in
@@ -113,7 +101,7 @@ struct RoutesView: View {
             } else {
                 viewModel.routes.insert(sharedRoute, at: 0)
             }
-            selectedRoute = sharedRoute
+            presentRoute(sharedRoute)
         } catch {
             guard !Task.isCancelled else { return }
             sharedRouteError = error.localizedDescription
@@ -126,14 +114,20 @@ struct RoutesView: View {
         } else {
             viewModel.routes.insert(updatedRoute, at: 0)
         }
-        selectedRoute = updatedRoute
+    }
+    private func presentRoute(_ route: Route) {
+        routeDetailPresenter.present(
+            RouteDetailPresentation(
+                route: route,
+                routesViewModel: viewModel,
+                onRouteChanged: reconcileRouteChange,
+                onRouteDeleted: reconcileRouteDeletion
+            )
+        )
     }
 
     private func reconcileRouteDeletion(_ routeId: String) {
         viewModel.routes.removeAll { $0.id == routeId }
-        if selectedRoute?.id == routeId {
-            selectedRoute = nil
-        }
     }
 
     private var header: some View {
@@ -393,42 +387,70 @@ struct RoutesView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(Array(viewModel.filteredRoutes.enumerated()), id: \.element.id) { index, route in
-                            RouteRow(
-                                route: route,
-                                onLike: {
-                                    if let userId = session.userId {
-                                        Task { await viewModel.toggleLike(routeId: route.id, userId: userId) }
-                                    }
-                                },
-                                onLogClimb: {
-                                    if session.userId != nil {
-                                        loggingRoute = route
-                                    }
-                                }
-                            )
-                            .padding(.horizontal, theme.pagePadding)
-                            .padding(.vertical, 12)
-                            .frame(maxWidth: AppLayout.contentMaxWidth)
-                            .frame(maxWidth: .infinity)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                selectedRoute = route
-                            }
+                routesScroll
+            }
+        }
+    }
 
-                            if index < viewModel.filteredRoutes.count - 1 {
-                                theme.primaryText.opacity(0.12)
-                                    .frame(height: 1)
-                                    .padding(.leading, theme.pagePadding)
+    private var routesScrollContent: some View {
+        let theme = BoardedTheme(colorScheme: colorScheme)
+        return ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(Array(viewModel.filteredRoutes.enumerated()), id: \.element.id) { index, route in
+                    RouteRow(
+                        route: route,
+                        onLike: {
+                            if let userId = session.userId {
+                                Task { await viewModel.toggleLike(routeId: route.id, userId: userId) }
+                            }
+                        },
+                        onLogClimb: {
+                            if session.userId != nil {
+                                loggingRoute = route
                             }
                         }
+                    )
+                    .padding(.horizontal, theme.pagePadding)
+                    .padding(.vertical, 12)
+                    .frame(maxWidth: AppLayout.contentMaxWidth)
+                    .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        presentRoute(route)
                     }
-                    .safeAreaPadding(.bottom, 12)
+
+                    if index < viewModel.filteredRoutes.count - 1 {
+                        theme.primaryText.opacity(0.12)
+                            .frame(height: 1)
+                            .padding(.leading, theme.pagePadding)
+                    }
                 }
-                .background(theme.background)
             }
+            .safeAreaPadding(.bottom, 72)
+        }
+        .background(theme.background)
+    }
+
+    @ViewBuilder
+    private var routesScroll: some View {
+        if #available(iOS 26.0, *) {
+            routesScrollContent
+                .scrollEdgeEffectStyle(.soft, for: .bottom)
+        } else {
+            routesScrollContent
+                .overlay(alignment: .bottom) {
+                    Color.clear
+                        .frame(height: 56)
+                        .boardedGlassSurface(in: Rectangle())
+                        .mask {
+                            LinearGradient(
+                                colors: [.clear, .black],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        }
+                        .allowsHitTesting(false)
+                }
         }
     }
 }
@@ -438,5 +460,6 @@ struct RoutesView_Previews: PreviewProvider {
         RoutesView()
             .environmentObject(AppSession())
             .environmentObject(RoutesViewModel(repository: MockRoutesRepository()))
+            .environmentObject(RouteDetailPresenter())
     }
 }
